@@ -1,0 +1,32 @@
+<?php
+
+namespace App\Console;
+
+use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
+
+class Kernel extends ConsoleKernel
+{
+    /**
+     * Define the application's command schedule.
+     */
+    protected function schedule(Schedule $schedule): void
+    {
+        // safety net: orders not delivered within 90 min of being placed get auto-cancelled —
+        // requires the server's cron to run `php artisan schedule:run` every minute in production
+        $schedule->command('orders:cancel-stale')->everyFiveMinutes();
+
+        // proof-of-delivery photos are only kept for 3 days
+        $schedule->command('delivery-photos:prune')->daily();
+    }
+
+    /**
+     * Register the commands for the application.
+     */
+    protected function commands(): void
+    {
+        $this->load(__DIR__.'/Commands');
+
+        require base_path('routes/console.php');
+    }
+}
