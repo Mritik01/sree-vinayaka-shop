@@ -103,16 +103,16 @@
         </div>
     </div>
 
-    {{-- mobile floating filter pill --}}
-    <div class="lg:hidden fixed bottom-5 inset-x-0 z-40 flex justify-center pointer-events-none">
-        <button type="button" @click="sheetOpen = true"
-                class="pointer-events-auto flex items-center gap-2 bg-maroon-700 text-cream font-semibold text-sm pl-5 pr-4 py-3 rounded-full shadow-2xl shadow-maroon-900/40 active:scale-95 transition">
+    {{-- mobile floating filter button — small icon-only, tucked to the right so the centered
+         "View Cart" pill stays the visual focus of this row --}}
+    <div class="lg:hidden fixed bottom-20 right-5 z-40">
+        <button type="button" @click="sheetOpen = true" aria-label="{{ __('Filters') }}"
+                class="relative flex items-center justify-center w-12 h-12 rounded-full bg-maroon-700 text-cream shadow-2xl shadow-maroon-900/40 active:scale-95 transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
             </svg>
-            {{ __('Filters') }}
             <span x-show="activeCount() > 0" x-cloak
-                  class="min-w-[20px] h-5 px-1 rounded-full bg-gold-400 text-maroon-900 text-[11px] font-bold flex items-center justify-center"
+                  class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-gold-400 text-maroon-900 text-[10px] font-bold flex items-center justify-center"
                   x-text="activeCount()"></span>
         </button>
     </div>

@@ -15,7 +15,7 @@
 @endphp
 <div @dblclick="window.location.href = '{{ route('products.show', $product) }}'"
      class="h-full flex flex-col bg-white rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition duration-300 overflow-hidden cursor-pointer">
-    <div class="relative {{ $compact ? 'h-36 sm:h-48' : 'h-44 sm:h-52' }} overflow-hidden" style="background: linear-gradient(160deg, {{ $product->color }}18, {{ $product->color }}4d);">
+    <div class="relative aspect-[4/3] overflow-hidden" style="background: linear-gradient(160deg, {{ $product->color }}18, {{ $product->color }}4d);">
         <a href="{{ route('products.show', $product) }}" class="absolute inset-0 z-0" aria-label="View {{ $product->name }}">
             <img src="{{ asset($product->image) }}" alt="{{ $product->name }}" style="object-position: {{ $product->image_position ?? '50% 50%' }};"
                  class="absolute inset-0 w-full h-full object-cover transition duration-300 hover:scale-105">
@@ -72,13 +72,31 @@
                 </span>
             </p>
             <div class="flex items-center gap-2">
-                <button type="button" @click="addProductToCart({{ $product->id }}, 1, true, {{ $product->defaultPortion() ?? 'null' }})" @dblclick.stop aria-label="Add {{ $product->name }} to cart"
-                    class="w-10 h-10 rounded-xl border-2 flex items-center justify-center shrink-0 transition hover:scale-105"
-                    style="border-color: {{ $product->color }}; color: {{ $product->color }};">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.836l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.693 2.602-7.152.232-.94-.437-1.85-1.402-1.85H5.106M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
-                    </svg>
-                </button>
+                {{-- plain Add button when it's not in the cart yet --}}
+                <template x-if="cartQty({{ $product->id }}) === 0">
+                    <button type="button" @click="addProductToCart({{ $product->id }}, 1, false, {{ $product->defaultPortion() ?? 'null' }})" @dblclick.stop aria-label="Add {{ $product->name }} to cart"
+                        class="w-10 h-10 rounded-xl border-2 flex items-center justify-center shrink-0 transition hover:scale-105"
+                        style="border-color: {{ $product->color }}; color: {{ $product->color }};">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.836l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.693 2.602-7.152.232-.94-.437-1.85-1.402-1.85H5.106M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+                        </svg>
+                    </button>
+                </template>
+
+                {{-- once it's in the cart, the button becomes a "− N +" stepper so the user
+                     gets immediate, unambiguous confirmation and can adjust without leaving the grid --}}
+                <template x-if="cartQty({{ $product->id }}) > 0">
+                    <div @dblclick.stop
+                         class="animate-fab-bump flex items-center h-10 rounded-xl border-2 shrink-0 overflow-hidden"
+                         style="border-color: {{ $product->color }};">
+                        <button type="button" @click="stepCartQty({{ $product->id }}, -1)" aria-label="Decrease quantity"
+                            class="w-8 h-full flex items-center justify-center font-bold text-base hover:bg-black/5 transition" style="color: {{ $product->color }};">−</button>
+                        <span class="w-5 text-center text-sm font-bold tabular-nums" style="color: {{ $product->color }};" x-text="cartQty({{ $product->id }})"></span>
+                        <button type="button" @click="stepCartQty({{ $product->id }}, 1)" aria-label="Increase quantity"
+                            class="w-8 h-full flex items-center justify-center font-bold text-base hover:bg-black/5 transition" style="color: {{ $product->color }};">+</button>
+                    </div>
+                </template>
+
                 <button type="button" @click="orderNow({{ $product->id }}, 1, {{ $product->defaultPortion() ?? 'null' }})" @dblclick.stop
                    class="{{ $compact ? 'hidden sm:inline-block' : '' }} text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm hover:shadow-md hover:scale-105 transition transform duration-200"
                    style="background-color: {{ $product->color }}; color: {{ $onColor }};">

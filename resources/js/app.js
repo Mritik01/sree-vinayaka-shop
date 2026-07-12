@@ -269,7 +269,10 @@ window.portionLabel = function (grams) {
 // Alpine scope. Guests get the login-modal bridge, matching favorites/reviews.
 // On success it broadcasts `cart-updated` so the navbar badge stays live everywhere.
 // `portion` (grams) is only relevant for loose products — omit/null for piece products.
-window.addProductToCart = async function (productId, quantity = 1, openDrawer = true, portion = null) {
+// Adding to cart never opens the drawer by default — that's a deliberate choice so
+// browsing/adding several items in a row isn't interrupted; the drawer only opens when
+// the user explicitly taps the navbar cart icon or the mobile floating cart button.
+window.addProductToCart = async function (productId, quantity = 1, openDrawer = false, portion = null) {
     if (!window.__mbIsLoggedIn) {
         window.dispatchEvent(new CustomEvent('open-auth-modal'));
         return;
@@ -291,6 +294,28 @@ window.addProductToCart = async function (productId, quantity = 1, openDrawer = 
         if (openDrawer) Alpine.store('cart').open = true;
     }
     return data;
+};
+
+// Lets product-card buttons render as a "− N +" stepper once a product is in the cart,
+// instead of a static Add-to-Cart button with no feedback. Reads straight from the shared
+// cart store (kept live by `cart-updated`), so it's correct on every card everywhere —
+// homepage carousel, /products grid, favorites — without each needing its own cart state.
+window.cartQty = function (productId) {
+    const item = Alpine.store('cart').items.find((i) => i.id === productId);
+    return item ? item.quantity : 0;
+};
+
+window.stepCartQty = async function (productId, delta) {
+    const store = Alpine.store('cart');
+    const item = store.items.find((i) => i.id === productId);
+    if (!item) return;
+    if (delta > 0) {
+        await store.increment(item);
+    } else if (item.quantity <= 1) {
+        await store.remove(item);
+    } else {
+        await store.decrement(item);
+    }
 };
 
 // "Order Now" on a product card — jumps straight to checkout for just this one product,
@@ -394,7 +419,9 @@ window.productListing = function (isLoggedIn, initialFavorites, products, priceB
         priceBuckets: priceBuckets || [],
         filters: { categories: [], prices: [], q: '' },
         sort: 'recommended',
-        sheetOpen: false,
+        // the mobile bottom nav's "Categories" tab links here with ?open_filters=1 so the
+        // filter sheet is already open on arrival, instead of landing on a plain grid
+        sheetOpen: new URLSearchParams(window.location.search).has('open_filters'),
 
         matches(p) {
             if (this.filters.categories.length && !this.filters.categories.includes(p.category)) return false;
@@ -508,8 +535,14 @@ window.productPage = function (isLoggedIn, initialFavorited, productId, isLoose 
         },
 
         init() {
+            // tells the floating "View Cart" button (layouts/app.blade.php) to lift up and
+            // clear this page's own sticky Add-to-Cart bar once it scrolls into view
             const onScroll = () => {
-                this.showStickyBar = window.scrollY > 480;
+                const next = window.scrollY > 480;
+                if (next !== this.showStickyBar) {
+                    this.showStickyBar = next;
+                    window.dispatchEvent(new CustomEvent('sticky-bar-toggled', { detail: { visible: next } }));
+                }
             };
             window.addEventListener('scroll', onScroll, { passive: true });
             onScroll();
@@ -544,7 +577,7 @@ window.productPage = function (isLoggedIn, initialFavorited, productId, isLoose 
             }
             this.addingToCart = true;
             try {
-                const data = await window.addProductToCart(productId, this.quantity, true, this.selectedPortion);
+                const data = await window.addProductToCart(productId, this.quantity, false, this.selectedPortion);
                 if (data && data.ok) {
                     this.justAddedToCart = true;
                     setTimeout(() => { this.justAddedToCart = false; }, 2000);

@@ -26,8 +26,11 @@
             @include('partials.language-switcher')
 
             <div class="relative"
-                 x-data="{ count: {{ Auth::check() ? (int) Auth::user()->cart()->sum('quantity') : 0 }}, isLoggedIn: {{ Auth::check() ? 'true' : 'false' }} }"
-                 @cart-updated.window="count = $event.detail.count">
+                 x-data="{ count: {{ Auth::check() ? (int) Auth::user()->cart()->sum('quantity') : 0 }}, isLoggedIn: {{ Auth::check() ? 'true' : 'false' }}, bump: false }"
+                 @cart-updated.window="
+                     if ($event.detail.count > count) { bump = false; $nextTick(() => bump = true); setTimeout(() => bump = false, 500); }
+                     count = $event.detail.count;
+                 ">
                 <a href="{{ route('cart.index') }}" aria-label="View cart"
                    @click="$event.preventDefault(); isLoggedIn ? ($store.cart.open = true) : window.dispatchEvent(new CustomEvent('open-auth-modal'))"
                    class="relative w-8 h-8 sm:w-11 sm:h-11 rounded-full flex items-center justify-center hover:bg-maroon-900/5 transition">
@@ -35,7 +38,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.836l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.693 2.602-7.152.232-.94-.437-1.85-1.402-1.85H5.106M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
                     </svg>
                     <span x-show="count > 0" x-cloak x-text="count > 9 ? '9+' : count"
-                          class="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 rounded-full bg-maroon-700 text-cream text-[10px] font-bold flex items-center justify-center leading-none animate-heart-pop"></span>
+                          :class="bump && 'animate-heart-pop'"
+                          class="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 rounded-full bg-maroon-700 text-cream text-[10px] font-bold flex items-center justify-center leading-none"></span>
                 </a>
             </div>
 

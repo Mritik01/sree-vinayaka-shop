@@ -27,7 +27,7 @@
     <section class="relative pb-16">
         <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-8 sm:py-10 grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
             {{-- image column — a thumbnail rail sits left of the main photo, ready for more photos later; today there's only one real image so it shows as the single (active) thumbnail rather than faking extra ones --}}
-            <div class="animate-rise-in flex items-start gap-12" style="animation-delay: .05s">
+            <div class="animate-rise-in flex items-start gap-4 sm:gap-8 lg:gap-12" style="animation-delay: .05s">
                 <div class="hidden sm:flex flex-col gap-3 shrink-0">
                     <button type="button" aria-label="{{ $product->name }} photo" aria-current="true"
                         class="w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden border-2 border-maroon-700 shadow-sm shrink-0">
@@ -35,7 +35,7 @@
                     </button>
                 </div>
 
-                <div class="relative rounded-2xl overflow-hidden aspect-square shadow-md border border-gold-200/60 w-[438px] sm:w-[470px] md:w-[450px] shrink-0">
+                <div class="relative rounded-2xl overflow-hidden aspect-square shadow-md border border-gold-200/60 w-full sm:w-[400px] md:w-[450px] shrink-0">
                     <img src="{{ asset($product->image) }}" alt="{{ $product->name }}" style="object-position: {{ $product->image_position ?? '50% 50%' }};"
                          class="absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105">
                     @if ($product->hasDiscount())
@@ -51,7 +51,7 @@
                 <div class="animate-rise-in flex items-start justify-between gap-4" style="animation-delay: .1s">
                     <div>
                         <p class="text-xs font-semibold tracking-[0.2em] uppercase text-gold-600">{{ __($product->category) }}</p>
-                        <h1 class="font-display font-bold text-4xl sm:text-5xl text-maroon-800 mt-1 leading-tight">
+                        <h1 class="font-display font-bold text-2xl sm:text-4xl md:text-5xl text-maroon-800 mt-1 leading-tight">
                             {{ $product->name }}
                         </h1>
                     </div>
@@ -378,13 +378,13 @@
     <div x-show="showStickyBar" x-cloak
          x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-full" x-transition:enter-end="opacity-100 translate-y-0"
          x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-full"
-         class="fixed bottom-0 inset-x-0 z-40 md:hidden bg-white/95 backdrop-blur border-t border-gold-300/50 shadow-2xl px-4 py-3 flex items-center justify-between gap-3">
+         class="fixed bottom-16 inset-x-0 z-40 md:hidden bg-white/95 backdrop-blur border-t border-gold-300/50 shadow-2xl px-4 py-3 flex items-center justify-between gap-3">
         <div>
             <p class="text-[10px] text-maroon-400 uppercase tracking-wide">{{ __('Total') }}</p>
             <p class="font-display font-bold text-lg" style="color: {{ $product->color }};">₹<span x-text="quantity * unitPrice()"></span></p>
         </div>
         <button type="button" @click="addToCart()"
-           class="flex-1 text-center text-sm font-bold px-5 py-3 rounded-xl shadow"
+           class="shrink-0 text-center text-sm font-bold px-6 py-2.5 rounded-full shadow"
            style="background-color: {{ $product->color }}; color: {{ $onColor }};">
             <span x-show="!justAddedToCart">{{ __('Add to Cart') }}</span>
             <span x-show="justAddedToCart" x-cloak>{{ __('Added') }} 🛒</span>

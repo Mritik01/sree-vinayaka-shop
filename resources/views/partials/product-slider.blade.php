@@ -80,10 +80,10 @@
                 $tripled = $bucketProducts->isNotEmpty() ? $bucketProducts->concat($bucketProducts)->concat($bucketProducts) : collect();
             @endphp
             <div x-ref="track_{{ $slug }}" x-show="activeCategory === '{{ $key }}'" x-cloak
-                 class="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                 class="flex gap-3 sm:gap-6 overflow-x-auto snap-x snap-mandatory pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 @foreach ($tripled as $product)
-                    <div class="snap-start shrink-0 w-[260px] sm:w-[300px] lg:w-[320px]">
-                        @include('partials.product-card', ['product' => $product])
+                    <div class="snap-start shrink-0 w-[42vw] sm:w-[300px] lg:w-[320px]">
+                        @include('partials.product-card', ['product' => $product, 'compact' => true])
                     </div>
                 @endforeach
             </div>

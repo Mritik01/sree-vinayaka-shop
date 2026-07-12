@@ -516,6 +516,7 @@ window.visitorCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
                         y: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
@@ -536,6 +537,7 @@ window.visitorCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     cutout: '62%',
                     plugins: { legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12, padding: 14 } } },
                 },
@@ -563,6 +565,7 @@ window.customersCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     indexAxis: 'y',
                     plugins: { legend: { display: false } },
                     scales: {
@@ -585,6 +588,7 @@ window.customersCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
                         y: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
@@ -614,6 +618,7 @@ window.customerSpendChart = function (labels, values) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
                         y: { beginAtZero: true, ticks: { color: '#7a1622' }, grid: { color: 'rgba(122, 22, 34, 0.08)' } },
@@ -649,6 +654,7 @@ window.customerBehaviourCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
                         y: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
@@ -669,6 +675,7 @@ window.customerBehaviourCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     cutout: '62%',
                     plugins: { legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12, padding: 14 } } },
                 },
@@ -696,6 +703,7 @@ window.adminDashboardCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
                         y: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
@@ -719,6 +727,7 @@ window.adminDashboardCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
                         y: { beginAtZero: true, ticks: { color: tickColor }, grid: { color: gridColor } },
@@ -739,6 +748,7 @@ window.adminDashboardCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     cutout: '62%',
                     plugins: { legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12, padding: 14 } } },
                 },
@@ -757,6 +767,7 @@ window.adminDashboardCharts = function (data) {
                     }],
                 },
                 options: {
+                    maintainAspectRatio: false,
                     indexAxis: 'y',
                     plugins: { legend: { display: false } },
                     scales: {

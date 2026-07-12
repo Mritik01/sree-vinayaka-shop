@@ -225,7 +225,7 @@
     <div class="lg:sticky lg:top-6">
         <p class="text-xs font-semibold uppercase tracking-wide text-maroon-400 mb-2">👀 Live Preview</p>
         <div class="h-full flex flex-col bg-white rounded-2xl shadow-md overflow-hidden border border-gold-200/60">
-            <div x-ref="previewImageBox" class="relative h-56 overflow-hidden select-none"
+            <div x-ref="previewImageBox" class="relative aspect-[4/3] overflow-hidden select-none"
                  :class="adjustingImage ? 'ring-4 ring-inset ring-gold-400 cursor-move' : (photoPreview ? 'cursor-pointer' : '')"
                  :style="`background: linear-gradient(160deg, ${color}18, ${color}4d)`"
                  @dblclick="toggleAdjusting()"

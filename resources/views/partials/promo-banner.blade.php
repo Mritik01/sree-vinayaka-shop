@@ -71,8 +71,7 @@
                    target="_blank" rel="noopener" class="btn-gold mt-8">{{ __('Plan Your Order') }}</a>
             </div>
 
-            {{-- animated gift centerpiece — icon-based since there's no gift-box photoshoot yet;
-                 the sway + sparkles give it life so it doesn't read as a placeholder --}}
+            {{-- animated gift centerpiece --}}
             <div class="flex justify-center md:justify-end transition-all duration-700 ease-out"
                  style="transition-delay: 150ms"
                  :class="shown ? 'opacity-100 scale-100' : 'opacity-0 scale-90'">
@@ -81,7 +80,12 @@
                     <div class="pointer-events-none absolute inset-0 rounded-full bg-gold-400/20 blur-3xl scale-110"></div>
 
                     <div class="mithai-frame ring-offset-maroon-700 absolute inset-0 bg-gradient-to-br from-maroon-400/40 to-gold-500/30 backdrop-blur-sm flex items-center justify-center overflow-visible">
-                        <span class="text-9xl drop-shadow-xl animate-gift-sway inline-block">🎁</span>
+                        <div class="absolute inset-0 rounded-2xl overflow-hidden">
+                            <img src="{{ asset('images/promo/gift-box-showcase.jpg') }}"
+                                 alt="{{ __('Makhanbhog Sweets gift boxes with assorted mithai') }}"
+                                 class="w-full h-full object-cover"
+                                 loading="lazy">
+                        </div>
 
                         <template x-if="shown">
                             <div>
