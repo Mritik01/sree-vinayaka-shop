@@ -38,7 +38,14 @@
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <p class="font-display text-2xl text-maroon-800">{{ __('Order') }} #{{ $order->id }}</p>
-                    <p class="text-sm text-maroon-500 mt-1">{{ __('Placed') }} {{ $order->created_at->format('d M Y, h:i A') }} · {{ strtoupper($order->payment_method ?? 'COD') }}</p>
+                    <p class="text-sm text-maroon-500 mt-1">
+                        {{ __('Placed') }} {{ $order->created_at->format('d M Y, h:i A') }} · {{ strtoupper($order->payment_method ?? 'COD') }}
+                        @if ($order->payment_method === 'razorpay')
+                            <span class="inline-block text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border {{ ['paid' => 'bg-pista-100 text-pista-600 border-pista-400/40', 'failed' => 'bg-red-50 text-red-600 border-red-200'][$order->payment_status] ?? 'bg-gold-100 text-gold-600 border-gold-300/60' }}">
+                                {{ $order->payment_status }}
+                            </span>
+                        @endif
+                    </p>
                 </div>
                 <div class="text-right">
                     <span class="inline-block text-xs font-semibold px-2.5 py-1 rounded-full border" :class="statusBadgeClasses()" x-text="statusLabel()"></span>

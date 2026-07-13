@@ -22,6 +22,7 @@ use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderTrackingController;
 use App\Http\Controllers\PromoLeadController;
+use App\Http\Controllers\RazorpayController;
 use App\Http\Controllers\ReviewController;
 use App\Models\Product;
 use App\Models\ShopSetting;
@@ -253,6 +254,14 @@ Route::get('/checkout', [CheckoutController::class, 'show'])
 Route::post('/checkout', [CheckoutController::class, 'store'])
     ->middleware('auth')
     ->name('checkout.store');
+
+Route::post('/checkout/razorpay/verify', [RazorpayController::class, 'verify'])
+    ->middleware('auth')
+    ->name('checkout.razorpay.verify');
+
+// hit by Razorpay's servers directly, never by the browser — no session/CSRF, verified by signature instead
+Route::post('/webhooks/razorpay', [RazorpayController::class, 'webhook'])
+    ->name('webhooks.razorpay');
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');

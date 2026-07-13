@@ -10,6 +10,7 @@ use App\Services\ActivityLogger;
 use App\Services\RewardService;
 use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
+use Razorpay\Api\Api;
 
 class CheckoutController extends Controller
 {
@@ -132,6 +133,7 @@ class CheckoutController extends Controller
             'buy_now_product_id' => 'nullable|integer|exists:products,id',
             'buy_now_quantity' => 'nullable|integer|min:1|max:10',
             'buy_now_portion' => 'nullable|integer|in:'.implode(',', Product::PORTION_OPTIONS),
+            'payment_method' => 'sometimes|string|in:cod,razorpay',
         ], [
             'delivery_address.required_without' => 'Please enter your delivery address.',
             'delivery_address.min' => 'Please enter a complete delivery address.',
@@ -200,13 +202,13 @@ class CheckoutController extends Controller
             ], 429);
         }
 
-        // payment method is COD-only for now; a customer who didn't accept a previous COD
-        // order must clear this many online-payment orders before COD is available to them again
-        $paymentMethod = 'cod';
+        // a customer who didn't accept a previous COD order must pay online for this many
+        // orders before COD is available to them again
+        $paymentMethod = $data['payment_method'] ?? 'cod';
         if ($paymentMethod === 'cod' && $user->cod_blocked_orders > 0) {
             return response()->json([
                 'ok' => false,
-                'message' => "Your last COD order wasn't accepted, so online payment is required for your next {$user->cod_blocked_orders} order(s). Online payment is coming soon — please call us at 8920937331 to place this order directly.",
+                'message' => "Your last COD order wasn't accepted, so online payment is required for your next {$user->cod_blocked_orders} order(s). Please choose \"Pay Online\" at checkout.",
             ], 403);
         }
 
@@ -274,6 +276,26 @@ class CheckoutController extends Controller
             $giftProduct = $settings->rewardGiftProduct;
         }
 
+        // for online payment, open the gateway order *before* touching our own database — if
+        // Razorpay can't be reached, checkout fails cleanly instead of leaving a stray local order
+        $razorpayOrder = null;
+        if ($paymentMethod === 'razorpay') {
+            try {
+                $api = new Api(config('services.razorpay.key'), config('services.razorpay.secret'));
+                $razorpayOrder = $api->order->create([
+                    'amount' => ($subtotal - $discount) * 100,
+                    'currency' => 'INR',
+                    'receipt' => 'order_rcpt_'.$user->id.'_'.now()->timestamp,
+                    'payment_capture' => 1,
+                ]);
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'Could not start online payment right now. Please try again or choose Cash on Delivery.',
+                ], 502);
+            }
+        }
+
         // only ever save a freshly-typed address once every guard above has passed, so a
         // rejected checkout attempt never silently saves an address the customer didn't confirm
         if (empty($data['address_id']) && ($data['save_address'] ?? false)) {
@@ -301,6 +323,7 @@ class CheckoutController extends Controller
             'total' => $subtotal - $discount,
             'status' => 'pending',
             'payment_method' => $paymentMethod,
+            'razorpay_order_id' => $razorpayOrder['id'] ?? null,
             'is_gift_order' => $claimGift,
         ]);
 
@@ -348,6 +371,27 @@ class CheckoutController extends Controller
         }
 
         ActivityLogger::log('order_placed', "Order #{$order->id} — ₹".number_format($order->total));
+
+        if ($paymentMethod === 'razorpay') {
+            return response()->json([
+                'ok' => true,
+                'order_id' => $order->id,
+                'total' => $order->total,
+                'payment_method' => 'razorpay',
+                'razorpay' => [
+                    'key' => config('services.razorpay.key'),
+                    'order_id' => $razorpayOrder['id'],
+                    'amount' => $razorpayOrder['amount'],
+                    'currency' => $razorpayOrder['currency'],
+                    'name' => 'Makhanbhog Sweets',
+                    'description' => "Order #{$order->id}",
+                    'prefill' => [
+                        'name' => $data['customer_name'],
+                        'contact' => $normalizedPhone,
+                    ],
+                ],
+            ]);
+        }
 
         return response()->json([
             'ok' => true,

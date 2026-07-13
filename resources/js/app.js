@@ -819,6 +819,7 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
 
         customerName: defaultName || '',
         customerPhone: defaultPhone || '',
+        paymentMethod: 'cod',
 
         checkoutError: '',
         checkingOut: false,
@@ -1026,6 +1027,7 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                 customer_name: this.customerName.trim(),
                 customer_phone: this.customerPhone.trim(),
                 claim_gift: this.claimGift && this.reward.available > 0,
+                payment_method: this.paymentMethod,
             };
 
             if (this.buyNowProductId) {
@@ -1082,6 +1084,10 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                 const data = await res.json().catch(() => ({}));
                 if (data.ok) {
                     window.dispatchEvent(new CustomEvent('cart-updated', { detail: { count: 0 } }));
+                    if (data.payment_method === 'razorpay') {
+                        this.openRazorpay(data);
+                        return;
+                    }
                     // hand off to the live tracking page — checkingOut stays true so the
                     // button can't be clicked again while the browser navigates away
                     window.location.assign(`/orders/${data.order_id}?placed=1`);
@@ -1093,6 +1099,63 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                 this.checkoutError = 'Network error, please try again.';
                 this.checkingOut = false;
             }
+        },
+        // order already exists server-side at this point (payment_status: pending) — this just
+        // opens Razorpay's widget and, on success, verifies the signature before redirecting
+        openRazorpay(data) {
+            const csrf = document.querySelector('meta[name=csrf-token]').content;
+
+            const rzp = new window.Razorpay({
+                key: data.razorpay.key,
+                amount: data.razorpay.amount,
+                currency: data.razorpay.currency,
+                name: data.razorpay.name,
+                description: data.razorpay.description,
+                order_id: data.razorpay.order_id,
+                prefill: data.razorpay.prefill,
+                theme: { color: '#c8962e' },
+                handler: async (response) => {
+                    try {
+                        const verifyRes = await fetch('/checkout/razorpay/verify', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Accept: 'application/json',
+                                'X-CSRF-TOKEN': csrf,
+                            },
+                            body: JSON.stringify({
+                                order_id: data.order_id,
+                                razorpay_order_id: response.razorpay_order_id,
+                                razorpay_payment_id: response.razorpay_payment_id,
+                                razorpay_signature: response.razorpay_signature,
+                            }),
+                        });
+                        const verifyData = await verifyRes.json().catch(() => ({}));
+                        if (verifyData.ok) {
+                            window.location.assign(`/orders/${data.order_id}?placed=1`);
+                            return;
+                        }
+                        this.checkoutError = verifyData.message || 'Payment verification failed. If the amount was deducted, please contact support.';
+                        this.checkingOut = false;
+                    } catch (e) {
+                        this.checkoutError = 'Network error while verifying payment. If the amount was deducted, please contact support.';
+                        this.checkingOut = false;
+                    }
+                },
+                modal: {
+                    ondismiss: () => {
+                        this.checkingOut = false;
+                        this.checkoutError = 'Payment was not completed.';
+                    },
+                },
+            });
+
+            rzp.on('payment.failed', () => {
+                this.checkoutError = 'Payment failed, please try again.';
+                this.checkingOut = false;
+            });
+
+            rzp.open();
         },
     };
 };

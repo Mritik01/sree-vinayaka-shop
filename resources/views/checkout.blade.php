@@ -3,6 +3,7 @@
 @section('title', 'Checkout — Makhanbhog Sweets')
 
 @section('content')
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <section class="relative py-14 bg-ivory min-h-[70vh]">
     <div class="max-w-6xl mx-auto px-4 sm:px-6">
         <nav class="text-sm text-maroon-500 flex items-center gap-2 mb-6">
@@ -182,9 +183,20 @@
                         <span class="text-green-700">{{ __('Coupon discount') }}</span>
                         <span class="text-green-700 font-semibold">−₹<span x-text="discount()"></span></span>
                     </div>
-                    <div class="flex items-center justify-between mt-2.5 text-sm">
-                        <span class="text-maroon-500">{{ __('Payment') }}</span>
-                        <span class="text-maroon-700 font-medium">{{ __('Cash on Delivery') }}</span>
+                    <div class="mt-4">
+                        <p class="text-sm text-maroon-500 mb-2">{{ __('Payment') }}</p>
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <button type="button" @click="paymentMethod = 'cod'"
+                                    class="rounded-lg border px-3 py-2.5 text-sm font-medium text-center transition"
+                                    :class="paymentMethod === 'cod' ? 'border-gold-500 ring-2 ring-gold-300 bg-gold-50/40 text-maroon-800' : 'border-gold-200/60 text-maroon-500 hover:border-gold-400'">
+                                {{ __('Cash on Delivery') }}
+                            </button>
+                            <button type="button" @click="paymentMethod = 'razorpay'"
+                                    class="rounded-lg border px-3 py-2.5 text-sm font-medium text-center transition"
+                                    :class="paymentMethod === 'razorpay' ? 'border-gold-500 ring-2 ring-gold-300 bg-gold-50/40 text-maroon-800' : 'border-gold-200/60 text-maroon-500 hover:border-gold-400'">
+                                {{ __('Pay Online') }}
+                            </button>
+                        </div>
                     </div>
 
                     <div class="border-t border-gold-200/70 mt-4 pt-4 flex items-center justify-between">
@@ -311,12 +323,13 @@
                                 type="button"
                                 class="btn-gold w-full text-center mt-4 inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
                                 :class="checkingOut && 'cursor-wait'">
-                            <span x-text='checkingOut ? @json(__('Placing order…')) : @json(__('Place Order — Cash on Delivery'))'></span>
+                            <span x-text="checkingOut ? @json(__('Placing order…')) : (paymentMethod === 'razorpay' ? @json(__('Pay Online & Place Order')) : @json(__('Place Order — Cash on Delivery')))"></span>
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
                             </svg>
                         </button>
-                        <p class="text-xs text-maroon-400 text-center mt-3">{{ __("Pay in cash when your sweets arrive. We'll call you if we need directions.") }}</p>
+                        <p class="text-xs text-maroon-400 text-center mt-3" x-show="paymentMethod === 'cod'">{{ __("Pay in cash when your sweets arrive. We'll call you if we need directions.") }}</p>
+                        <p class="text-xs text-maroon-400 text-center mt-3" x-show="paymentMethod === 'razorpay'" x-cloak>{{ __('You\'ll be redirected to a secure Razorpay checkout to complete payment.') }}</p>
                     </div>
                     <div x-show="!$store.shop.accepting" x-cloak class="mt-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3.5 text-center">
                         🚫 {{ __('We\'re not accepting online orders right now. Please check back soon.') }}

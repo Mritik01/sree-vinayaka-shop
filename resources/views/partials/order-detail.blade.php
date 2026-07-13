@@ -221,7 +221,13 @@
                         <div class="flex justify-between"><span class="text-pista-600">{{ __('Coupon') }} ({{ $order->coupon->code ?? __('applied') }})</span><span class="text-pista-600">−₹{{ number_format($order->discount_amount) }}</span></div>
                     @endif
                     <div class="flex justify-between font-semibold text-base pt-1.5 border-t border-gold-100"><span class="text-maroon-800">{{ __('Total') }}</span><span class="text-maroon-800">₹{{ number_format($order->total) }}</span></div>
-                    <p class="text-xs text-maroon-400 pt-1">💵 {{ __('Cash on Delivery') }}</p>
+                    <p class="text-xs text-maroon-400 pt-1">
+                        @if ($order->payment_method === 'razorpay')
+                            💳 {{ __('Paid Online') }} @if ($order->payment_status !== 'paid') ({{ __('payment ' . $order->payment_status) }}) @endif
+                        @else
+                            💵 {{ __('Cash on Delivery') }}
+                        @endif
+                    </p>
                 </div>
                 <div class="px-5 py-3.5 border-t border-gold-100">
                     <a href="{{ route('orders.invoice', $order->id) }}" target="_blank"
