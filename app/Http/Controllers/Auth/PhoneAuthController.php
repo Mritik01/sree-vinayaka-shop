@@ -9,7 +9,7 @@ use App\Models\User;
 use App\Models\UserActivity;
 use App\Services\ActivityLogger;
 use App\Services\MasterCouponAssigner;
-use App\Services\TwilioVerifyOtpService;
+use App\Services\TwoFactorOtpService;
 use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,7 +23,7 @@ class PhoneAuthController extends Controller
     protected const MAX_VERIFY_ATTEMPTS = 5;
     protected const CACHE_PREFIX = 'auth-otp:';
 
-    public function sendOtp(Request $request, TwilioVerifyOtpService $otp)
+    public function sendOtp(Request $request, TwoFactorOtpService $otp)
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
@@ -85,7 +85,7 @@ class PhoneAuthController extends Controller
         ]);
     }
 
-    public function verifyOtp(Request $request, TwilioVerifyOtpService $otp)
+    public function verifyOtp(Request $request, TwoFactorOtpService $otp)
     {
         $data = $request->validate([
             'phone' => ['required', 'string'],

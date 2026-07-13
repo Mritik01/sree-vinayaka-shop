@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\OtpDeliveryException;
 use App\Models\Lead;
-use App\Services\TwilioVerifyOtpService;
+use App\Services\TwoFactorOtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +15,7 @@ class PromoLeadController extends Controller
     protected const OTP_TTL_MINUTES = 15;
     protected const MAX_VERIFY_ATTEMPTS = 5;
 
-    public function sendOtp(Request $request, TwilioVerifyOtpService $otp)
+    public function sendOtp(Request $request, TwoFactorOtpService $otp)
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
@@ -77,7 +77,7 @@ class PromoLeadController extends Controller
         ]);
     }
 
-    public function verifyOtp(Request $request, TwilioVerifyOtpService $otp)
+    public function verifyOtp(Request $request, TwoFactorOtpService $otp)
     {
         $data = $request->validate([
             'phone' => ['required', 'string'],

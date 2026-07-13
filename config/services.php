@@ -31,15 +31,14 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
-    'twilio' => [
-        'account_sid' => env('TWILIO_ACCOUNT_SID'),
-        'auth_token' => env('TWILIO_AUTH_TOKEN'),
-        'verify_service_sid' => env('TWILIO_VERIFY_SERVICE_SID'),
+    'twofactor' => [
+        'api_key' => env('TWOFACTOR_API_KEY'),
+        'template' => env('TWOFACTOR_OTP_TEMPLATE', 'OTP1'),
     ],
 
     'otp' => [
-        // While developing, skip Twilio entirely and hand the generated OTP
-        // back in the API response so it can be shown on-screen. Set to
+        // While developing, skip the SMS provider entirely and hand the generated
+        // OTP back in the API response so it can be shown on-screen. Set to
         // false (or remove the env var) before going live.
         'dev_mode' => env('OTP_DEV_MODE', false),
     ],
