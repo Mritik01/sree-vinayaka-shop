@@ -49,6 +49,7 @@ class Order extends Model
         'customer_note',
         'is_gift_order',
         'cancelled_by',
+        'cancellation_reason',
         'confirmed_at',
         'out_for_delivery_at',
         'delivered_at',

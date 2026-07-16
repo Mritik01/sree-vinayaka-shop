@@ -1299,6 +1299,7 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
         confirmingCancel: false,
         cancelling: false,
         cancelError: '',
+        cancelReason: '',
 
         init() {
             if (justPlaced) {
@@ -1414,7 +1415,12 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
                 const csrf = document.querySelector('meta[name=csrf-token]').content;
                 const res = await fetch(`/orders/${this.order.id}/cancel`, {
                     method: 'PATCH',
-                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                    },
+                    body: JSON.stringify({ reason: this.cancelReason.trim() || null }),
                 });
                 const data = await res.json().catch(() => ({}));
                 if (data.ok) {

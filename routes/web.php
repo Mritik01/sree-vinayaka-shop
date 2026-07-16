@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\FestivalSpecialController as AdminFestivalSpecialController;
 use App\Http\Controllers\Admin\LeadController as AdminLeadController;
+use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Admin\RiderController as AdminRiderController;
@@ -315,6 +316,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::get('/announcement', [AdminAnnouncementController::class, 'edit'])->name('announcement.edit');
         Route::post('/announcement', [AdminAnnouncementController::class, 'update'])->name('announcement.update');
+
+        Route::get('/notifications', [AdminNotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications/mark-read', [AdminNotificationController::class, 'markAllRead'])->name('notifications.mark-read');
+        Route::delete('/notifications/clear', [AdminNotificationController::class, 'clearAll'])->name('notifications.clear-all');
+        Route::delete('/notifications/{notification}', [AdminNotificationController::class, 'destroy'])->name('notifications.destroy');
 
         // Managing OTHER admin accounts is a step above just being logged in as an admin —
         // gated by admin.super on top of admin.auth. See EnsureSuperAdmin and CreateAdminCommand.

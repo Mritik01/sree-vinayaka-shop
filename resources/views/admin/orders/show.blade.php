@@ -351,10 +351,13 @@
 
                     <div x-show="['pending', 'confirmed', 'out_for_delivery'].includes(order.status)" x-cloak>
                         <form method="POST" action="{{ route('admin.orders.status', $order) }}" class="mt-3"
-                              onsubmit="return confirm('{{ __('Cancel order') }} {{ $order->orderNumber() }}? {{ $order->payment_method === 'cod' ? __('The customer will see it as cancelled by the shop, and their COD will be restricted for the next 2 orders.') : __('The customer will see it as cancelled by the shop.') }}');">
+                              onsubmit="if (!confirm('{{ __('Cancel order') }} {{ $order->orderNumber() }}? {{ $order->payment_method === 'cod' ? __('The customer will see it as cancelled by the shop, and their COD will be restricted for the next 2 orders.') : __('The customer will see it as cancelled by the shop.') }}')) return false;
+                                        this.querySelector('[name=cancellation_reason]').value = prompt('{{ __('Reason for cancelling (optional):') }}') || '';
+                                        return true;">
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="cancelled">
+                            <input type="hidden" name="cancellation_reason" value="">
                             <button type="submit" class="w-full bg-white border border-red-300 hover:bg-red-50 text-red-600 font-semibold rounded-xl py-2.5 transition text-sm">✕ {{ __('Cancel Order') }}</button>
                         </form>
                     </div>

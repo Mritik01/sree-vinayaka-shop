@@ -438,7 +438,8 @@ window.adminOrderShowPage = function (initialOrder, orderId, cancelledReasons) {
             return statusLabels[this.order.status] || this.order.status;
         },
         cancelledReasonText() {
-            return cancelledReasons[this.order.cancelled_by] || '';
+            const who = cancelledReasons[this.order.cancelled_by] || '';
+            return this.order.cancellation_reason ? `${who} — "${this.order.cancellation_reason}"` : who;
         },
         async poll() {
             // unlike the customer tracking page, keep polling even once delivered — a proof-of-delivery
@@ -453,6 +454,69 @@ window.adminOrderShowPage = function (initialOrder, orderId, cancelledReasons) {
             } catch (e) {
                 // offline / server hiccup — next tick will catch up
             }
+        },
+    };
+};
+
+// admin notification center — mirrors window.notificationsBell() in app.js exactly (same JSON
+// shape, same poll/mark-read/clear pattern), just pointed at the admin-guard endpoints so
+// order-cancellation alerts (and any future admin notification) show up the same way
+window.adminNotificationsBell = function () {
+    return {
+        open: false,
+        unread: 0,
+        notifications: [],
+        timer: null,
+
+        init() {
+            this.refresh();
+            this.timer = setInterval(() => this.refresh(), 15000);
+        },
+        async refresh() {
+            try {
+                const res = await fetch('/admin/notifications', { headers: { Accept: 'application/json' } });
+                if (!res.ok) return;
+                const data = await res.json();
+                this.unread = data.unread;
+                this.notifications = data.notifications;
+            } catch (e) {
+                // network hiccup — keep whatever we had, next poll will recover
+            }
+        },
+        toggle() {
+            this.open = !this.open;
+            if (this.open && this.unread > 0) this.markAllRead();
+        },
+        async markAllRead() {
+            const csrf = document.querySelector('meta[name=csrf-token]').content;
+            try {
+                await fetch('/admin/notifications/mark-read', {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                });
+                this.unread = 0;
+            } catch (e) {}
+        },
+        async clear(id) {
+            const csrf = document.querySelector('meta[name=csrf-token]').content;
+            this.notifications = this.notifications.filter((n) => n.id !== id);
+            try {
+                await fetch(`/admin/notifications/${id}`, {
+                    method: 'DELETE',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                });
+            } catch (e) {}
+        },
+        async clearAll() {
+            const csrf = document.querySelector('meta[name=csrf-token]').content;
+            this.notifications = [];
+            this.unread = 0;
+            try {
+                await fetch('/admin/notifications/clear', {
+                    method: 'DELETE',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                });
+            } catch (e) {}
         },
     };
 };

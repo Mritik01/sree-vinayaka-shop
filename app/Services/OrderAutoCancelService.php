@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Order;
+use App\Notifications\OrderCancelled;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -30,6 +31,7 @@ class OrderAutoCancelService
             $order->forceFill([
                 'status' => 'cancelled',
                 'cancelled_by' => 'system',
+                'cancellation_reason' => 'Not delivered within '.self::STALE_MINUTES.' minutes of being placed — auto-cancelled by the system.',
                 'cancelled_at' => now(),
             ])->save();
 
@@ -40,6 +42,8 @@ class OrderAutoCancelService
 
             // doubly the shop's fault if it was already paid online — refund it automatically
             RefundService::autoRefundOnCancel($order);
+
+            OrderCancelled::notifyAdmins($order);
         }
 
         return $staleOrders;

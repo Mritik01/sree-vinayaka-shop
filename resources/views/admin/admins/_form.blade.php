@@ -20,6 +20,12 @@
                class="w-full rounded-lg border border-gold-300/70 px-3.5 py-2.5 text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
     </div>
     <div>
+        <label class="block text-sm font-medium text-maroon-700 mb-1.5">Email <span class="text-maroon-400 font-normal">(optional)</span></label>
+        <input type="email" name="email" value="{{ old('email', $admin->email ?? '') }}"
+               class="w-full rounded-lg border border-gold-300/70 px-3.5 py-2.5 text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+        <p class="text-xs text-maroon-400 mt-1.5">If set, this admin also gets order-cancellation alerts by email.</p>
+    </div>
+    <div>
         <label class="block text-sm font-medium text-maroon-700 mb-1.5">
             Password @if(isset($admin)) <span class="text-maroon-400 font-normal">(leave blank to keep current)</span> @endif
         </label>

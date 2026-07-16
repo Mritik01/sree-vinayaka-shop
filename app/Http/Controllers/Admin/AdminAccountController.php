@@ -87,6 +87,7 @@ class AdminAccountController extends Controller
         return $request->validate([
             'name' => 'required|string|max:100',
             'username' => 'required|string|max:50|unique:admins,username'.($ignoreId ? ",{$ignoreId}" : ''),
+            'email' => 'nullable|email|max:255',
             'password' => ($ignoreId ? 'nullable' : 'required').'|string|min:8',
         ]);
     }

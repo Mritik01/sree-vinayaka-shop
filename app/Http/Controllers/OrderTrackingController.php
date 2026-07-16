@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Notifications\OrderCancelled;
 use App\Services\ActivityLogger;
 use App\Services\RefundService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -81,11 +82,16 @@ class OrderTrackingController extends Controller
             return response()->json(['ok' => false, 'message' => $message], 422);
         }
 
+        $data = $request->validate([
+            'reason' => 'nullable|string|max:255',
+        ]);
+
         // a customer cancelling their own order intentionally does NOT set the COD restriction —
         // that penalty only applies when the ADMIN cancels (customer didn't accept delivery)
         $order->forceFill([
             'status' => 'cancelled',
             'cancelled_by' => 'customer',
+            'cancellation_reason' => trim($data['reason'] ?? '') ?: null,
             'cancelled_at' => now(),
         ])->save();
 
@@ -94,6 +100,8 @@ class OrderTrackingController extends Controller
         // already paid online? refund it in full automatically — the customer shouldn't have
         // to ask for money the shop never actually earned
         RefundService::autoRefundOnCancel($order);
+
+        OrderCancelled::notifyAdmins($order);
 
         return response()->json(['ok' => true, 'order' => $this->payload($order)]);
     }

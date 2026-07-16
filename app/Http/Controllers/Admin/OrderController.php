@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Rider;
 use App\Models\SupportMessage;
+use App\Notifications\OrderCancelled;
 use App\Services\OrderAutoCancelService;
 use App\Services\RefundService;
 use App\Services\RewardService;
@@ -203,6 +204,7 @@ class OrderController extends Controller
             'payment_method' => strtoupper($order->payment_method ?? 'COD'),
             'payment_status' => $order->payment_status,
             'cancelled_by' => $order->cancelled_by,
+            'cancellation_reason' => $order->cancellation_reason,
             'rider_name' => $order->rider->name ?? null,
             'placed_at' => $order->created_at->format('h:i A'),
             'confirmed_at' => $order->confirmed_at?->format('h:i A'),
@@ -256,6 +258,7 @@ class OrderController extends Controller
         $data = $request->validate([
             'status' => 'required|in:'.implode(',', Order::STATUSES),
             'eta_minutes' => 'nullable|integer|min:5|max:240',
+            'cancellation_reason' => 'nullable|string|max:255',
         ]);
 
         // delivered/cancelled are terminal — a stale "New Order" popup (or a second admin tab)
@@ -300,6 +303,7 @@ class OrderController extends Controller
 
         if ($data['status'] === 'cancelled' && !$wasCancelled) {
             $order->cancelled_by = 'admin';
+            $order->cancellation_reason = trim($data['cancellation_reason'] ?? '') ?: null;
         }
         if (!empty($data['eta_minutes'])) {
             $order->eta_minutes = $data['eta_minutes'];
@@ -324,6 +328,11 @@ class OrderController extends Controller
             if ($order->refund_status !== 'none') {
                 $statusMessage .= ' ₹'.number_format($order->refunded_amount).' refunded automatically.';
             }
+
+            // every admin gets the alert, including whoever just clicked cancel — with more than
+            // one admin account, the others need to know too, and it's a no-op nuisance at worst
+            // for the one who already knows (it just confirms in their own notification center)
+            OrderCancelled::notifyAdmins($order);
         }
 
         // advance the customer's reward-stamp progress the moment an order first lands as delivered

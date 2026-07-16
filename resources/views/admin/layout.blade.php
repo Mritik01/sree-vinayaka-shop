@@ -83,6 +83,59 @@
                 <h1 class="font-display text-xl text-maroon-800">@yield('page-title', __('Dashboard'))</h1>
 
                 <div class="flex items-center gap-1">
+                {{-- persistent notification center (order cancellations, etc.) — stays until marked read --}}
+                <div class="relative" x-data="adminNotificationsBell()" @click.outside="open = false">
+                    <button @click="toggle()" type="button" aria-label="Notifications" :aria-expanded="open"
+                            class="relative p-2 rounded-full hover:bg-cream transition text-maroon-700">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.7">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                        </svg>
+                        <span x-show="unread > 0" x-cloak x-text="unread > 9 ? '9+' : unread"
+                              class="absolute top-0 right-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center leading-none animate-heart-pop"></span>
+                    </button>
+
+                    <div x-show="open" x-cloak
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0 scale-95 -translate-y-2"
+                         x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100 scale-100"
+                         x-transition:leave-end="opacity-0 scale-95 -translate-y-2"
+                         class="absolute right-0 mt-3 w-80 max-w-[calc(100vw-2rem)] rounded-2xl shadow-2xl border border-gold-300/50 bg-ivory overflow-hidden origin-top-right z-40">
+                        <div class="bg-gradient-to-br from-maroon-800 to-maroon-600 px-5 py-3.5 flex items-center justify-between">
+                            <p class="text-cream font-display font-bold text-sm">🔔 Notifications</p>
+                            <div class="flex items-center gap-2.5">
+                                <span x-show="unread > 0" x-cloak class="text-[10px] font-bold bg-gold-400 text-maroon-900 rounded-full px-2 py-0.5" x-text="`${unread} new`"></span>
+                                <button x-show="notifications.length > 0" x-cloak type="button" @click="clearAll()"
+                                        class="text-[11px] font-medium text-cream/70 hover:text-cream underline underline-offset-2 transition">
+                                    Clear all
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="max-h-80 overflow-y-auto divide-y divide-gold-100">
+                            <template x-for="n in notifications" :key="n.id">
+                                <div class="group px-4 py-3 transition-colors duration-500 flex items-start gap-2" :class="!n.read && 'bg-gold-50'">
+                                    <div class="min-w-0 flex-1" :class="n.url && 'cursor-pointer'" @click="n.url && (window.location.href = n.url)">
+                                        <div class="flex items-start justify-between gap-2">
+                                            <p class="text-sm font-semibold text-maroon-800" x-text="n.title"></p>
+                                            <span class="text-[10px] text-maroon-400 shrink-0 mt-0.5 whitespace-nowrap" x-text="n.time"></span>
+                                        </div>
+                                        <p class="text-xs text-maroon-600 mt-1 whitespace-pre-line" x-text="n.message"></p>
+                                    </div>
+                                    <button type="button" @click="clear(n.id)" aria-label="Clear notification"
+                                            class="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-maroon-300 hover:text-maroon-700 hover:bg-gold-100 transition text-sm leading-none">✕</button>
+                                </div>
+                            </template>
+
+                            <div x-show="notifications.length === 0" class="px-4 py-8 text-center">
+                                <p class="text-2xl mb-1">🔕</p>
+                                <p class="text-xs text-maroon-400">No notifications yet</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {{-- live support-chat shortcut --}}
                 <a href="{{ route('admin.support.index') }}" aria-label="Support chat"
                    class="relative p-2 rounded-full hover:bg-cream transition text-maroon-700">
