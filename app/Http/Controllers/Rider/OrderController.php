@@ -44,12 +44,14 @@ class OrderController extends Controller
 
         return $orders->map(fn ($order) => [
             'id' => $order->id,
+            'order_number' => $order->orderNumber(),
             'customer_name' => $order->customer_name,
             'delivery_address' => $order->delivery_address,
             'items_count' => $order->items->count(),
             'total' => (int) $order->total,
             'status' => $order->status,
             'payment_method' => strtoupper($order->payment_method ?? 'COD'),
+            'payment_status' => $order->payment_status,
         ])->values()->all();
     }
 
@@ -71,13 +73,13 @@ class OrderController extends Controller
         ]);
 
         if (!in_array($order->status, self::QUEUE_STATUSES)) {
-            return back()->with('status', "Order #{$order->id} is no longer in the active delivery queue.");
+            return back()->with('status', "Order {$order->orderNumber()} is no longer in the active delivery queue.");
         }
 
         // one step at a time — confirmed -> out_for_delivery -> delivered, never skip ahead
         $allowedNext = ['confirmed' => 'out_for_delivery', 'out_for_delivery' => 'delivered'];
         if ($allowedNext[$order->status] !== $data['status']) {
-            return back()->with('status', "Order #{$order->id} can't jump to that status from here.");
+            return back()->with('status', "Order {$order->orderNumber()} can't jump to that status from here.");
         }
 
         $wasDelivered = $order->status === 'delivered';
@@ -90,7 +92,7 @@ class OrderController extends Controller
             RewardService::recordDelivery($order->user);
         }
 
-        return redirect()->route('rider.orders.show', $order)->with('status', 'Order #'.$order->id.' marked '.str_replace('_', ' ', $order->status).'.');
+        return redirect()->route('rider.orders.show', $order)->with('status', 'Order '.$order->orderNumber().' marked '.str_replace('_', ' ', $order->status).'.');
     }
 
     public function uploadPhoto(Request $request, Order $order)
@@ -112,6 +114,6 @@ class OrderController extends Controller
         $order->delivery_photo_uploaded_at = now();
         $order->save();
 
-        return redirect()->route('rider.orders.show', $order)->with('status', 'Photo attached to order #'.$order->id.'.');
+        return redirect()->route('rider.orders.show', $order)->with('status', 'Photo attached to order '.$order->orderNumber().'.');
     }
 }

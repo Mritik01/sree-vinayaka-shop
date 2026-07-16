@@ -1,6 +1,6 @@
 @extends('rider.layout')
 
-@section('title', __('Order #') . $order->id)
+@section('title', $order->orderNumber())
 
 @section('content')
     @php
@@ -11,9 +11,32 @@
 
     <a href="{{ route('rider.orders.index') }}" class="text-sm text-maroon-500 hover:text-maroon-700 transition">← {{ __('Back to Deliveries') }}</a>
 
+    @php
+        $isPaidOnline = $order->payment_method === 'razorpay' && $order->payment_status === 'paid';
+        $isUnpaidOnline = $order->payment_method === 'razorpay' && $order->payment_status !== 'paid';
+    @endphp
+
+    {{-- payment mode — the single most important thing a rider needs to know before handing over the order --}}
+    <div class="rounded-2xl border-2 p-4 mt-3 flex items-center gap-3
+        {{ $isUnpaidOnline ? 'bg-red-50 border-red-300' : ($isPaidOnline ? 'bg-pista-100 border-pista-400' : 'bg-gold-50 border-gold-400') }}">
+        <span class="text-3xl shrink-0">{{ $isUnpaidOnline ? '⚠️' : ($isPaidOnline ? '✅' : '💵') }}</span>
+        <div class="min-w-0">
+            @if ($isUnpaidOnline)
+                <p class="font-display font-bold text-red-700">{{ __('Payment Not Confirmed') }}</p>
+                <p class="text-xs text-red-600 mt-0.5">{{ __('Check with the shop before handing over this order.') }}</p>
+            @elseif ($isPaidOnline)
+                <p class="font-display font-bold text-pista-600">{{ __('Paid Online') }}</p>
+                <p class="text-xs text-pista-600/80 mt-0.5">{{ __('No cash to collect from the customer.') }}</p>
+            @else
+                <p class="font-display font-bold text-gold-600">{{ __('Cash on Delivery') }}</p>
+                <p class="text-xs text-gold-600/80 mt-0.5">{{ __('Collect') }} ₹{{ number_format($order->total) }} {{ __('from the customer.') }}</p>
+            @endif
+        </div>
+    </div>
+
     <div class="bg-white rounded-2xl border border-gold-200/60 p-5 mt-3">
         <div class="flex items-start justify-between gap-3">
-            <p class="font-display text-lg text-maroon-800">{{ __('Order #') }}{{ $order->id }}</p>
+            <p class="font-display text-lg text-maroon-800">{{ $order->orderNumber() }}</p>
             <x-admin.status-badge :status="$order->status" />
         </div>
 
@@ -55,7 +78,7 @@
                 @endforeach
             </div>
             <div class="flex items-center justify-between mt-3 pt-3 border-t border-gold-100 font-semibold">
-                <span class="text-maroon-800">{{ __('Total') }} ({{ strtoupper($order->payment_method ?? 'COD') }})</span>
+                <span class="text-maroon-800">{{ __('Total') }}</span>
                 <span class="text-maroon-800">₹{{ number_format($order->total) }}</span>
             </div>
         </div>
@@ -85,7 +108,7 @@
         <p class="font-display text-maroon-800 mb-3">📸 {{ __('Delivery Photo') }}</p>
 
         @if ($order->delivery_photo_path)
-            <img src="{{ asset($order->delivery_photo_path) }}" alt="Delivery proof for order #{{ $order->id }}" class="w-full rounded-xl border border-gold-200/60">
+            <img src="{{ asset($order->delivery_photo_path) }}" alt="Delivery proof for order {{ $order->orderNumber() }}" class="w-full rounded-xl border border-gold-200/60">
             <p class="text-xs text-maroon-400 mt-2">{{ __('Uploaded') }} {{ $order->delivery_photo_uploaded_at?->format('d M, h:i A') }} — {{ __('will auto-remove after 3 days.') }}</p>
         @else
             <p class="text-xs text-maroon-400 mb-3">{{ __('Take a photo at the doorstep as delivery proof.') }}</p>

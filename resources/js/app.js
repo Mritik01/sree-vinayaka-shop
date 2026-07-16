@@ -876,6 +876,10 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                     this.appliedFromAvailable = this.availableCoupons.find((c) => c.code === data.coupon.code) || null;
                     this.availableCoupons = this.availableCoupons.filter((c) => c.code !== data.coupon.code);
                     this.fireConfetti();
+                } else if (res.status === 419) {
+                    // Laravel's own "CSRF token mismatch" (session expired) — never show that
+                    // raw framework text to a customer, give them something they can act on
+                    this.couponError = 'Your session has expired. Please refresh the page and try again.';
                 } else {
                     this.couponError = data.message || 'Could not apply this coupon.';
                 }
@@ -1093,7 +1097,13 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                     window.location.assign(`/orders/${data.order_id}?placed=1`);
                     return;
                 }
-                this.checkoutError = data.message || (data.errors ? Object.values(data.errors)[0][0] : 'Could not place the order, please try again.');
+                if (res.status === 419) {
+                    // session expired mid-checkout — nothing was charged yet at this point
+                    // (order/payment only happen after this call succeeds), so a refresh is safe
+                    this.checkoutError = 'Your session has expired. Please refresh the page and try again.';
+                } else {
+                    this.checkoutError = data.message || (data.errors ? Object.values(data.errors)[0][0] : 'Could not place the order, please try again.');
+                }
                 this.checkingOut = false;
             } catch (e) {
                 this.checkoutError = 'Network error, please try again.';
@@ -1135,7 +1145,13 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                             window.location.assign(`/orders/${data.order_id}?placed=1`);
                             return;
                         }
-                        this.checkoutError = verifyData.message || 'Payment verification failed. If the amount was deducted, please contact support.';
+                        if (verifyRes.status === 419) {
+                            // session expired at the worst possible moment — the payment itself may
+                            // already be captured by Razorpay, so this must not read as "try again"
+                            this.checkoutError = `Your session expired while confirming this payment. If the amount was deducted, it will be verified automatically — please check your Orders page shortly, or contact support with reference ${response.razorpay_payment_id}.`;
+                        } else {
+                            this.checkoutError = verifyData.message || 'Payment verification failed. If the amount was deducted, please contact support.';
+                        }
                         this.checkingOut = false;
                     } catch (e) {
                         this.checkoutError = 'Network error while verifying payment. If the amount was deducted, please contact support.';
@@ -1206,6 +1222,18 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
             if (!this.order.eta_ends_at) return null;
             const mins = Math.ceil((this.order.eta_ends_at - this.now) / 60000);
             return mins > 1 ? `in ~${mins} min` : 'any moment now';
+        },
+        // hides the Cancel Order section the instant the window closes, rather than waiting up
+        // to 5s for the next status poll to bring back an updated can_cancel from the server
+        // (which remains the actual source of truth — see OrderTrackingController::cancel())
+        cancelVisible() {
+            return this.order.can_cancel
+                && (!this.order.cancel_window_ends_at || this.now < this.order.cancel_window_ends_at);
+        },
+        cancelCountdownText() {
+            if (!this.order.cancel_window_ends_at) return null;
+            const mins = Math.ceil((this.order.cancel_window_ends_at - this.now) / 60000);
+            return mins > 1 ? `You can cancel for ${mins} more minutes` : 'Less than a minute left to cancel';
         },
 
         async poll() {
@@ -1290,6 +1318,196 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
             } finally {
                 this.cancelling = false;
             }
+        },
+    };
+};
+
+// soft two-note pop for an incoming support reply — quieter and shorter than the admin
+// panel's order chime, since the customer may be in a public place
+function playChatPing() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = ctx.currentTime;
+        [[740, 0], [988, 0.12]].forEach(([freq, delay]) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.0001, now + delay);
+            gain.gain.exponentialRampToValueAtTime(0.12, now + delay + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.35);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + delay);
+            osc.stop(now + delay + 0.4);
+        });
+    } catch (e) {
+        // audio blocked before first user interaction — nothing else to do
+    }
+}
+
+// per-order support chat — launcher FAB + chat window on the order detail view. Polling-based
+// (like every other live feature here): 3s while the window is open, every ~4th tick while
+// closed just to keep the unread badge honest.
+window.supportChat = function (orderId, autoOpen = false) {
+    return {
+        open: false,
+        messages: [],
+        draft: '',
+        sending: false,
+        sendError: '',
+        unread: 0,
+        loaded: false,
+        lastId: 0,
+        tick: 0,
+        pendingImage: null,
+        pendingImagePreview: null,
+
+        init() {
+            this.fetchMessages();
+            this.$el._chatTimer = setInterval(() => {
+                this.tick += 1;
+                if (this.open || this.tick % 4 === 0) this.fetchMessages();
+            }, 3000);
+            // arrived from the notification bell's "admin replied" link — jump straight in
+            if (autoOpen) {
+                this.openChat();
+                // strip ?chat=1 so refreshing/reopening the page doesn't reopen it every time
+                window.history.replaceState(null, '', `/orders/${orderId}`);
+            }
+        },
+        // fired by Alpine both on normal page nav and by the account page's
+        // teardownOrderPanel() (Alpine.destroyTree) when switching orders inline
+        destroy() {
+            clearInterval(this.$el._chatTimer);
+            this.unlockScroll();
+            this.clearPendingImage();
+        },
+
+        openChat() {
+            this.open = true;
+            this.unread = 0;
+            this.lockScroll();
+            this.fetchMessages();
+            this.$nextTick(() => {
+                this.scrollToBottom(true);
+                // only auto-focus where there's no on-screen keyboard to shove the layout around
+                if (window.innerWidth >= 640) this.$refs.chatInput?.focus();
+            });
+        },
+        closeChat() {
+            this.open = false;
+            this.unlockScroll();
+        },
+        // the window is a full-screen sheet on phones — the page behind it must not scroll
+        lockScroll() {
+            if (window.innerWidth < 640) document.documentElement.style.overflow = 'hidden';
+        },
+        unlockScroll() {
+            document.documentElement.style.overflow = '';
+        },
+
+        async fetchMessages() {
+            try {
+                const url = new URL(`/orders/${orderId}/support`, window.location.origin);
+                url.searchParams.set('after', this.lastId);
+                // only an on-screen chat counts as "read" — the background badge poll must not
+                if (this.open && !document.hidden) url.searchParams.set('read', 1);
+                const res = await fetch(url, { headers: { Accept: 'application/json' } });
+                if (!res.ok) return;
+                const data = await res.json().catch(() => ({}));
+                if (!data.ok) return;
+                const incoming = (data.messages || []).filter((m) => m.id > this.lastId);
+                if (incoming.length) {
+                    this.appendMessages(incoming);
+                    if (this.open && incoming.some((m) => m.sender === 'admin')) {
+                        playChatPing();
+                        this.$nextTick(() => this.scrollToBottom());
+                    }
+                }
+                this.unread = this.open ? 0 : data.unread;
+                this.loaded = true;
+            } catch (e) {
+                // offline / server hiccup — next tick will catch up
+            }
+        },
+        appendMessages(list) {
+            list.forEach((m) => {
+                const prev = this.messages[this.messages.length - 1];
+                m.showDay = !prev || prev.day !== m.day;
+                this.messages.push(m);
+                this.lastId = Math.max(this.lastId, m.id);
+            });
+        },
+
+        // triggered by the paperclip/camera button's hidden <input type=file> — plain
+        // accept="image/*" (no `capture` attribute) so mobile browsers offer BOTH "Take Photo"
+        // and "Choose from Library" rather than forcing the camera
+        onImageSelected(event) {
+            const file = event.target.files[0];
+            event.target.value = '';
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                this.sendError = 'Please choose an image file.';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                this.sendError = 'That image is too large — please pick one under 5MB.';
+                return;
+            }
+            this.sendError = '';
+            this.clearPendingImage();
+            this.pendingImage = file;
+            this.pendingImagePreview = URL.createObjectURL(file);
+        },
+        clearPendingImage() {
+            if (this.pendingImagePreview) URL.revokeObjectURL(this.pendingImagePreview);
+            this.pendingImage = null;
+            this.pendingImagePreview = null;
+        },
+
+        async send(preset = null) {
+            const text = (preset ?? this.draft).trim();
+            const image = preset === null ? this.pendingImage : null;
+            if ((!text && !image) || this.sending) return;
+            this.sending = true;
+            this.sendError = '';
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const body = new FormData();
+                body.append('message', text);
+                if (image) body.append('image', image);
+                const res = await fetch(`/orders/${orderId}/support`, {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body,
+                });
+                if (res.status === 419) {
+                    this.sendError = 'Your session expired — please refresh the page and try again.';
+                    return;
+                }
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) {
+                    this.appendMessages([data.message]);
+                    this.draft = '';
+                    this.clearPendingImage();
+                    this.$nextTick(() => this.scrollToBottom(true));
+                } else {
+                    this.sendError = data.message || "Couldn't send — please try again.";
+                }
+            } catch (e) {
+                this.sendError = 'Network error — please try again.';
+            } finally {
+                this.sending = false;
+            }
+        },
+
+        // stick to the bottom on new activity, but never yank the view while the customer is
+        // scrolled up re-reading older messages (unless it's their own message going out)
+        scrollToBottom(force = false) {
+            const el = this.$refs.chatThread;
+            if (!el) return;
+            const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+            if (force || nearBottom) el.scrollTop = el.scrollHeight;
         },
     };
 };

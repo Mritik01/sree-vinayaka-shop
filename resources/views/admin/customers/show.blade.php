@@ -140,7 +140,7 @@
                             <tbody>
                                 @foreach ($orders as $order)
                                     <tr class="border-b border-gold-50 last:border-0 hover:bg-cream/50 transition cursor-pointer" onclick="window.location='{{ route('admin.orders.show', $order) }}'">
-                                        <td class="px-5 py-3 text-maroon-800 font-medium">#{{ $order->id }}</td>
+                                        <td class="px-5 py-3 text-maroon-800 font-medium">{{ $order->orderNumber() }}</td>
                                         <td class="px-5 py-3 text-maroon-500">{{ $order->items->count() }}</td>
                                         <td class="px-5 py-3 text-maroon-800 font-medium">₹{{ number_format($order->total) }}</td>
                                         <td class="px-5 py-3"><x-admin.status-badge :status="$order->status" /></td>

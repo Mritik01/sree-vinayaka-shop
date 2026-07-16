@@ -30,7 +30,10 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="antialiased pb-16 lg:pb-0">
+{{-- pb-32 (not pb-16) — the bottom nav alone is only 4rem tall, but the floating "View Cart"
+     pill rests higher still (bottom-20 + its own height), so content needs clearance for both
+     or the page's last few pixels (e.g. the footer's copyright line) end up hidden under it --}}
+<body class="antialiased pb-32 lg:pb-0">
     <div x-data="{ authOpen: false }" @open-auth-modal.window="authOpen = true">
         @include('partials.navbar')
         @include('partials.auth-modal')
@@ -51,7 +54,10 @@
              once that page's own sticky "Add to Cart" bar scrolls into view, it smoothly lifts
              to sit just above it instead — see the `sticky-bar-toggled` event productPage()
              dispatches in app.js. --}}
+        {{-- pointless on the cart page itself, and on checkout it just covers the form fields
+             (see screenshot report) — both pages already have their own clear path forward --}}
         @auth
+            @unless (request()->routeIs('cart.index') || request()->routeIs('checkout.show'))
             <div x-data="{
                      count: {{ (int) Auth::user()->cart()->sum('quantity') }},
                      previewImages: (window.__mbCartItems || []).slice(-2).reverse().map(i => i.image),
@@ -104,6 +110,7 @@
                     </span>
                 </button>
             </div>
+            @endunless
         @endauth
 
         @include('partials.bottom-nav')

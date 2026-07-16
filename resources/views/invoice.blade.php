@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Invoice — Order #{{ $order->id }}</title>
+    <title>Invoice — {{ $order->orderNumber() }}</title>
     <style>
         body { font-family: 'Helvetica', 'Arial', sans-serif; color: #3a1212; font-size: 12px; margin: 0; padding: 0; }
         .header-table { width: 100%; border-bottom: 3px solid #b8860b; padding-bottom: 14px; margin-bottom: 20px; }
@@ -41,7 +41,7 @@
             <td style="width: 40%; vertical-align: top;">
                 <p class="invoice-title">INVOICE</p>
                 <p class="invoice-meta">
-                    Order #{{ $order->id }}<br>
+                    {{ $order->orderNumber() }}<br>
                     {{ $order->created_at->format('d M Y, h:i A') }}<br>
                     <span class="status-pill">{{ str_replace('_', ' ', ucfirst($order->status)) }}</span>
                 </p>

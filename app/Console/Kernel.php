@@ -18,6 +18,9 @@ class Kernel extends ConsoleKernel
 
         // proof-of-delivery photos are only kept for 3 days
         $schedule->command('delivery-photos:prune')->daily();
+
+        // support-chat photo attachments are only kept for 2 days
+        $schedule->command('support-chat-images:prune')->daily();
     }
 
     /**

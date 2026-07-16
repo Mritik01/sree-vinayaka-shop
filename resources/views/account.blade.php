@@ -229,7 +229,7 @@
                                         <div @click="viewOrder({{ $order->id }})" class="block bg-white rounded-2xl border border-gold-200/60 shadow-sm overflow-hidden hover:border-gold-400 hover:shadow-md transition group cursor-pointer">
                                             <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-gold-100 bg-cream/50">
                                                 <div>
-                                                    <p class="font-display text-maroon-800 group-hover:text-gold-600 transition">Order #{{ $order->id }}</p>
+                                                    <p class="font-display text-maroon-800 group-hover:text-gold-600 transition">{{ $order->orderNumber() }}</p>
                                                     <p class="text-xs text-maroon-400 mt-0.5">{{ $order->created_at->format('d M Y, h:i A') }} · {{ $order->payment_method === 'razorpay' ? __('Paid Online') : __('Cash on Delivery') }}</p>
                                                 </div>
                                                 <div class="flex items-center gap-2">

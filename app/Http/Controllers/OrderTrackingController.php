@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Services\ActivityLogger;
+use App\Services\RefundService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
@@ -17,6 +18,9 @@ class OrderTrackingController extends Controller
             'order' => $order,
             'orderForJs' => $this->payload($order),
             'justPlaced' => $request->boolean('placed'),
+            // set when arriving from the notification bell's "admin replied" link, so the
+            // customer lands straight in the conversation instead of having to find the button
+            'autoOpenChat' => $request->boolean('chat'),
         ]);
     }
 
@@ -38,6 +42,7 @@ class OrderTrackingController extends Controller
             'order' => $order,
             'orderForJs' => $this->payload($order),
             'justPlaced' => false,
+            'autoOpenChat' => false,
         ]);
     }
 
@@ -66,12 +71,14 @@ class OrderTrackingController extends Controller
         $order = $request->user()->orders()->findOrFail($orderId);
 
         if (!$order->isCustomerCancellable()) {
-            return response()->json([
-                'ok' => false,
-                'message' => $order->status === 'out_for_delivery'
-                    ? "Your order is already on its way, so it can't be cancelled now. You can refuse it at the door if needed."
-                    : 'This order can no longer be cancelled.',
-            ], 422);
+            $message = match (true) {
+                $order->status === 'out_for_delivery' => "Your order is already on its way, so it can't be cancelled now. You can refuse it at the door if needed.",
+                in_array($order->status, Order::CUSTOMER_CANCELLABLE_STATUSES) =>
+                    'The '.Order::CUSTOMER_CANCEL_WINDOW_MINUTES.'-minute cancellation window has passed — the shop may already be preparing your order. Please call 8920937331 if you still need to cancel.',
+                default => 'This order can no longer be cancelled.',
+            };
+
+            return response()->json(['ok' => false, 'message' => $message], 422);
         }
 
         // a customer cancelling their own order intentionally does NOT set the COD restriction —
@@ -82,7 +89,11 @@ class OrderTrackingController extends Controller
             'cancelled_at' => now(),
         ])->save();
 
-        ActivityLogger::log('order_cancelled', "Order #{$order->id} cancelled by customer");
+        ActivityLogger::log('order_cancelled', "Order {$order->orderNumber()} cancelled by customer");
+
+        // already paid online? refund it in full automatically — the customer shouldn't have
+        // to ask for money the shop never actually earned
+        RefundService::autoRefundOnCancel($order);
 
         return response()->json(['ok' => true, 'order' => $this->payload($order)]);
     }
@@ -93,13 +104,14 @@ class OrderTrackingController extends Controller
 
         $pdf = Pdf::loadView('invoice', ['order' => $order]);
 
-        return $pdf->download("invoice-order-{$order->id}.pdf");
+        return $pdf->download("invoice-{$order->orderNumber()}.pdf");
     }
 
     private function payload(Order $order): array
     {
         return [
             'id' => $order->id,
+            'order_number' => $order->orderNumber(),
             'status' => $order->status,
             'eta_minutes' => $order->eta_minutes,
             // unix ms the delivery was promised for; the client counts down against it
@@ -109,6 +121,9 @@ class OrderTrackingController extends Controller
             'customer_note' => $order->customer_note,
             'cancelled_by' => $order->cancelled_by,
             'can_cancel' => $order->isCustomerCancellable(),
+            // unix ms the self-cancel window closes; the client counts down against it so the
+            // button can disappear the instant it expires, not just on the next 5s poll
+            'cancel_window_ends_at' => $order->cancelWindowEndsAt(),
             'placed_at' => $order->created_at->format('d M, h:i A'),
             'confirmed_at' => $order->confirmed_at?->format('h:i A'),
             'out_for_delivery_at' => $order->out_for_delivery_at?->format('h:i A'),

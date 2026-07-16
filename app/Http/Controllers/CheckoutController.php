@@ -358,7 +358,7 @@ class CheckoutController extends Controller
             // simultaneous checkout requests can never both decrement past zero
             User::where('id', $user->id)->where('free_gifts_available', '>', 0)->decrement('free_gifts_available');
 
-            ActivityLogger::log('gift_claimed', "Order #{$order->id} claimed free gift: {$giftProduct->name}");
+            ActivityLogger::log('gift_claimed', "Order {$order->orderNumber()} claimed free gift: {$giftProduct->name}");
         }
 
         // clear the cart; the coupon redemption record itself stays intact as proof of usage.
@@ -370,7 +370,7 @@ class CheckoutController extends Controller
             $user->forceFill(['applied_coupon_id' => null])->save();
         }
 
-        ActivityLogger::log('order_placed', "Order #{$order->id} — ₹".number_format($order->total));
+        ActivityLogger::log('order_placed', "Order {$order->orderNumber()} — ₹".number_format($order->total));
 
         if ($paymentMethod === 'razorpay') {
             return response()->json([
@@ -384,7 +384,7 @@ class CheckoutController extends Controller
                     'amount' => $razorpayOrder['amount'],
                     'currency' => $razorpayOrder['currency'],
                     'name' => 'Makhanbhog Sweets',
-                    'description' => "Order #{$order->id}",
+                    'description' => $order->orderNumber(),
                     'prefill' => [
                         'name' => $data['customer_name'],
                         'contact' => $normalizedPhone,

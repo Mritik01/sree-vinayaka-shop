@@ -7,6 +7,7 @@
     @php
         $ordersForJs = collect($orders->items())->map(fn ($order) => [
             'id' => $order->id,
+            'order_number' => $order->orderNumber(),
             'customer_name' => $order->customer_name,
             'customer_phone' => $order->customer_phone,
             'items_count' => $order->items->count(),
@@ -81,7 +82,7 @@
                             :class="order._new && 'bg-gold-50'"
                             @click="window.location = `/admin/orders/${order.id}`">
                             <td class="px-5 py-3 text-maroon-800 font-medium">
-                                #<span x-text="order.id"></span>
+                                <span x-text="order.order_number"></span>
                                 <span x-show="order._new" x-cloak class="ml-1.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-gold-500 text-white animate-pulse">{{ __('New') }}</span>
                                 <span x-show="order.is_gift_order" x-cloak class="ml-1.5 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-gradient-to-r from-pink-500 to-gold-500 text-white" title="Free gift claimed">🎁 {{ __('Gift') }}</span>
                             </td>
@@ -91,7 +92,12 @@
                             </td>
                             <td class="px-5 py-3 text-maroon-500" x-text="order.items_count"></td>
                             <td class="px-5 py-3 text-maroon-500" x-text="order.coupon_code || '—'"></td>
-                            <td class="px-5 py-3 text-maroon-800 font-medium">₹<span x-text="order.total.toLocaleString('en-IN')"></span></td>
+                            <td class="px-5 py-3 text-maroon-800 font-medium">
+                                ₹<span x-text="order.total.toLocaleString('en-IN')"></span>
+                                <span class="block mt-1 text-[10px] font-bold px-1.5 py-0.5 rounded w-fit"
+                                      :class="order.payment_method === 'COD' ? 'bg-gold-100 text-gold-600' : (order.payment_status === 'paid' ? 'bg-pista-100 text-pista-600' : 'bg-red-100 text-red-700')"
+                                      x-text="order.payment_method === 'COD' ? '💵 COD' : (order.payment_status === 'paid' ? '✓ PAID' : '⚠ UNPAID')"></span>
+                            </td>
                             <td class="px-5 py-3">
                                 <span class="inline-block text-xs font-semibold px-2.5 py-1 rounded-full border" :class="statusBadgeClasses(order.status)" x-text="statusLabel(order.status)"></span>
                                 <span x-show="etaText(order)" x-cloak class="block font-mono text-[10px] tabular-nums mt-1" :class="isOverdue(order) ? 'text-red-500 font-semibold' : 'text-maroon-400'" x-text="(isOverdue(order) ? '⚠️ ' : '⏱️ ') + etaText(order)"></span>

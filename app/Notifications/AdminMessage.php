@@ -12,6 +12,7 @@ class AdminMessage extends Notification
     public function __construct(
         public string $title,
         public string $message,
+        public ?string $url = null,
     ) {
     }
 
@@ -25,6 +26,7 @@ class AdminMessage extends Notification
         return [
             'title' => $this->title,
             'message' => $this->message,
+            'url' => $this->url,
         ];
     }
 }

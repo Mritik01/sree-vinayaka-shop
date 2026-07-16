@@ -25,6 +25,8 @@
                     $navItems = [
                         ['route' => 'admin.dashboard', 'label' => __('Dashboard'), 'icon' => '📊'],
                         ['route' => 'admin.orders.index', 'label' => __('Orders'), 'icon' => '🧾'],
+                        ['route' => 'admin.support.index', 'label' => __('Support Chat'), 'icon' => '💬', 'badge' => 'supportUnread'],
+                        ['route' => 'admin.transactions.index', 'label' => __('Transactions'), 'icon' => '💳'],
                         ['route' => 'admin.customers.index', 'label' => __('Customers'), 'icon' => '👥'],
                         ['route' => 'admin.visitors.index', 'label' => __('Visitors'), 'icon' => '🌐'],
                         ['route' => 'admin.products.index', 'label' => __('Products'), 'icon' => '🍬'],
@@ -40,6 +42,11 @@
                        class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg transition {{ request()->routeIs($item['route'].'*') ? 'bg-gold-500 text-maroon-900 font-semibold' : 'text-cream/80 hover:bg-cream/10 hover:text-cream' }}">
                         <span>{{ $item['icon'] }}</span>
                         <span>{{ $item['label'] }}</span>
+                        @if (!empty($item['badge']))
+                            <span x-show="{{ $item['badge'] }} > 0" x-cloak
+                                  class="ml-auto min-w-[20px] h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
+                                  x-text="{{ $item['badge'] }} > 9 ? '9+' : {{ $item['badge'] }}"></span>
+                        @endif
                     </a>
                 @endforeach
             </nav>
@@ -68,6 +75,19 @@
             <header class="sticky top-0 z-30 bg-white border-b border-gold-200/60 px-8 py-4 flex items-center justify-between">
                 <h1 class="font-display text-xl text-maroon-800">@yield('page-title', __('Dashboard'))</h1>
 
+                <div class="flex items-center gap-1">
+                {{-- live support-chat shortcut --}}
+                <a href="{{ route('admin.support.index') }}" aria-label="Support chat"
+                   class="relative p-2 rounded-full hover:bg-cream transition text-maroon-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.7">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+                    </svg>
+                    <span x-show="supportUnread > 0" x-cloak
+                          x-transition:enter="transition ease-out duration-300" x-transition:enter-start="scale-0" x-transition:enter-end="scale-100"
+                          class="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
+                          x-text="supportUnread > 9 ? '9+' : supportUnread"></span>
+                </a>
+
                 {{-- live new-order bell --}}
                 <button @click="openOrders()" type="button" aria-label="New orders"
                         class="relative p-2 rounded-full hover:bg-cream transition text-maroon-700">
@@ -79,6 +99,7 @@
                           class="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
                           x-text="pendingCount > 9 ? '9+' : pendingCount"></span>
                 </button>
+                </div>
             </header>
 
             {{-- new order popup: plays a chime for 10s and asks admin to accept/reject --}}
@@ -159,8 +180,32 @@
                 </template>
             </div>
 
-            {{-- auto-cancel warnings: orders the shop failed to deliver within 90 min, self-cancelled --}}
+            {{-- top-right toast stack: support-chat messages + auto-cancel warnings share one
+                 container so simultaneous toasts stack instead of overlapping --}}
             <div class="fixed top-4 right-4 z-[80] space-y-2.5 w-full max-w-sm px-4 sm:px-0">
+                {{-- a customer wrote in — ping + slide-in card linking to the thread --}}
+                <template x-for="toast in supportToasts" :key="toast._key">
+                    <a :href="`/admin/support/${toast.order_id}`"
+                       class="block bg-white border-2 border-gold-400 rounded-xl shadow-xl p-4 hover:bg-cream/60 transition"
+                       x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-6" x-transition:enter-end="opacity-100 translate-x-0"
+                       x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+                        <div class="flex items-start gap-3">
+                            <span class="text-xl shrink-0">💬</span>
+                            <div class="min-w-0 flex-1">
+                                <p class="font-display font-semibold text-maroon-800 text-sm">
+                                    <span x-text="toast.customer_name"></span>
+                                    <span class="text-maroon-400 font-normal text-xs" x-text="toast.order_number"></span>
+                                </p>
+                                <p class="text-xs text-maroon-600 mt-0.5 truncate" x-text="toast.snippet"></p>
+                                <p class="text-xs font-semibold text-gold-600 mt-1.5">{{ __('Reply') }} →</p>
+                            </div>
+                            <button type="button" @click.prevent.stop="supportToasts = supportToasts.filter((t) => t._key !== toast._key)"
+                                    class="shrink-0 text-maroon-300 hover:text-maroon-600 transition text-lg leading-none">✕</button>
+                        </div>
+                    </a>
+                </template>
+
+                {{-- auto-cancel warnings: orders the shop failed to deliver within 90 min, self-cancelled --}}
                 <template x-for="warning in autoCancelWarnings" :key="warning._key">
                     <div class="bg-white border-2 border-red-300 rounded-xl shadow-xl p-4 flex items-start gap-3"
                          x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-6" x-transition:enter-end="opacity-100 translate-x-0"
@@ -169,7 +214,7 @@
                         <div class="min-w-0 flex-1">
                             <p class="font-display font-semibold text-red-700 text-sm">{{ __('Order auto-cancelled') }}</p>
                             <p class="text-xs text-maroon-600 mt-0.5">
-                                {{ __('Order') }} #<span x-text="warning.id"></span> (<span x-text="warning.customer_name"></span>, ₹<span x-text="warning.total"></span>)
+                                <span x-text="warning.order_number"></span> (<span x-text="warning.customer_name"></span>, ₹<span x-text="warning.total"></span>)
                                 {{ __("wasn't delivered within 90 minutes and was cancelled automatically.") }}
                             </p>
                             <a :href="`/admin/orders/${warning.id}`" class="text-xs font-semibold text-gold-600 hover:text-gold-700 underline underline-offset-2 mt-1.5 inline-block">{{ __('View order') }} →</a>

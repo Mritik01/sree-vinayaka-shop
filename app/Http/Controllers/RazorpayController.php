@@ -47,9 +47,10 @@ class RazorpayController extends Controller
             'payment_status' => 'paid',
             'razorpay_payment_id' => $data['razorpay_payment_id'],
             'razorpay_signature' => $data['razorpay_signature'],
+            'paid_at' => now(),
         ])->save();
 
-        ActivityLogger::log('payment_captured', "Order #{$order->id} — ₹".number_format($order->total));
+        ActivityLogger::log('payment_captured', "Order {$order->orderNumber()} — ₹".number_format($order->total));
 
         return response()->json(['ok' => true, 'order_id' => $order->id]);
     }
@@ -91,9 +92,10 @@ class RazorpayController extends Controller
             $order->forceFill([
                 'payment_status' => 'paid',
                 'razorpay_payment_id' => $payment['id'] ?? $order->razorpay_payment_id,
+                'paid_at' => now(),
             ])->save();
 
-            ActivityLogger::log('payment_captured', "Order #{$order->id} — ₹".number_format($order->total));
+            ActivityLogger::log('payment_captured', "Order {$order->orderNumber()} — ₹".number_format($order->total));
         } elseif ($event === 'payment.failed') {
             $order->forceFill(['payment_status' => 'failed'])->save();
         }

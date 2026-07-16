@@ -45,6 +45,29 @@ function playOrderChime() {
     }
 }
 
+// softer, shorter two-note pop for an incoming support-chat message — distinct from the
+// insistent new-order chime so the admin can tell them apart by ear
+function playChatPing() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = ctx.currentTime;
+        [[740, 0], [988, 0.12]].forEach(([freq, delay]) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.0001, now + delay);
+            gain.gain.exponentialRampToValueAtTime(0.2, now + delay + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.4);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + delay);
+            osc.stop(now + delay + 0.45);
+        });
+    } catch (e) {
+        // audio blocked before first user interaction — nothing else to do
+    }
+}
+
 window.adminNotifier = function (initialLatestId, isOrdersIndex) {
     return {
         lastSeen: initialLatestId,
@@ -57,6 +80,15 @@ window.adminNotifier = function (initialLatestId, isOrdersIndex) {
         soundInterval: null,
         soundStopTimer: null,
         autoCancelWarnings: [],
+        supportUnread: 0,
+        supportToasts: [],
+        // null until the first poll so a page load never replays a chime/toast for a message
+        // that arrived while no admin page was open
+        lastSupportId: null,
+        // orders already offered for Accept/Reject — tracked separately from lastSeen so a
+        // razorpay order (queued only once payment actually clears, which can be several poll
+        // ticks after it first appears) is never queued for the popup twice
+        poppedIds: new Set(),
 
         init() {
             this.poll();
@@ -71,6 +103,25 @@ window.adminNotifier = function (initialLatestId, isOrdersIndex) {
                 const data = await res.json();
                 this.pendingCount = data.pending_count;
                 this.since = data.server_now;
+
+                if (data.support) {
+                    this.supportUnread = data.support.unread;
+                    if (this.lastSupportId === null) {
+                        this.lastSupportId = data.support.latest_id;
+                    } else if (data.support.latest_id > this.lastSupportId) {
+                        this.lastSupportId = data.support.latest_id;
+                        // the open thread page announces itself via this flag — no ping/toast
+                        // for a conversation the admin is literally looking at
+                        if (data.support.latest && data.support.latest.order_id !== window.__activeSupportOrderId) {
+                            playChatPing();
+                            const key = Date.now() + Math.random();
+                            this.supportToasts.push({ ...data.support.latest, _key: key });
+                            setTimeout(() => {
+                                this.supportToasts = this.supportToasts.filter((t) => t._key !== key);
+                            }, 12000);
+                        }
+                    }
+                }
 
                 if (data.auto_cancelled && data.auto_cancelled.length) {
                     data.auto_cancelled.forEach((order) => {
@@ -92,10 +143,15 @@ window.adminNotifier = function (initialLatestId, isOrdersIndex) {
                     // whether that's a freshly-placed order or a rider-driven status change
                     window.dispatchEvent(new CustomEvent('admin-orders-changed', { detail: { orders: data.orders, newIds } }));
 
-                    // the accept/reject popup only makes sense for orders still awaiting a decision —
-                    // one that arrived and was auto-cancelled within the same gap (e.g. admin was away
-                    // for hours) shouldn't prompt Accept/Reject on an already-closed order
-                    this.queue.push(...data.orders.filter((o) => o.status === 'pending' && newIds.includes(o.id)));
+                    // a razorpay order row exists the instant "Pay Online" is clicked — well before
+                    // the customer actually completes payment (or abandons/fails it). It must not
+                    // prompt Accept/Reject until payment_status confirms paid, which can arrive
+                    // several poll ticks after the order first appears (hence poppedIds, separate
+                    // from the lastSeen watermark). COD orders are actionable immediately as before.
+                    const actionable = (o) => o.status === 'pending' && (o.payment_method !== 'RAZORPAY' || o.payment_status === 'paid');
+                    this.queue.push(...data.orders.filter((o) => actionable(o) && !this.poppedIds.has(o.id)));
+                    data.orders.filter(actionable).forEach((o) => this.poppedIds.add(o.id));
+
                     this.lastSeen = Math.max(this.lastSeen, ...data.orders.map((o) => o.id));
                     if (!this.activeOrder) this.showNext();
                 }
@@ -359,6 +415,12 @@ window.adminOrderShowPage = function (initialOrder, orderId, cancelledReasons) {
         },
         stepState(step) {
             if (this.order.status === 'cancelled') return step === 1 ? 'done' : 'todo';
+            // an order still awaiting Razorpay confirmation isn't actually progressing toward
+            // "Confirmed" — the real next step is the payment clearing, not the shop acting, so
+            // don't highlight "Confirmed" as if it's already next in line
+            if (this.order.status === 'pending' && this.order.payment_method === 'RAZORPAY' && this.order.payment_status !== 'paid') {
+                return step === 1 ? 'done' : 'todo';
+            }
             const r = this.rank();
             if (step <= r) return 'done';
             if (step === r + 1) return 'active';
@@ -776,6 +838,153 @@ window.adminDashboardCharts = function (data) {
                     },
                 },
             });
+        },
+    };
+};
+
+// support inbox — server-rendered rows swapped for fresh JSON every few seconds so unread
+// badges / previews / ordering stay live while the admin sits on the page
+window.adminSupportInbox = function (initialConversations) {
+    return {
+        conversations: initialConversations || [],
+
+        init() {
+            this.$el._inboxTimer = setInterval(() => this.refresh(), 5000);
+        },
+        destroy() {
+            clearInterval(this.$el._inboxTimer);
+        },
+        async refresh() {
+            try {
+                const res = await fetch('/admin/support', { headers: { Accept: 'application/json' } });
+                if (!res.ok) return;
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) this.conversations = data.conversations;
+            } catch (e) {
+                // offline / server restarting — try again next tick
+            }
+        },
+    };
+};
+
+// one order's support thread — 3s id-cursor poll; keeping it open marks the customer's
+// messages read server-side, which is also what clears the sidebar/inbox unread badges
+window.adminSupportThread = function (orderId, initialMessages) {
+    return {
+        messages: [],
+        draft: '',
+        sending: false,
+        sendError: '',
+        lastId: 0,
+        pendingImage: null,
+        pendingImagePreview: null,
+
+        init() {
+            this.appendMessages(initialMessages || []);
+            // tells adminNotifier's global poll not to ping/toast for THIS conversation
+            window.__activeSupportOrderId = orderId;
+            this.$nextTick(() => this.scrollToBottom(true));
+            this.$el._threadTimer = setInterval(() => this.poll(), 3000);
+        },
+        destroy() {
+            clearInterval(this.$el._threadTimer);
+            if (window.__activeSupportOrderId === orderId) window.__activeSupportOrderId = null;
+            this.clearPendingImage();
+        },
+
+        async poll() {
+            try {
+                const url = new URL(`/admin/support/${orderId}/messages`, window.location.origin);
+                url.searchParams.set('after', this.lastId);
+                const res = await fetch(url, { headers: { Accept: 'application/json' } });
+                if (!res.ok) return;
+                const data = await res.json().catch(() => ({}));
+                if (!data.ok) return;
+                const incoming = (data.messages || []).filter((m) => m.id > this.lastId);
+                if (incoming.length) {
+                    this.appendMessages(incoming);
+                    if (incoming.some((m) => m.sender === 'customer')) {
+                        playChatPing();
+                        this.$nextTick(() => this.scrollToBottom());
+                    }
+                }
+            } catch (e) {
+                // offline / server hiccup — next tick will catch up
+            }
+        },
+        appendMessages(list) {
+            list.forEach((m) => {
+                const prev = this.messages[this.messages.length - 1];
+                m.showDay = !prev || prev.day !== m.day;
+                this.messages.push(m);
+                this.lastId = Math.max(this.lastId, m.id);
+            });
+        },
+
+        // plain accept="image/*" (no `capture`) so a phone/tablet admin gets both "Take Photo"
+        // and "Choose from Library" instead of being forced straight into the camera
+        onImageSelected(event) {
+            const file = event.target.files[0];
+            event.target.value = '';
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                this.sendError = 'Please choose an image file.';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                this.sendError = 'That image is too large — please pick one under 5MB.';
+                return;
+            }
+            this.sendError = '';
+            this.clearPendingImage();
+            this.pendingImage = file;
+            this.pendingImagePreview = URL.createObjectURL(file);
+        },
+        clearPendingImage() {
+            if (this.pendingImagePreview) URL.revokeObjectURL(this.pendingImagePreview);
+            this.pendingImage = null;
+            this.pendingImagePreview = null;
+        },
+
+        async send() {
+            const text = this.draft.trim();
+            if ((!text && !this.pendingImage) || this.sending) return;
+            this.sending = true;
+            this.sendError = '';
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const body = new FormData();
+                body.append('message', text);
+                if (this.pendingImage) body.append('image', this.pendingImage);
+                const res = await fetch(`/admin/support/${orderId}/messages`, {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body,
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) {
+                    this.appendMessages([data.message]);
+                    this.draft = '';
+                    this.clearPendingImage();
+                    this.$nextTick(() => this.scrollToBottom(true));
+                    this.$refs.threadInput?.focus();
+                } else {
+                    this.sendError = data.message || "Couldn't send — please try again.";
+                }
+            } catch (e) {
+                this.sendError = 'Network error — please try again.';
+            } finally {
+                this.sending = false;
+            }
+        },
+
+        // stick to the bottom on new activity, but never yank the view while the admin is
+        // scrolled up re-reading history (unless it's their own reply going out)
+        scrollToBottom(force = false) {
+            const el = this.$refs.thread;
+            if (!el) return;
+            const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+            if (force || nearBottom) el.scrollTop = el.scrollHeight;
         },
     };
 };

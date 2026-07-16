@@ -6,10 +6,13 @@ use App\Http\Controllers\Admin\Concerns\PaginatesAdminLists;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\Rider;
+use App\Models\SupportMessage;
 use App\Services\OrderAutoCancelService;
+use App\Services\RefundService;
 use App\Services\RewardService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
@@ -34,9 +37,16 @@ class OrderController extends Controller
                     ->orWhere('customer_phone', 'like', "%{$search}%")
                     ->orWhere('delivery_address', 'like', "%{$search}%");
 
-                // "#42" or "42" also matches the order id directly
+                // "#42" or "42" also matches the order id directly, and so does its
+                // "MKB-2026-000042" order number or "TXID00000042" transaction id
                 if (($id = (int) ltrim($search, '#')) > 0) {
                     $q->orWhere('id', $id);
+                }
+                if (($orderNumberId = Order::idFromOrderNumber($search)) !== null) {
+                    $q->orWhere('id', $orderNumberId);
+                }
+                if (($transactionOrderId = Order::idFromTransactionId($search)) !== null) {
+                    $q->orWhere('id', $transactionOrderId);
                 }
             });
         }
@@ -64,12 +74,15 @@ class OrderController extends Controller
     {
         return [
             'id' => $order->id,
+            'order_number' => $order->orderNumber(),
             'customer_name' => $order->customer_name,
             'customer_phone' => $order->customer_phone,
             'items_count' => $order->items->count(),
             'coupon_code' => $order->coupon->code ?? null,
             'total' => (int) $order->total,
             'status' => $order->status,
+            'payment_method' => strtoupper($order->payment_method ?? 'COD'),
+            'payment_status' => $order->payment_status,
             'is_gift_order' => $order->is_gift_order,
             'created_at' => $order->created_at->format('d M, h:i A'),
             // unix ms the delivery was promised for; the client counts down against it,
@@ -95,23 +108,50 @@ class OrderController extends Controller
             : now()->subSeconds(10);
         $changedOrders = Order::with(['items', 'coupon'])->where('updated_at', '>=', $since)->orderBy('id')->get();
 
+        // a razorpay order row exists in the DB the instant "Pay Online" is clicked, well before
+        // the customer actually completes payment (or abandons/fails it) — it must not count as
+        // "needs your attention" until payment_status actually confirms as paid. COD needs no such
+        // gate, since there's no payment step to wait on.
+        $actionable = fn ($q) => $q->where(function ($q2) {
+            $q2->where('payment_method', '!=', 'razorpay')->orWhere('payment_status', 'paid');
+        });
+
+        // support-chat heartbeat, piggybacked on this same poll so a customer message chimes
+        // on whichever admin page is open — latest_id is the client's watermark for "new
+        // message arrived", latest carries just enough to render the toast without a 2nd fetch
+        $latestCustomerMessage = SupportMessage::where('sender', 'customer')->latest('id')->with('order')->first();
+
         return response()->json([
             'server_now' => now()->valueOf(),
             'latest_id' => (int) (Order::max('id') ?? 0),
-            'pending_count' => Order::where('status', 'pending')->count(),
+            'pending_count' => $actionable(Order::where('status', 'pending'))->count(),
+            'support' => [
+                'unread' => SupportMessage::where('sender', 'customer')->whereNull('read_at')->count(),
+                'latest_id' => (int) ($latestCustomerMessage->id ?? 0),
+                'latest' => $latestCustomerMessage ? [
+                    'order_id' => $latestCustomerMessage->order_id,
+                    'order_number' => $latestCustomerMessage->order->orderNumber(),
+                    'customer_name' => $latestCustomerMessage->order->customer_name,
+                    'snippet' => $latestCustomerMessage->message !== '' ? Str::limit($latestCustomerMessage->message, 80) : '📷 Photo',
+                ] : null,
+            ],
             'auto_cancelled' => $autoCancelled->map(fn ($order) => [
                 'id' => $order->id,
+                'order_number' => $order->orderNumber(),
                 'customer_name' => $order->customer_name,
                 'total' => (int) $order->total,
             ])->values(),
             'orders' => $changedOrders->map(fn ($order) => [
                 'id' => $order->id,
+                'order_number' => $order->orderNumber(),
                 'customer_name' => $order->customer_name,
                 'customer_phone' => $order->customer_phone,
                 'delivery_address' => $order->delivery_address,
                 'distance_km' => $order->distance_km !== null ? number_format($order->distance_km, 1) : null,
                 'total' => (int) $order->total,
                 'status' => $order->status,
+                'payment_method' => strtoupper($order->payment_method ?? 'COD'),
+                'payment_status' => $order->payment_status,
                 'coupon_code' => $order->coupon->code ?? null,
                 'items_count' => $order->items->count(),
                 'is_gift_order' => $order->is_gift_order,
@@ -158,7 +198,10 @@ class OrderController extends Controller
     {
         return [
             'id' => $order->id,
+            'order_number' => $order->orderNumber(),
             'status' => $order->status,
+            'payment_method' => strtoupper($order->payment_method ?? 'COD'),
+            'payment_status' => $order->payment_status,
             'cancelled_by' => $order->cancelled_by,
             'rider_name' => $order->rider->name ?? null,
             'placed_at' => $order->created_at->format('h:i A'),
@@ -187,8 +230,25 @@ class OrderController extends Controller
         $rider = $order->rider_id ? Rider::find($order->rider_id) : null;
 
         return back()->with('status', $rider
-            ? "Order #{$order->id} assigned to {$rider->name}."
-            : "Order #{$order->id} unassigned.");
+            ? "Order {$order->orderNumber()} assigned to {$rider->name}."
+            : "Order {$order->orderNumber()} unassigned.");
+    }
+
+    // initiates a real refund through Razorpay against the payment already captured for this
+    // order — partial refunds accumulate (refunded_amount) until the full total is reached
+    public function refund(Request $request, Order $order)
+    {
+        if (!$order->isRefundable()) {
+            return back()->with('status', "Order {$order->orderNumber()} has nothing left to refund.");
+        }
+
+        $data = $request->validate([
+            'amount' => ['nullable', 'integer', 'min:1', 'max:'.$order->refundableAmount()],
+        ]);
+
+        $result = RefundService::refund($order, $data['amount'] ?? null);
+
+        return back()->with('status', $result['message']);
     }
 
     public function updateStatus(Request $request, Order $order)
@@ -202,10 +262,34 @@ class OrderController extends Controller
         // must never resurrect a closed order, e.g. re-confirming one the customer already cancelled
         if (in_array($order->status, ['delivered', 'cancelled']) && $order->status !== $data['status']) {
             $label = $order->status === 'delivered' ? 'delivered' : 'cancelled';
-            $message = "Order #{$order->id} is already {$label} — its status was not changed.";
+            $message = "Order {$order->orderNumber()} is already {$label} — its status was not changed.";
 
             if ($request->wantsJson()) {
                 return response()->json(['ok' => false, 'message' => $message], 409);
+            }
+
+            return back()->with('status', $message);
+        }
+
+        // a rider has to be assigned before an order can head out — otherwise "out for delivery"
+        // means nobody is actually carrying it
+        if ($data['status'] === 'out_for_delivery' && $order->status !== 'out_for_delivery' && !$order->rider_id) {
+            $message = "Order {$order->orderNumber()} needs a rider assigned before it can go out for delivery.";
+
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'message' => $message], 422);
+            }
+
+            return back()->with('status', $message);
+        }
+
+        // a razorpay order can't be confirmed until Razorpay actually confirms the payment —
+        // the row exists the instant "Pay Online" is clicked, well before that happens
+        if ($data['status'] === 'confirmed' && $order->status !== 'confirmed' && $order->payment_method === 'razorpay' && $order->payment_status !== 'paid') {
+            $message = "Order {$order->orderNumber()} can't be confirmed yet — Razorpay hasn't confirmed the payment.";
+
+            if ($request->wantsJson()) {
+                return response()->json(['ok' => false, 'message' => $message], 422);
             }
 
             return back()->with('status', $message);
@@ -231,6 +315,17 @@ class OrderController extends Controller
             $order->user->forceFill(['cod_blocked_orders' => self::COD_BLOCK_STRIKES])->save();
         }
 
+        // an order that was already paid online gets refunded in full the moment it's cancelled —
+        // customers shouldn't have to notice/ask for money the shop never actually earned
+        $statusMessage = 'Order status updated.';
+        if (!$wasCancelled && $order->status === 'cancelled') {
+            RefundService::autoRefundOnCancel($order);
+            $order->refresh();
+            if ($order->refund_status !== 'none') {
+                $statusMessage .= ' ₹'.number_format($order->refunded_amount).' refunded automatically.';
+            }
+        }
+
         // advance the customer's reward-stamp progress the moment an order first lands as delivered
         if (!$wasDelivered && $order->status === 'delivered' && $order->user) {
             RewardService::recordDelivery($order->user);
@@ -240,6 +335,6 @@ class OrderController extends Controller
             return response()->json(['ok' => true, 'status' => $order->status]);
         }
 
-        return back()->with('status', 'Order status updated.');
+        return back()->with('status', $statusMessage);
     }
 }

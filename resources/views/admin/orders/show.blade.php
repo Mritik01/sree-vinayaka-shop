@@ -1,7 +1,7 @@
 @extends('admin.layout')
 
-@section('title', 'Order #' . $order->id)
-@section('page-title', __('Order') . ' #' . $order->id)
+@section('title', $order->orderNumber())
+@section('page-title', $order->orderNumber())
 
 @section('content')
     @php
@@ -33,19 +33,93 @@
             <p class="font-semibold text-sm">{{ __("This order was auto-cancelled — it wasn't delivered within 90 minutes of being placed. No COD restriction was applied to the customer.") }}</p>
         </div>
 
+        @php
+            $isPaidOnline = $order->payment_method === 'razorpay' && $order->payment_status === 'paid';
+            $isUnpaidOnline = $order->payment_method === 'razorpay' && $order->payment_status !== 'paid';
+        @endphp
+
+        {{-- payment mode — the single most important thing to know before confirming or dispatching this order --}}
+        <div class="rounded-2xl border-2 p-4 flex items-center justify-between gap-3 flex-wrap shadow-sm animate-fade-up
+            {{ $isUnpaidOnline ? 'bg-red-50 border-red-300' : ($isPaidOnline ? 'bg-pista-100 border-pista-400' : 'bg-gold-50 border-gold-400') }}">
+            <div class="flex items-center gap-3 min-w-0">
+                <span class="text-3xl shrink-0">{{ $isUnpaidOnline ? '⚠️' : ($isPaidOnline ? '✅' : '💵') }}</span>
+                <div class="min-w-0">
+                    @if ($isUnpaidOnline)
+                        <p class="font-display font-bold text-red-700">{{ __('Payment Not Confirmed') }}</p>
+                        <p class="text-xs text-red-600 mt-0.5">{{ __('Razorpay has not confirmed this payment yet — do not dispatch until it clears.') }}</p>
+                    @elseif ($isPaidOnline)
+                        <p class="font-display font-bold text-pista-600">{{ __('Paid Online') }}</p>
+                        <p class="text-xs text-pista-600/80 mt-0.5">{{ __('No cash to collect — already paid via Razorpay.') }}</p>
+                    @else
+                        <p class="font-display font-bold text-gold-600">{{ __('Cash on Delivery') }}</p>
+                        <p class="text-xs text-gold-600/80 mt-0.5">{{ __('Rider must collect') }} ₹{{ number_format($order->total) }} {{ __('from the customer.') }}</p>
+                    @endif
+                </div>
+            </div>
+
+            @if ($order->razorpay_order_id)
+                <div class="text-right shrink-0">
+                    <p class="text-[10px] uppercase tracking-wide font-semibold text-maroon-400">{{ __('Transaction ID') }}</p>
+                    <p class="font-mono font-bold text-sm text-maroon-800" title="{{ __('Our own reference — search by this instead of Razorpay\'s id') }}">{{ $order->transactionId() }}</p>
+                    <p class="text-[11px] font-mono text-maroon-400 mt-0.5" title="{{ __('Razorpay reference, for support/refund lookups') }}">{{ $order->razorpay_payment_id ?: $order->razorpay_order_id }}</p>
+                </div>
+            @endif
+        </div>
+
+        @if ($order->payment_method === 'razorpay' && ($order->refund_status !== 'none' || $order->isRefundable()))
+            <div class="bg-white rounded-2xl border border-gold-200/60 shadow-sm p-5 animate-fade-up">
+                <p class="font-display text-maroon-800 mb-3">↩️ {{ __('Refund') }}</p>
+
+                @if ($order->refund_status !== 'none')
+                    <div class="rounded-xl bg-gold-50 border border-gold-300/60 px-4 py-3 mb-4">
+                        <p class="text-sm text-maroon-700">
+                            <span class="font-semibold">₹{{ number_format($order->refunded_amount) }}</span>
+                            {{ $order->refund_status === 'full' ? __('fully refunded') : __('refunded so far') }}
+                            @if ($order->refunded_at)
+                                · {{ $order->refunded_at->format('d M, h:i A') }}
+                            @endif
+                        </p>
+                        @if ($order->razorpay_refund_id)
+                            <p class="text-xs text-maroon-400 font-mono mt-1">{{ $order->razorpay_refund_id }}</p>
+                        @endif
+                    </div>
+                @endif
+
+                @if ($order->isRefundable())
+                    <form method="POST" action="{{ route('admin.orders.refund', $order) }}"
+                          onsubmit="return confirm('Refund ₹' + document.getElementById('refund-amount-{{ $order->id }}').value + ' for order {{ $order->orderNumber() }} via Razorpay? This cannot be undone.');"
+                          class="flex items-center gap-2 flex-wrap">
+                        @csrf
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-maroon-400 text-sm">₹</span>
+                            <input type="number" id="refund-amount-{{ $order->id }}" name="amount" min="1" max="{{ $order->refundableAmount() }}"
+                                   value="{{ $order->refundableAmount() }}"
+                                   class="w-32 rounded-lg border border-gold-300/70 pl-6 pr-3 py-2 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                        </div>
+                        <button type="submit" class="shrink-0 text-sm font-semibold px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white transition">
+                            {{ __('Initiate Refund') }}
+                        </button>
+                        <span class="text-xs text-maroon-400">{{ __('Max refundable') }}: ₹{{ number_format($order->refundableAmount()) }}</span>
+                    </form>
+                @endif
+            </div>
+        @endif
+
         {{-- header --}}
         <div class="bg-white rounded-2xl border border-gold-200/60 shadow-sm p-6 animate-fade-up">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <p class="font-display text-2xl text-maroon-800">{{ __('Order') }} #{{ $order->id }}</p>
+                    <p class="font-display text-2xl text-maroon-800">{{ $order->orderNumber() }}</p>
                     <p class="text-sm text-maroon-500 mt-1">
-                        {{ __('Placed') }} {{ $order->created_at->format('d M Y, h:i A') }} · {{ strtoupper($order->payment_method ?? 'COD') }}
-                        @if ($order->payment_method === 'razorpay')
-                            <span class="inline-block text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full border {{ ['paid' => 'bg-pista-100 text-pista-600 border-pista-400/40', 'failed' => 'bg-red-50 text-red-600 border-red-200'][$order->payment_status] ?? 'bg-gold-100 text-gold-600 border-gold-300/60' }}">
-                                {{ $order->payment_status }}
-                            </span>
-                        @endif
+                        {{ __('Placed') }} {{ $order->created_at->format('d M Y, h:i A') }}
                     </p>
+                    <a href="{{ route('admin.support.show', $order) }}"
+                       class="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold text-maroon-700 border border-gold-300/70 hover:border-gold-400 hover:bg-cream rounded-lg px-3 py-2 transition">
+                        💬 {{ __('Support Chat') }}
+                        @if (($supportUnread = $order->supportMessages()->where('sender', 'customer')->whereNull('read_at')->count()) > 0)
+                            <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold grid place-items-center">{{ $supportUnread > 9 ? '9+' : $supportUnread }}</span>
+                        @endif
+                    </a>
                 </div>
                 <div class="text-right">
                     <span class="inline-block text-xs font-semibold px-2.5 py-1 rounded-full border" :class="statusBadgeClasses()" x-text="statusLabel()"></span>
@@ -166,7 +240,7 @@
                         <template x-if="order.delivery_photo_url">
                             <div>
                                 <a :href="order.delivery_photo_url" target="_blank" rel="noopener" class="block mt-3 group">
-                                    <img :src="order.delivery_photo_url" alt="Delivery proof for order #{{ $order->id }}"
+                                    <img :src="order.delivery_photo_url" alt="Delivery proof for order {{ $order->orderNumber() }}"
                                          class="w-full max-h-80 object-cover rounded-xl border border-gold-200/60 group-hover:opacity-90 transition">
                                 </a>
                                 <p class="text-xs text-maroon-400 mt-2">{{ __('Uploaded') }} <span x-text="order.delivery_photo_uploaded_at"></span> — {{ __('auto-removed after 3 days.') }} <span class="text-maroon-300">({{ __('tap to view full size') }})</span></p>
@@ -242,7 +316,11 @@
                                     </button>
                                 @endforeach
                             </div>
-                            <button type="submit" class="w-full bg-pista-500 hover:bg-pista-600 text-white font-semibold rounded-xl py-2.5 transition text-sm">✓ {{ __('Confirm Order') }}</button>
+                            <button type="submit" :disabled="order.payment_method === 'RAZORPAY' && order.payment_status !== 'paid'"
+                                    class="w-full bg-pista-500 hover:bg-pista-600 text-white font-semibold rounded-xl py-2.5 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-pista-500">
+                                ✓ {{ __('Confirm Order') }}
+                            </button>
+                            <p x-show="order.payment_method === 'RAZORPAY' && order.payment_status !== 'paid'" x-cloak class="text-xs text-maroon-400 mt-2">{{ __("Waiting for Razorpay to confirm payment before this can be confirmed.") }}</p>
                         </form>
                     </div>
                     <div x-show="order.status === 'confirmed'" x-cloak>
@@ -250,8 +328,12 @@
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="out_for_delivery">
-                            <button type="submit" class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl py-2.5 transition text-sm">🛵 {{ __('Out for Delivery') }}</button>
+                            <button type="submit" :disabled="!order.rider_name"
+                                    class="w-full bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl py-2.5 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-sky-500">
+                                🛵 {{ __('Out for Delivery') }}
+                            </button>
                         </form>
+                        <p x-show="!order.rider_name" x-cloak class="text-xs text-maroon-400 mt-2">{{ __('Assign a rider above before sending this out for delivery.') }}</p>
                     </div>
                     <div x-show="order.status === 'out_for_delivery'" x-cloak>
                         <form method="POST" action="{{ route('admin.orders.status', $order) }}">
@@ -269,7 +351,7 @@
 
                     <div x-show="['pending', 'confirmed', 'out_for_delivery'].includes(order.status)" x-cloak>
                         <form method="POST" action="{{ route('admin.orders.status', $order) }}" class="mt-3"
-                              onsubmit="return confirm('{{ __('Cancel order') }} #{{ $order->id }}? {{ $order->payment_method === 'cod' ? __('The customer will see it as cancelled by the shop, and their COD will be restricted for the next 2 orders.') : __('The customer will see it as cancelled by the shop.') }}');">
+                              onsubmit="return confirm('{{ __('Cancel order') }} {{ $order->orderNumber() }}? {{ $order->payment_method === 'cod' ? __('The customer will see it as cancelled by the shop, and their COD will be restricted for the next 2 orders.') : __('The customer will see it as cancelled by the shop.') }}');">
                             @csrf
                             @method('PATCH')
                             <input type="hidden" name="status" value="cancelled">

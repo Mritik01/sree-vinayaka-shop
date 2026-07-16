@@ -36,7 +36,10 @@ class OrderAutoCancelService
             // this runs from both an HTTP context (piggybacked on the admin poll) and a pure CLI
             // context (the scheduled command) — Laravel's own logger works in both; ActivityLogger
             // does not, since it assumes an HTTP session always exists
-            Log::warning("Order #{$order->id} auto-cancelled — not delivered within ".self::STALE_MINUTES.' min of being placed');
+            Log::warning("Order {$order->orderNumber()} auto-cancelled — not delivered within ".self::STALE_MINUTES.' min of being placed');
+
+            // doubly the shop's fault if it was already paid online — refund it automatically
+            RefundService::autoRefundOnCancel($order);
         }
 
         return $staleOrders;

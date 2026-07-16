@@ -77,7 +77,7 @@
                         <div class="max-h-80 overflow-y-auto divide-y divide-gold-100">
                             <template x-for="n in notifications" :key="n.id">
                                 <div class="group px-4 py-3 transition-colors duration-500 flex items-start gap-2" :class="!n.read && 'bg-gold-50'">
-                                    <div class="min-w-0 flex-1">
+                                    <div class="min-w-0 flex-1" :class="n.url && 'cursor-pointer'" @click="n.url && (window.location.href = n.url)">
                                         <div class="flex items-start justify-between gap-2">
                                             <p class="text-sm font-semibold text-maroon-800" x-text="n.title"></p>
                                             <span class="text-[10px] text-maroon-400 shrink-0 mt-0.5 whitespace-nowrap" x-text="n.time"></span>

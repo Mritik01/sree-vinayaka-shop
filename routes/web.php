@@ -10,6 +10,8 @@ use App\Http\Controllers\Admin\FestivalSpecialController as AdminFestivalSpecial
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Admin\RiderController as AdminRiderController;
+use App\Http\Controllers\Admin\SupportController as AdminSupportController;
+use App\Http\Controllers\Admin\TransactionController as AdminTransactionController;
 use App\Http\Controllers\Admin\VisitorController as AdminVisitorController;
 use App\Http\Controllers\Rider\AuthController as RiderAuthController;
 use App\Http\Controllers\Rider\OrderController as RiderOrderController;
@@ -24,6 +26,7 @@ use App\Http\Controllers\OrderTrackingController;
 use App\Http\Controllers\PromoLeadController;
 use App\Http\Controllers\RazorpayController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\SupportChatController;
 use App\Models\Product;
 use App\Models\ShopSetting;
 use App\Services\ActivityLogger;
@@ -146,6 +149,9 @@ Route::middleware('auth')->group(function () {
     Route::patch('/orders/{order}/note', [OrderTrackingController::class, 'updateNote'])->name('orders.note');
     Route::patch('/orders/{order}/cancel', [OrderTrackingController::class, 'cancel'])->name('orders.cancel');
     Route::get('/orders/{order}/invoice', [OrderTrackingController::class, 'invoice'])->name('orders.invoice');
+
+    Route::get('/orders/{order}/support', [SupportChatController::class, 'fetch'])->name('orders.support.fetch');
+    Route::post('/orders/{order}/support', [SupportChatController::class, 'send'])->name('orders.support.send');
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/mark-read', [NotificationController::class, 'markAllRead'])->name('notifications.mark-read');
@@ -284,6 +290,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/orders/{order}/status', [AdminOrderController::class, 'status'])->name('orders.status.poll');
         Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.status');
         Route::patch('/orders/{order}/rider', [AdminOrderController::class, 'assignRider'])->name('orders.rider');
+        Route::post('/orders/{order}/refund', [AdminOrderController::class, 'refund'])->name('orders.refund');
 
         Route::get('/products', [AdminProductController::class, 'index'])->name('products.index');
         Route::get('/products/create', [AdminProductController::class, 'create'])->name('products.create');
@@ -322,6 +329,13 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/customers/{user}/coupons/{coupon}', [AdminCustomerController::class, 'detachCoupon'])->name('customers.coupons.detach');
 
         Route::get('/visitors', [AdminVisitorController::class, 'index'])->name('visitors.index');
+
+        Route::get('/transactions', [AdminTransactionController::class, 'index'])->name('transactions.index');
+
+        Route::get('/support', [AdminSupportController::class, 'index'])->name('support.index');
+        Route::get('/support/{order}', [AdminSupportController::class, 'show'])->name('support.show');
+        Route::get('/support/{order}/messages', [AdminSupportController::class, 'messages'])->name('support.messages');
+        Route::post('/support/{order}/messages', [AdminSupportController::class, 'send'])->name('support.send');
     });
 });
 

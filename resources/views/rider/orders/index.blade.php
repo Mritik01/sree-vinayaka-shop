@@ -19,14 +19,19 @@
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
                             <p class="font-semibold text-maroon-800">
-                                #<span x-text="order.id"></span> · <span x-text="order.customer_name"></span>
+                                <span x-text="order.order_number"></span> · <span x-text="order.customer_name"></span>
                             </p>
                             <p class="text-xs text-maroon-500 mt-0.5 truncate" x-text="order.delivery_address"></p>
                         </div>
                         <span class="inline-block text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0" :class="statusBadgeClasses(order.status)" x-text="statusLabel(order.status)"></span>
                     </div>
                     <div class="flex items-center justify-between mt-3 text-sm">
-                        <span class="text-maroon-500"><span x-text="order.items_count"></span> {{ __('item(s)') }} · <span x-text="order.payment_method"></span></span>
+                        <span class="text-maroon-500 flex items-center gap-1.5">
+                            <span x-text="order.items_count"></span> {{ __('item(s)') }}
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                                  :class="order.payment_method === 'COD' ? 'bg-gold-100 text-gold-600' : (order.payment_status === 'paid' ? 'bg-pista-100 text-pista-600' : 'bg-red-100 text-red-700')"
+                                  x-text="order.payment_method === 'COD' ? '💵 COD' : (order.payment_status === 'paid' ? '✓ PAID' : '⚠ UNPAID')"></span>
+                        </span>
                         <span class="font-semibold text-maroon-800">₹<span x-text="order.total.toLocaleString('en-IN')"></span></span>
                     </div>
                 </a>

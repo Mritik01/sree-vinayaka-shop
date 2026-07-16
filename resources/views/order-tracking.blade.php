@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Order #' . $order->id . ' — Makhanbhog Sweets')
+@section('title', $order->orderNumber() . ' — Makhanbhog Sweets')
 
 @section('content')
 <section class="relative py-8 sm:py-14 bg-ivory min-h-[80vh] overflow-hidden">
@@ -16,10 +16,10 @@
             <span class="text-gold-400">✦</span>
             <a href="/account" class="hover:text-gold-600 transition">{{ __('My Orders') }}</a>
             <span class="text-gold-400">✦</span>
-            <span class="text-maroon-700 font-medium">{{ __('Order') }} #{{ $order->id }}</span>
+            <span class="text-maroon-700 font-medium">{{ $order->orderNumber() }}</span>
         </nav>
 
-        @include('partials.order-detail', ['order' => $order, 'orderForJs' => $orderForJs, 'justPlaced' => $justPlaced])
+        @include('partials.order-detail', ['order' => $order, 'orderForJs' => $orderForJs, 'justPlaced' => $justPlaced, 'autoOpenChat' => $autoOpenChat])
     </div>
 </section>
 @endsection

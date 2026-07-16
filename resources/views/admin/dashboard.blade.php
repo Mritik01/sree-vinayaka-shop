@@ -73,7 +73,7 @@
                     @foreach ($recentOrders as $order)
                         <tr class="border-b border-gold-50 last:border-0 hover:bg-cream/50 transition">
                             <td class="px-5 py-3">
-                                <a href="{{ route('admin.orders.show', $order) }}" class="text-maroon-800 font-medium hover:text-gold-600">#{{ $order->id }}</a>
+                                <a href="{{ route('admin.orders.show', $order) }}" class="text-maroon-800 font-medium hover:text-gold-600">{{ $order->orderNumber() }}</a>
                             </td>
                             <td class="px-5 py-3 text-maroon-600">{{ $order->customer_name }}</td>
                             <td class="px-5 py-3 text-maroon-500">{{ $order->items->count() }}</td>
