@@ -75,6 +75,7 @@ class DashboardController extends Controller
             'restrictDeliveryArea' => $settings->restrict_delivery_area,
             'deliveryRadiusKm' => $settings->delivery_radius_km,
             'rewardSettings' => $settings,
+            'promoPopupEnabled' => $settings->promo_popup_enabled,
             'products' => Product::orderBy('name')->get(['id', 'name']),
         ]);
     }
@@ -99,6 +100,14 @@ class DashboardController extends Controller
         $settings->update(['reward_enabled' => !$settings->reward_enabled]);
 
         return response()->json(['ok' => true, 'value' => $settings->reward_enabled]);
+    }
+
+    public function togglePromoPopup(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $settings->update(['promo_popup_enabled' => !$settings->promo_popup_enabled]);
+
+        return response()->json(['ok' => true, 'value' => $settings->promo_popup_enabled]);
     }
 
     public function updateRewardSettings(Request $request)

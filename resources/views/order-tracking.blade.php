@@ -10,7 +10,7 @@
         <div class="absolute bottom-10 -right-10 w-72 h-72 rounded-full bg-maroon-400/10 blur-3xl"></div>
     </div>
 
-    <div class="relative max-w-lg lg:max-w-5xl mx-auto px-4 sm:px-6">
+    <div class="relative max-w-lg lg:max-w-none mx-auto px-4 sm:px-6 lg:px-10 xl:px-16">
         <nav class="text-sm text-maroon-500 flex items-center gap-2 mb-5">
             <a href="/" class="hover:text-gold-600 transition">{{ __('Home') }}</a>
             <span class="text-gold-400">✦</span>

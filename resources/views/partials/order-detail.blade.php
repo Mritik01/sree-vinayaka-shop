@@ -1,6 +1,6 @@
 {{-- order detail — shared by the standalone /orders/{id} page and the inline "My Orders" tab on
      the account page (fetched via GET /orders/{id}/partial and injected + Alpine.initTree()'d) --}}
-<div class="relative max-w-lg lg:max-w-5xl mx-auto"
+<div class="relative max-w-lg lg:max-w-none mx-auto"
      x-data='orderTrackingPage(@json($orderForJs), {{ $justPlaced ? 'true' : 'false' }})'>
 
     <div class="grid lg:grid-cols-[1fr_380px] gap-6 items-start">

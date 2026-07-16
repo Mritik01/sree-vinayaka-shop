@@ -19,6 +19,7 @@ class ShopSetting extends Model
         'reward_gift_label',
         'min_order_amount',
         'max_order_amount',
+        'promo_popup_enabled',
     ];
 
     protected $casts = [
@@ -28,6 +29,7 @@ class ShopSetting extends Model
         'delivery_center_lng' => 'float',
         'delivery_radius_km' => 'float',
         'reward_enabled' => 'boolean',
+        'promo_popup_enabled' => 'boolean',
         'reward_orders_required' => 'integer',
         'min_order_amount' => 'integer',
         'max_order_amount' => 'integer',

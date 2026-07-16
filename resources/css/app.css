@@ -242,6 +242,37 @@
   animation: gift-sparkle 1.4s ease-out infinite;
 }
 
+/* ── login / signup modal ────────────────────────────────────────── */
+
+/* step icon badge (phone/otp/name) bouncing in as each step appears */
+@keyframes auth-icon-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-auth-icon-pop {
+  animation: auth-icon-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* success checkmark's ring pops in first, then the tick draws itself */
+@keyframes auth-success-ring {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-auth-success-ring {
+  animation: auth-success-ring 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes auth-success-check {
+  from { stroke-dashoffset: 40; }
+  to { stroke-dashoffset: 0; }
+}
+.animate-auth-success-check {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: auth-success-check 0.35s ease-out 0.3s forwards;
+}
+
 /* ── floating "Go to Cart" button ────────────────────────────────── */
 
 /* one-off bump when an item is added, so the badge count change is felt, not just read */

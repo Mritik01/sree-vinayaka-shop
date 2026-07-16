@@ -50,6 +50,27 @@
                      x-text="on ? '📍' : '🌍'"></div>
             </label>
         </div>
+        {{-- shadi/function popup toggle --}}
+        <div x-data="settingToggle({{ $promoPopupEnabled ? 'true' : 'false' }}, '{{ route('admin.settings.promo-popup') }}')"
+             class="rounded-2xl border p-5 flex items-center justify-between gap-4 transition-colors duration-300"
+             :class="on ? 'bg-white border-gold-200/60' : 'bg-gold-50 border-gold-300/60'">
+            <div>
+                <p class="font-display text-maroon-800 flex items-center gap-2">
+                    <span class="font-hindi">शादी हो या फंक्शन?</span> Popup
+                </p>
+                <p class="text-sm mt-1 text-maroon-500">
+                    <span x-show="on" x-cloak>Shown to first-time visitors — captures their name and OTP-verified phone number as a lead.</span>
+                    <span x-show="!on" x-cloak>Turned off — visitors won't see this popup.</span>
+                </p>
+            </div>
+
+            <label class="relative inline-flex items-center cursor-pointer shrink-0" :class="updating && 'opacity-60 pointer-events-none'">
+                <input type="checkbox" class="sr-only peer" :checked="on" @change="toggle()">
+                <div class="w-16 h-9 rounded-full transition-colors duration-300 bg-gold-300 peer-checked:bg-pista-500"></div>
+                <div class="absolute left-1 top-1 w-7 h-7 bg-white rounded-full shadow-md transition-transform duration-300 peer-checked:translate-x-7 flex items-center justify-center text-xs"
+                     x-text="on ? '✓' : '✕'"></div>
+            </label>
+        </div>
     </div>
 
     {{-- loyalty reward program --}}

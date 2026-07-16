@@ -366,6 +366,11 @@ class CheckoutController extends Controller
         if (!$buyNowProductId) {
             $user->cart()->detach();
         }
+        if ($coupon) {
+            // only now — an order has actually been placed — does the redemption become
+            // permanent; before this it was just a pending apply, freely reusable/removable
+            $user->redeemedCoupons()->updateExistingPivot($coupon->id, ['redeemed_at' => now()]);
+        }
         if ($user->applied_coupon_id) {
             $user->forceFill(['applied_coupon_id' => null])->save();
         }

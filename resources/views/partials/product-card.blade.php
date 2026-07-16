@@ -41,8 +41,25 @@
 
     <div class="{{ $compact ? 'p-3.5 sm:p-5' : 'p-5' }} flex flex-col flex-1"
          @if ($hasMultiplePortions)
-         x-data="{ portionOpen: false, selPortion: {{ $product->defaultPortion() }}, selQty: 1, basePrice: {{ $product->discountedBasePrice() }},
-                    selectedPrice() { return Math.round(this.basePrice * (this.selPortion / 250)) * this.selQty; } }"
+         x-data="{
+             portionOpen: false, selPortion: {{ $product->defaultPortion() }},
+             basePrice: {{ $product->discountedBasePrice() }}, rawPrice: {{ $product->price }}, hasDiscount: {{ $product->hasDiscount() ? 'true' : 'false' }},
+             menuStyle: '',
+             selectedPrice() { return Math.round(this.basePrice * (this.selPortion / 250)); },
+             selectedOriginalPrice() { return Math.round(this.rawPrice * (this.selPortion / 250)); },
+             // positions the teleported popover under whichever trigger opened it, clamped to the
+             // viewport — sized to match a single portion pill, not a full-width dropdown
+             openPicker(anchorEl) {
+                 const ci = window.cartItem({{ $product->id }});
+                 if (ci) { this.selPortion = ci.portion; }
+                 const rect = anchorEl.getBoundingClientRect();
+                 const width = 224;
+                 const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) + window.scrollX;
+                 const top = rect.bottom + window.scrollY + 6;
+                 this.menuStyle = `position:absolute; top:${top}px; left:${left}px; width:${width}px;`;
+                 this.portionOpen = true;
+             },
+         }"
          @endif>
         <p class="text-[11px] font-semibold tracking-widest uppercase text-gold-600">{{ $product->category }}</p>
         <h3 class="font-display font-bold {{ $compact ? 'text-base sm:text-lg' : 'text-lg' }} text-maroon-800 mt-0.5">
@@ -60,7 +77,9 @@
 
         <div class="flex flex-wrap gap-2 mt-2.5">
             @if ($hasMultiplePortions)
-                <button type="button" @click.stop="portionOpen = !portionOpen" @dblclick.stop
+                <button type="button"
+                        @click="portionOpen ? (portionOpen = false) : openPicker($el)"
+                        @dblclick.stop
                         class="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md border transition"
                         :class="portionOpen ? 'border-maroon-600 bg-maroon-50 text-maroon-800' : 'border-gold-300/60 text-maroon-600 hover:border-maroon-400'">
                     <span x-text="window.portionLabel(selPortion)"></span>
@@ -77,17 +96,22 @@
         </div>
 
         @if ($hasMultiplePortions)
-            {{-- inline expand (not an overlay) — grows the card in place rather than floating a
-                 dropdown that could get clipped by the image's overflow-hidden corner radius,
-                 which is the safest way to "handle it smartly" in a dense mobile grid --}}
-            <div x-show="portionOpen" x-cloak @click.stop
-                 x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
-                 class="mt-3 rounded-xl border border-gold-200/70 bg-cream/60 p-3 space-y-3">
-                <div>
+            {{-- floating popover, teleported to <body> — the card's own rounded-2xl wrapper uses
+                 overflow-hidden (for the product image's corners), which would clip an in-place
+                 dropdown; teleporting escapes that and avoids resizing/pushing the card open --}}
+            <template x-teleport="body">
+                <div x-show="portionOpen" x-cloak @click.outside="portionOpen = false" @click.stop
+                     x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+                     :style="menuStyle"
+                     class="z-[60] rounded-xl border border-gold-200/70 bg-white shadow-xl p-3">
                     <p class="text-[10px] font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">{{ __('Select Weight') }}</p>
                     <div class="flex flex-wrap gap-1.5">
                         @foreach (collect($product->portions)->sort()->values() as $grams)
-                            <button type="button" @click="selPortion = {{ $grams }}"
+                            {{-- picking a weight adds it to the cart right away (replacing any
+                                 different portion already there — see CartController::add) and
+                                 closes the popover, so there's no separate "Add to Cart" step --}}
+                            <button type="button"
+                                    @click="selPortion = {{ $grams }}; addProductToCart({{ $product->id }}, 1, false, selPortion).then(() => portionOpen = false)"
                                     class="text-xs font-semibold px-3 py-1.5 rounded-full border-2 transition"
                                     :class="selPortion === {{ $grams }} ? 'bg-maroon-700 border-maroon-700 text-cream' : 'bg-white border-gold-300/70 text-maroon-700 hover:border-maroon-400'">
                                 {{ \App\Models\Product::portionLabel($grams) }}
@@ -95,46 +119,36 @@
                         @endforeach
                     </div>
                 </div>
-
-                <div class="flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-1 bg-white rounded-full border border-gold-300/60 px-1 h-9 shrink-0">
-                        <button type="button" @click="selQty = Math.max(1, selQty - 1)" aria-label="{{ __('Decrease quantity') }}"
-                                class="w-7 h-7 rounded-full hover:bg-gold-50 text-maroon-700 font-bold transition">−</button>
-                        <span class="w-6 text-center text-sm font-bold tabular-nums text-maroon-800" x-text="selQty"></span>
-                        <button type="button" @click="selQty = Math.min(10, selQty + 1)" aria-label="{{ __('Increase quantity') }}"
-                                class="w-7 h-7 rounded-full hover:bg-gold-50 text-maroon-700 font-bold transition">+</button>
-                    </div>
-                    <p class="font-display font-bold text-base shrink-0" style="color: {{ $product->color }};">
-                        ₹<span x-text="selectedPrice().toLocaleString('en-IN')"></span>
-                    </p>
-                </div>
-
-                <button type="button"
-                        @click="addProductToCart({{ $product->id }}, selQty, false, selPortion).then(() => portionOpen = false)"
-                        class="w-full text-sm font-bold py-2.5 rounded-xl shadow-sm hover:shadow-md transition"
-                        style="background-color: {{ $product->color }}; color: {{ $onColor }};">
-                    {{ __('Add to Cart') }}
-                </button>
-            </div>
+            </template>
         @endif
 
         <p class="{{ $compact ? 'hidden sm:block' : '' }} text-sm text-maroon-500/90 mt-3 leading-relaxed line-clamp-3">{{ $product->description }}</p>
 
         <div class="flex items-center justify-between {{ $compact ? 'gap-2 flex-wrap sm:flex-nowrap sm:gap-0' : '' }} mt-4 pt-1 mt-auto">
             <p class="flex items-baseline gap-1.5 flex-wrap">
-                @if ($product->hasDiscount())
-                    <span class="text-sm text-maroon-300 line-through">₹{{ $product->originalPriceForPortion($product->defaultPortion()) }}</span>
+                @if ($hasMultiplePortions)
+                    <template x-if="hasDiscount">
+                        <span class="text-sm text-maroon-300 line-through">₹<span x-text="selectedOriginalPrice().toLocaleString('en-IN')"></span></span>
+                    </template>
+                    <span class="font-display font-bold text-lg" style="color: {{ $product->color }};">
+                        ₹<span x-text="selectedPrice().toLocaleString('en-IN')"></span>
+                    </span>
+                @else
+                    @if ($product->hasDiscount())
+                        <span class="text-sm text-maroon-300 line-through">₹{{ $product->originalPriceForPortion($product->defaultPortion()) }}</span>
+                    @endif
+                    <span class="font-display font-bold text-lg" style="color: {{ $product->color }};">
+                        {{ $product->isLoose() ? __('From') . ' ' : '' }}₹{{ $product->priceForPortion($product->defaultPortion()) }}
+                    </span>
                 @endif
-                <span class="font-display font-bold text-lg" style="color: {{ $product->color }};">
-                    {{ $product->isLoose() ? __('From') . ' ' : '' }}₹{{ $product->priceForPortion($product->defaultPortion()) }}
-                </span>
             </p>
             <div class="flex items-center gap-2">
                 {{-- plain Add button when it's not in the cart yet — for a multi-portion loose
-                     product this opens the weight/qty picker above instead of guessing a portion --}}
+                     product this adds whatever weight is currently selected above (defaults to
+                     the smallest portion until the customer picks a different one) --}}
                 <template x-if="cartQty({{ $product->id }}) === 0">
                     <button type="button"
-                        @click="{{ $hasMultiplePortions ? 'portionOpen = true' : "addProductToCart({$product->id}, 1, false, " . ($product->defaultPortion() ?? 'null') . ')' }}"
+                        @click="{{ $hasMultiplePortions ? "addProductToCart({$product->id}, 1, false, selPortion)" : "addProductToCart({$product->id}, 1, false, " . ($product->defaultPortion() ?? 'null') . ')' }}"
                         @dblclick.stop aria-label="Add {{ $product->name }} to cart"
                         class="w-10 h-10 rounded-xl border-2 flex items-center justify-center shrink-0 transition hover:scale-105"
                         style="border-color: {{ $product->color }}; color: {{ $product->color }};">
@@ -159,7 +173,7 @@
                 </template>
 
                 <button type="button"
-                   @click="orderNow({{ $product->id }}, {{ $hasMultiplePortions ? 'selQty' : '1' }}, {{ $hasMultiplePortions ? 'selPortion' : ($product->defaultPortion() ?? 'null') }})"
+                   @click="orderNow({{ $product->id }}, 1, {{ $hasMultiplePortions ? 'selPortion' : ($product->defaultPortion() ?? 'null') }})"
                    @dblclick.stop
                    class="{{ $compact ? 'hidden sm:inline-block' : '' }} text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm hover:shadow-md hover:scale-105 transition transform duration-200"
                    style="background-color: {{ $product->color }}; color: {{ $onColor }};">

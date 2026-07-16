@@ -16,6 +16,7 @@ class Admin extends Model implements Authenticatable
         'username',
         'password',
         'locale',
+        'is_super_admin',
     ];
 
     protected $hidden = [
@@ -25,5 +26,11 @@ class Admin extends Model implements Authenticatable
 
     protected $casts = [
         'password' => 'hashed',
+        'is_super_admin' => 'boolean',
     ];
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->is_super_admin;
+    }
 }

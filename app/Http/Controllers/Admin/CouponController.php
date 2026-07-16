@@ -14,7 +14,8 @@ class CouponController extends Controller
 
     public function index(Request $request)
     {
-        $query = Coupon::withCount('redeemers')->with('assignedUsers:id,name')->latest();
+        $query = Coupon::withCount(['redeemers' => fn ($q) => $q->wherePivotNotNull('redeemed_at')])
+            ->with('assignedUsers:id,name')->latest();
 
         $search = trim((string) $request->get('q', ''));
         if ($search !== '') {
@@ -42,7 +43,7 @@ class CouponController extends Controller
     // coupon (no assignments) it's every customer, since anyone can redeem it.
     public function show(Coupon $coupon)
     {
-        $redeemed = $coupon->redeemers()->orderByDesc('coupon_redemptions.created_at')->get();
+        $redeemed = $coupon->redeemers()->wherePivotNotNull('redeemed_at')->orderByDesc('coupon_redemptions.redeemed_at')->get();
 
         $eligible = $coupon->isRestricted() ? $coupon->assignedUsers() : User::query();
         $notRedeemed = $eligible->whereNotIn('users.id', $redeemed->pluck('id'))->orderBy('name')->get();

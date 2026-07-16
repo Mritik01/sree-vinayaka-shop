@@ -1,12 +1,15 @@
 <?php
 
 use App\Http\Controllers\AddressController;
+use App\Http\Controllers\Admin\AdminAccountController;
+use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
 use App\Http\Controllers\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Admin\BestsellerController as AdminBestsellerController;
 use App\Http\Controllers\Admin\CouponController as AdminCouponController;
 use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\FestivalSpecialController as AdminFestivalSpecialController;
+use App\Http\Controllers\Admin\LeadController as AdminLeadController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Admin\RiderController as AdminRiderController;
@@ -107,6 +110,10 @@ Route::post('/auth/send-otp', [PhoneAuthController::class, 'sendOtp'])
 Route::post('/auth/verify-otp', [PhoneAuthController::class, 'verifyOtp'])
     ->middleware('throttle:auth-otp-verify')
     ->name('auth.verify-otp');
+
+Route::post('/auth/complete-signup', [PhoneAuthController::class, 'completeSignup'])
+    ->middleware('throttle:auth-complete-signup')
+    ->name('auth.complete-signup');
 
 Route::post('/logout', [PhoneAuthController::class, 'logout'])
     ->name('logout');
@@ -281,6 +288,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/settings/accepting-orders', [AdminDashboardController::class, 'toggleAcceptingOrders'])->name('settings.accepting-orders');
         Route::patch('/settings/delivery-area', [AdminDashboardController::class, 'toggleDeliveryArea'])->name('settings.delivery-area');
         Route::patch('/settings/reward-enabled', [AdminDashboardController::class, 'toggleRewardEnabled'])->name('settings.reward-enabled');
+        Route::patch('/settings/promo-popup', [AdminDashboardController::class, 'togglePromoPopup'])->name('settings.promo-popup');
         Route::patch('/settings/rewards', [AdminDashboardController::class, 'updateRewardSettings'])->name('settings.rewards');
         Route::patch('/settings/order-limits', [AdminDashboardController::class, 'updateOrderLimits'])->name('settings.order-limits');
 
@@ -304,6 +312,20 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::get('/festival-special', [AdminFestivalSpecialController::class, 'index'])->name('festival-special.index');
         Route::post('/festival-special', [AdminFestivalSpecialController::class, 'update'])->name('festival-special.update');
+
+        Route::get('/announcement', [AdminAnnouncementController::class, 'edit'])->name('announcement.edit');
+        Route::post('/announcement', [AdminAnnouncementController::class, 'update'])->name('announcement.update');
+
+        // Managing OTHER admin accounts is a step above just being logged in as an admin —
+        // gated by admin.super on top of admin.auth. See EnsureSuperAdmin and CreateAdminCommand.
+        Route::middleware('admin.super')->prefix('admins')->name('admins.')->group(function () {
+            Route::get('/', [AdminAccountController::class, 'index'])->name('index');
+            Route::get('/create', [AdminAccountController::class, 'create'])->name('create');
+            Route::post('/', [AdminAccountController::class, 'store'])->name('store');
+            Route::get('/{admin}/edit', [AdminAccountController::class, 'edit'])->name('edit');
+            Route::put('/{admin}', [AdminAccountController::class, 'update'])->name('update');
+            Route::delete('/{admin}', [AdminAccountController::class, 'destroy'])->name('destroy');
+        });
 
         Route::get('/riders', [AdminRiderController::class, 'index'])->name('riders.index');
         Route::get('/riders/create', [AdminRiderController::class, 'create'])->name('riders.create');
@@ -329,6 +351,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/customers/{user}/coupons/{coupon}', [AdminCustomerController::class, 'detachCoupon'])->name('customers.coupons.detach');
 
         Route::get('/visitors', [AdminVisitorController::class, 'index'])->name('visitors.index');
+
+        Route::get('/leads', [AdminLeadController::class, 'index'])->name('leads.index');
 
         Route::get('/transactions', [AdminTransactionController::class, 'index'])->name('transactions.index');
 

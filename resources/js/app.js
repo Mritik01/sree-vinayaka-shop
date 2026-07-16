@@ -30,6 +30,67 @@ window.heroSlider = function (slideCount) {
     };
 };
 
+// Announcement Banner — site-wide popup driven by whatever the admin configured
+// (partials/announcement-banner.blade.php). Shares its inner markup and Alpine property
+// names with the admin live-preview pane so both render identically.
+window.announcementBanner = function (data) {
+    return {
+        open: false,
+        headline: data.headline,
+        description: data.description,
+        buttonText: data.buttonText,
+        buttonUrl: data.buttonUrl,
+        image: data.image,
+        showClose: data.showClose,
+        bg: '',
+        text: '',
+        timer: null,
+
+        init() {
+            const presets = {
+                maroon: ['#7a1622', '#fdf6e9'],
+                gold: ['#c8962e', '#3a0b12'],
+                pista: ['#3d7a52', '#fdf6e9'],
+                dark: ['#241f1f', '#fdf6e9'],
+            };
+            if (data.theme === 'custom') {
+                this.bg = data.backgroundColor || '#7a1622';
+                this.text = data.textColor || '#fdf6e9';
+            } else {
+                const [bg, text] = presets[data.theme] || presets.maroon;
+                this.bg = bg;
+                this.text = text;
+            }
+
+            if (!this.shouldShow()) return;
+            // small stagger so it doesn't visually collide with the promo popup's own 1400ms delay
+            setTimeout(() => {
+                this.open = true;
+                this.markShown();
+                if (data.autoCloseSeconds) {
+                    this.timer = setTimeout(() => this.dismiss(), data.autoCloseSeconds * 1000);
+                }
+            }, 700);
+        },
+        shouldShow() {
+            if (data.frequency === 'once_per_session') return !sessionStorage.getItem('mb_announcement_shown');
+            if (data.frequency === 'once_per_day') {
+                const last = parseInt(localStorage.getItem('mb_announcement_shown_at') || '0', 10);
+                return Date.now() - last > 24 * 60 * 60 * 1000;
+            }
+            return true; // every_visit
+        },
+        markShown() {
+            if (data.frequency === 'once_per_session') sessionStorage.setItem('mb_announcement_shown', '1');
+            if (data.frequency === 'once_per_day') localStorage.setItem('mb_announcement_shown_at', String(Date.now()));
+        },
+        dismiss() {
+            clearTimeout(this.timer);
+            this.open = false;
+        },
+    };
+};
+
 window.promoPopup = function () {
     return {
         promoOpen: false,
@@ -137,7 +198,8 @@ window.promoPopup = function () {
 
 window.authModal = function () {
     return {
-        step: 'form',
+        // phone → otp → name (new accounts only) → success
+        step: 'phone',
         name: '',
         phone: '',
         otp: '',
@@ -146,6 +208,8 @@ window.authModal = function () {
         resendCooldown: 0,
         resendTimer: null,
         devOtp: '',
+        isNewUser: false,
+        welcomeName: '',
 
         init() {
             this.$watch('authOpen', (isOpen) => {
@@ -153,11 +217,14 @@ window.authModal = function () {
             });
         },
         resetState() {
-            this.step = 'form';
+            this.step = 'phone';
+            this.name = '';
             this.otp = '';
             this.error = '';
             this.loading = false;
             this.devOtp = '';
+            this.isNewUser = false;
+            this.welcomeName = '';
             this.clearCooldown();
         },
         clearCooldown() {
@@ -195,10 +262,7 @@ window.authModal = function () {
             this.error = '';
             this.loading = true;
             try {
-                const { ok, data } = await this.postJson('/auth/send-otp', {
-                    name: this.name,
-                    phone: this.phone,
-                });
+                const { ok, data } = await this.postJson('/auth/send-otp', { phone: this.phone });
                 if (ok && data.ok) {
                     this.step = 'otp';
                     this.otp = '';
@@ -218,6 +282,8 @@ window.authModal = function () {
             if (this.resendCooldown > 0 || this.loading) return;
             await this.sendOtp();
         },
+        // OTP confirmed — an existing account logs straight in; a brand-new number needs
+        // just one more step (name) before we can create the account
         async verifyOtp() {
             this.error = '';
             this.loading = true;
@@ -227,7 +293,13 @@ window.authModal = function () {
                     otp: this.otp,
                 });
                 if (ok && data.ok) {
-                    window.location.reload();
+                    if (data.new_user) {
+                        this.isNewUser = true;
+                        this.step = 'name';
+                    } else {
+                        this.welcomeName = data.name || '';
+                        this.celebrate(false);
+                    }
                 } else {
                     this.error = data.message || 'Incorrect OTP, please try again.';
                 }
@@ -236,6 +308,38 @@ window.authModal = function () {
             } finally {
                 this.loading = false;
             }
+        },
+        async completeSignup() {
+            this.error = '';
+            this.loading = true;
+            try {
+                const { ok, data } = await this.postJson('/auth/complete-signup', {
+                    name: this.name,
+                    phone: this.phone,
+                });
+                if (ok && data.ok) {
+                    this.celebrate(true);
+                } else {
+                    this.error = data.message || 'Something went wrong, please try again.';
+                }
+            } catch (e) {
+                this.error = 'Network error, please check your connection and try again.';
+            } finally {
+                this.loading = false;
+            }
+        },
+        // brand-new accounts get a bigger celebratory beat (confetti + a longer pause to enjoy
+        // it); a returning login stays snappy — they've done this before, don't make them wait
+        celebrate(isNew) {
+            this.step = 'success';
+            if (isNew) this.fireConfetti();
+            setTimeout(() => window.location.reload(), isNew ? 1700 : 1000);
+        },
+        fireConfetti() {
+            const colors = ['#d4a940', '#c8962e', '#8a1c2b', '#6b1420', '#fdf6e3'];
+            confetti({ particleCount: 90, spread: 75, origin: { x: 0.5, y: 0.45 }, colors });
+            setTimeout(() => confetti({ particleCount: 55, angle: 60, spread: 60, origin: { x: 0.15, y: 0.6 }, colors }), 150);
+            setTimeout(() => confetti({ particleCount: 55, angle: 120, spread: 60, origin: { x: 0.85, y: 0.6 }, colors }), 300);
         },
     };
 };
@@ -303,6 +407,12 @@ window.addProductToCart = async function (productId, quantity = 1, openDrawer = 
 window.cartQty = function (productId) {
     const item = Alpine.store('cart').items.find((i) => i.id === productId);
     return item ? item.quantity : 0;
+};
+
+// The live cart line for a product, if any — lets the weight/quantity picker below
+// initialize its selection from what's actually in the cart instead of always defaulting.
+window.cartItem = function (productId) {
+    return Alpine.store('cart').items.find((i) => i.id === productId) || null;
 };
 
 window.stepCartQty = async function (productId, delta) {

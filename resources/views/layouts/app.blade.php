@@ -121,6 +121,9 @@
     </main>
 
     @include('partials.footer')
-    @include('partials.promo-popup')
+    @include('partials.announcement-banner')
+    @if ($promoPopupEnabled ?? true)
+        @include('partials.promo-popup')
+    @endif
 </body>
 </html>

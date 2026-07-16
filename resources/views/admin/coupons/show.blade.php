@@ -68,7 +68,7 @@
                             </a>
                             <div class="text-right shrink-0">
                                 <p class="text-sm font-semibold text-pista-600">-₹{{ $user->pivot->discount_amount }}</p>
-                                <p class="text-xs text-maroon-400">{{ \Illuminate\Support\Carbon::parse($user->pivot->created_at)->format('d M Y, h:i A') }}</p>
+                                <p class="text-xs text-maroon-400">{{ \Illuminate\Support\Carbon::parse($user->pivot->redeemed_at)->format('d M Y, h:i A') }}</p>
                             </div>
                         </li>
                     @endforeach

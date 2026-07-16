@@ -50,6 +50,10 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by('auth-otp-verify-ip:'.$request->ip());
         });
 
+        RateLimiter::for('auth-complete-signup', function (Request $request) {
+            return Limit::perMinute(10)->by('auth-complete-signup-ip:'.$request->ip());
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

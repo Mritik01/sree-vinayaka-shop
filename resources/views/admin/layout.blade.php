@@ -29,13 +29,20 @@
                         ['route' => 'admin.transactions.index', 'label' => __('Transactions'), 'icon' => '💳'],
                         ['route' => 'admin.customers.index', 'label' => __('Customers'), 'icon' => '👥'],
                         ['route' => 'admin.visitors.index', 'label' => __('Visitors'), 'icon' => '🌐'],
+                        ['route' => 'admin.leads.index', 'label' => __('Shadi/Function Leads'), 'icon' => '💍'],
                         ['route' => 'admin.products.index', 'label' => __('Products'), 'icon' => '🍬'],
                         ['route' => 'admin.bestsellers.index', 'label' => __('Bestsellers'), 'icon' => '⭐'],
                         ['route' => 'admin.festival-special.index', 'label' => __('Festival Special'), 'icon' => '🎉'],
+                        ['route' => 'admin.announcement.edit', 'label' => __('Announcement'), 'icon' => '📢'],
                         ['route' => 'admin.coupons.index', 'label' => __('Coupons'), 'icon' => '🏷️'],
                         ['route' => 'admin.riders.index', 'label' => __('Delivery Riders'), 'icon' => '🛵'],
                         ['route' => 'admin.configuration', 'label' => __('Configuration'), 'icon' => '⚙️'],
                     ];
+
+                    // only a Super Admin can manage other admin accounts — see EnsureSuperAdmin
+                    if (Auth::guard('admin')->user()?->isSuperAdmin()) {
+                        $navItems[] = ['route' => 'admin.admins.index', 'label' => __('Admin Accounts'), 'icon' => '🛡️'];
+                    }
                 @endphp
                 @foreach ($navItems as $item)
                     <a href="{{ route($item['route']) }}"

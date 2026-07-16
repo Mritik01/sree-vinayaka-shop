@@ -68,7 +68,7 @@ class User extends Authenticatable
     public function redeemedCoupons(): BelongsToMany
     {
         return $this->belongsToMany(Coupon::class, 'coupon_redemptions')
-            ->withPivot('discount_amount')
+            ->withPivot(['discount_amount', 'redeemed_at'])
             ->withTimestamps();
     }
 

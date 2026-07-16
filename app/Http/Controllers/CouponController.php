@@ -58,11 +58,13 @@ class CouponController extends Controller
             return $this->success($coupon, $existing?->pivot->discount_amount ?? $coupon->discountFor($subtotal));
         }
 
-        if ($user->redeemedCoupons()->where('coupons.id', $coupon->id)->exists()) {
+        // only a redemption confirmed by an actual placed order counts as "used" — applying a
+        // coupon and then abandoning checkout must never permanently block reusing that code
+        if ($user->redeemedCoupons()->wherePivotNotNull('redeemed_at')->where('coupons.id', $coupon->id)->exists()) {
             return $this->fail('You have already used this coupon.');
         }
 
-        if ($coupon->usage_type === 'single_use' && $coupon->redeemers()->exists()) {
+        if ($coupon->usage_type === 'single_use' && $coupon->redeemers()->wherePivotNotNull('redeemed_at')->exists()) {
             return $this->fail('This coupon has already been used.');
         }
 
@@ -73,7 +75,13 @@ class CouponController extends Controller
             $user->redeemedCoupons()->detach($user->applied_coupon_id);
         }
 
-        $user->redeemedCoupons()->attach($coupon->id, ['discount_amount' => $discount]);
+        // a stale pending row can already exist here (applied once before, checkout abandoned
+        // without ever removing it) — refresh it in place instead of a duplicate insert
+        if ($user->redeemedCoupons()->where('coupons.id', $coupon->id)->exists()) {
+            $user->redeemedCoupons()->updateExistingPivot($coupon->id, ['discount_amount' => $discount]);
+        } else {
+            $user->redeemedCoupons()->attach($coupon->id, ['discount_amount' => $discount]);
+        }
         $user->forceFill(['applied_coupon_id' => $coupon->id])->save();
         ActivityLogger::log('coupon_applied', $coupon->code);
 

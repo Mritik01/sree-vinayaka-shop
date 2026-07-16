@@ -1,5 +1,7 @@
 import Alpine from 'alpinejs';
 import Chart from 'chart.js/auto';
+import Quill from 'quill';
+import 'quill/dist/quill.snow.css';
 
 const palette = {
     maroon: '#7a1622',
@@ -985,6 +987,64 @@ window.adminSupportThread = function (orderId, initialMessages) {
             if (!el) return;
             const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
             if (force || nearBottom) el.scrollTop = el.scrollHeight;
+        },
+    };
+};
+
+// Announcement Banner admin form — drives the Quill rich-text editor and the live preview
+// pane, which shares the exact same Blade partial (and Alpine property names) rendered on
+// the live site so what the admin sees here is pixel-for-pixel what visitors will see.
+window.announcementForm = function (initial) {
+    // kept outside the returned (reactive) object — Alpine would otherwise try to deep-proxy
+    // the Quill instance itself, which it isn't built to handle
+    let quill = null;
+
+    return {
+        enabled: initial.enabled,
+        headline: initial.headline || '',
+        description: initial.description || '',
+        buttonText: initial.buttonText || '',
+        buttonUrl: initial.buttonUrl || '',
+        image: initial.image || null,
+        theme: initial.theme || 'maroon',
+        backgroundColor: initial.backgroundColor || '#7a1622',
+        textColor: initial.textColor || '#fdf6e9',
+        showClose: initial.showClose,
+        removeImageFlag: false,
+
+        get bg() {
+            const presets = { maroon: '#7a1622', gold: '#c8962e', pista: '#3d7a52', dark: '#241f1f' };
+            return this.theme === 'custom' ? (this.backgroundColor || '#7a1622') : presets[this.theme];
+        },
+        get text() {
+            const presets = { maroon: '#fdf6e9', gold: '#3a0b12', pista: '#fdf6e9', dark: '#fdf6e9' };
+            return this.theme === 'custom' ? (this.textColor || '#fdf6e9') : presets[this.theme];
+        },
+        // the shared preview partial calls this on the close button / CTA — nothing to actually
+        // close while editing, the preview pane always stays visible
+        dismiss() {},
+
+        initEditor() {
+            quill = new Quill(this.$refs.editor, {
+                theme: 'snow',
+                placeholder: 'Write your announcement description…',
+                modules: {
+                    toolbar: [['bold', 'italic', 'underline'], [{ color: [] }], [{ align: [] }], ['link'], ['clean']],
+                },
+            });
+            if (this.description) quill.root.innerHTML = this.description;
+            quill.on('text-change', () => { this.description = quill.root.innerHTML; });
+        },
+        onImageSelected(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            this.image = URL.createObjectURL(file);
+            this.removeImageFlag = false;
+        },
+        removeImage() {
+            this.image = null;
+            this.removeImageFlag = true;
+            if (this.$refs.imageInput) this.$refs.imageInput.value = '';
         },
     };
 };

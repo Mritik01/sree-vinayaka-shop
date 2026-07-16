@@ -22,11 +22,12 @@ class PhoneAuthController extends Controller
     protected const OTP_TTL_MINUTES = 15;
     protected const MAX_VERIFY_ATTEMPTS = 5;
     protected const CACHE_PREFIX = 'auth-otp:';
+    protected const VERIFIED_CACHE_PREFIX = 'auth-verified:';
+    protected const VERIFIED_TTL_MINUTES = 10;
 
     public function sendOtp(Request $request, TwoFactorOtpService $otp)
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
             'phone' => ['required', 'string'],
         ]);
 
@@ -55,7 +56,6 @@ class PhoneAuthController extends Controller
 
         $devOtp = null;
         $cacheData = [
-            'name' => $data['name'],
             'attempts' => 0,
             'last_sent_at' => now(),
         ];
@@ -141,26 +141,61 @@ class PhoneAuthController extends Controller
             ], 422);
         }
 
+        $user = User::where('phone', $phone)->first();
+
+        // phone number belongs to an existing account — nothing else to ask, log them straight in
+        if ($user) {
+            $this->loginAndAttribute($request, $user);
+            Cache::forget($cacheKey);
+
+            return response()->json(['ok' => true, 'new_user' => false, 'name' => $user->name]);
+        }
+
+        // no account yet — the OTP is confirmed, but we still need a name before we can create one.
+        // The OTP's job is done, so clear it now; the "verified, awaiting name" state moves to its
+        // own cache entry (tied to the exact session that just proved phone ownership, so knowing
+        // someone's number alone can't be used to claim their account later) so that a *second*
+        // send-otp call for this phone — from anyone, at any point while the name step is showing —
+        // can no longer wipe this out from under the legitimate, already-verified user.
+        Cache::forget($cacheKey);
+        Cache::put(
+            self::VERIFIED_CACHE_PREFIX.$phone,
+            ['session' => $request->session()->getId()],
+            now()->addMinutes(self::VERIFIED_TTL_MINUTES)
+        );
+
+        return response()->json(['ok' => true, 'new_user' => true]);
+    }
+
+    public function completeSignup(Request $request)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'phone' => ['required', 'string'],
+        ]);
+
+        $phone = PhoneNumber::normalize($data['phone']);
+        $verifiedKey = self::VERIFIED_CACHE_PREFIX.$phone;
+        $verified = Cache::get($verifiedKey);
+
+        if (!$verified || ($verified['session'] ?? null) !== $request->session()->getId()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Your verification expired — please verify your phone number again.',
+            ], 422);
+        }
+
         $user = User::firstOrCreate(
             ['phone' => $phone],
-            ['name' => $pending['name'], 'phone_verified_at' => now()]
+            ['name' => trim($data['name']), 'phone_verified_at' => now()]
         );
 
         if ($user->wasRecentlyCreated) {
             MasterCouponAssigner::assignFor($user);
         }
 
-        $guestSessionId = $request->session()->getId();
-
-        Auth::login($user, remember: true);
-        $request->session()->regenerate();
-
-        // attribute this device's pre-login browsing (product views, cart adds) to the now-known user
-        UserActivity::where('session_id', $guestSessionId)->whereNull('user_id')->update(['user_id' => $user->id]);
-        SiteVisit::where('session_id', $guestSessionId)->whereNull('user_id')->update(['user_id' => $user->id]);
-        ActivityLogger::log('login', $user->name);
-
-        Cache::forget($cacheKey);
+        $this->loginAndAttribute($request, $user);
+        Cache::forget($verifiedKey);
 
         return response()->json(['ok' => true]);
     }
@@ -172,5 +207,18 @@ class PhoneAuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    private function loginAndAttribute(Request $request, User $user): void
+    {
+        $guestSessionId = $request->session()->getId();
+
+        Auth::login($user, remember: true);
+        $request->session()->regenerate();
+
+        // attribute this device's pre-login browsing (product views, cart adds) to the now-known user
+        UserActivity::where('session_id', $guestSessionId)->whereNull('user_id')->update(['user_id' => $user->id]);
+        SiteVisit::where('session_id', $guestSessionId)->whereNull('user_id')->update(['user_id' => $user->id]);
+        ActivityLogger::log('login', $user->name);
     }
 }

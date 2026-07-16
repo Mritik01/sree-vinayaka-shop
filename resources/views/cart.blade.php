@@ -8,7 +8,7 @@
 @endphp
 
 <section class="relative py-14 bg-ivory min-h-[70vh]">
-    <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="max-w-6xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-10 xl:px-16">
         <nav class="text-sm text-maroon-500 flex items-center gap-2 mb-6">
             <a href="/" class="hover:text-gold-600 transition">{{ __('Home') }}</a>
             <span class="text-gold-400">✦</span>

@@ -29,7 +29,7 @@ class Coupon extends Model
     public function redeemers(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'coupon_redemptions')
-            ->withPivot('discount_amount')
+            ->withPivot(['discount_amount', 'redeemed_at'])
             ->withTimestamps();
     }
 
