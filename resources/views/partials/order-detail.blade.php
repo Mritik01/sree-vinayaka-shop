@@ -253,14 +253,16 @@
         </div>
     </div>
 
-    {{-- ── support chat: launcher + window ───────────────────────────
-         full-screen sheet on phones, floating panel bottom-right on sm+ --}}
-    <div x-data="supportChat({{ $order->id }}, {{ ($autoOpenChat ?? false) ? 'true' : 'false' }})" @keydown.escape.window="open && closeChat()">
+    {{-- ── support chat: launcher + minimized bar + window ────────────
+         full-screen sheet on phones, floating/resizable panel bottom-right on sm+. Positioned
+         well above the floating "View Cart" pill (which sits at bottom-20 on this page) so the
+         two never overlap — see the bottom-36 offset below. --}}
+    <div x-data="supportChat({{ $order->id }}, {{ ($autoOpenChat ?? false) ? 'true' : 'false' }})" @keydown.escape.window="panelOpen && closeChat()">
 
-        {{-- launcher --}}
-        <button x-show="!open" x-cloak @click="openChat()" type="button"
+        {{-- launcher: fresh, chat fully closed --}}
+        <button x-show="!panelOpen" x-cloak @click="openChat()" type="button"
                 x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-75" x-transition:enter-end="opacity-100 scale-100"
-                class="fixed bottom-20 right-4 lg:bottom-6 lg:right-6 z-[60] flex items-center gap-2 pl-4 pr-5 py-3 rounded-full bg-gradient-to-r from-maroon-700 to-maroon-800 text-cream shadow-xl shadow-maroon-900/30 hover:shadow-2xl hover:scale-105 active:scale-95 transition"
+                class="fixed bottom-36 right-4 lg:bottom-6 lg:right-6 z-[60] flex items-center gap-2 pl-4 pr-5 py-3 rounded-full bg-gradient-to-r from-maroon-700 to-maroon-800 text-cream shadow-xl shadow-maroon-900/30 hover:shadow-2xl hover:scale-105 active:scale-95 transition"
                 aria-label="{{ __('Chat with support') }}">
             <span class="relative grid place-items-center">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
@@ -272,12 +274,38 @@
             <span class="text-sm font-semibold">{{ __('Help') }}</span>
         </button>
 
+        {{-- minimized "resume" bar: conversation open, just collapsed — the order page behind
+             is fully usable while this shows --}}
+        <button x-show="panelOpen && minimized" x-cloak @click="restoreChat()" type="button"
+                x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-75" x-transition:enter-end="opacity-100 scale-100"
+                x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-90"
+                class="fixed bottom-36 right-4 lg:bottom-6 lg:right-6 z-[110] flex items-center gap-2.5 pl-2.5 pr-4 py-2.5 rounded-full bg-gradient-to-r from-maroon-700 to-maroon-800 text-cream shadow-xl shadow-maroon-900/30 hover:shadow-2xl active:scale-95 transition"
+                aria-label="{{ __('Resume chat with support') }}">
+            <span class="relative w-8 h-8 shrink-0 rounded-full bg-gold-500 grid place-items-center text-base shadow-inner">🍬</span>
+            <span class="text-sm font-semibold">{{ __('Support chat') }}</span>
+            <span x-show="unread > 0" x-cloak class="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center animate-bounce"
+                  x-text="unread > 9 ? '9+' : unread"></span>
+            <svg class="w-4 h-4 shrink-0 text-cream/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+            </svg>
+        </button>
+
         {{-- chat window --}}
-        <div x-show="open" x-cloak
+        <div x-show="panelOpen && !minimized" x-cloak x-ref="panel"
              x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-10 sm:translate-y-4 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
              x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-10 sm:translate-y-4 sm:scale-95"
+             :style="sizeStyle()"
              class="fixed inset-x-0 top-0 h-[100dvh] z-[120] flex flex-col bg-ivory overflow-hidden
-                    sm:inset-auto sm:top-auto sm:bottom-6 sm:right-6 sm:h-[34rem] sm:max-h-[calc(100dvh-3rem)] sm:w-[24rem] sm:rounded-3xl sm:border sm:border-gold-300/50 sm:shadow-2xl">
+                    sm:inset-auto sm:top-auto sm:bottom-6 sm:right-6 sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:border sm:border-gold-300/50 sm:shadow-2xl">
+
+            {{-- resize grip — desktop only, drags the panel's top-left corner --}}
+            <div @mousedown="startResize($event)"
+                 class="hidden sm:flex absolute -top-0.5 -left-0.5 w-5 h-5 z-10 cursor-nwse-resize items-center justify-center text-cream/40 hover:text-cream/90 transition"
+                 title="{{ __('Drag to resize') }}">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                    <path stroke-linecap="round" d="M20 4 4 20M20 12 12 20" />
+                </svg>
+            </div>
 
             {{-- header --}}
             <div class="relative shrink-0 bg-gradient-to-r from-maroon-800 to-maroon-700 px-4 py-3.5 flex items-center gap-3 overflow-hidden">
@@ -287,10 +315,26 @@
                     <p class="font-display font-semibold text-cream leading-tight">{{ __('Makhanbhog Support') }}</p>
                     <p class="text-[11px] text-cream/70 truncate">{{ $order->orderNumber() }} · {{ __('we usually reply in a few minutes') }}</p>
                 </div>
-                <button @click="closeChat()" type="button" aria-label="{{ __('Close chat') }}"
-                        class="relative shrink-0 w-10 h-10 grid place-items-center rounded-full text-cream/80 hover:text-cream hover:bg-cream/10 active:scale-90 transition">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
-                </button>
+                <div class="relative flex items-center gap-0.5 shrink-0">
+                    <button @click="minimizeChat()" type="button" aria-label="{{ __('Minimize chat') }}"
+                            class="w-9 h-9 grid place-items-center rounded-full text-cream/80 hover:text-cream hover:bg-cream/10 active:scale-90 transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.4"><path stroke-linecap="round" d="M5 12h14"/></svg>
+                    </button>
+                    <button @click="toggleExpand()" type="button"
+                            :aria-label="expanded ? @js(__('Restore chat size')) : @js(__('Maximize chat'))"
+                            class="hidden sm:grid w-9 h-9 place-items-center rounded-full text-cream/80 hover:text-cream hover:bg-cream/10 active:scale-90 transition">
+                        <svg x-show="!expanded" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/>
+                        </svg>
+                        <svg x-show="expanded" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"/>
+                        </svg>
+                    </button>
+                    <button @click="closeChat()" type="button" aria-label="{{ __('Close chat') }}"
+                            class="w-9 h-9 grid place-items-center rounded-full text-cream/80 hover:text-cream hover:bg-cream/10 active:scale-90 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
             </div>
 
             {{-- messages --}}

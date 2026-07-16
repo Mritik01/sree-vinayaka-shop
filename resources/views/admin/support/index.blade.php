@@ -14,8 +14,11 @@
 
         <div x-show="conversations.length > 0" x-cloak class="bg-white rounded-2xl border border-gold-200/60 overflow-hidden divide-y divide-gold-100">
             <template x-for="c in conversations" :key="c.order_id">
-                <a :href="`/admin/support/${c.order_id}`" class="flex items-center gap-4 px-5 py-4 hover:bg-cream/50 transition"
-                   :class="c.unread > 0 && 'bg-gold-50/60'">
+                {{-- opens the floating widget's thread view instead of navigating to a full
+                     page — replying no longer means leaving this list behind --}}
+                <button type="button" @click="window.dispatchEvent(new CustomEvent('open-support-widget', { detail: { orderId: c.order_id, summary: c } }))"
+                        class="w-full flex items-center gap-4 px-5 py-4 hover:bg-cream/50 transition text-left"
+                        :class="c.unread > 0 && 'bg-gold-50/60'">
                     {{-- avatar: customer's initial --}}
                     <span class="w-11 h-11 shrink-0 rounded-full bg-gradient-to-br from-maroon-600 to-maroon-800 text-cream font-display font-bold grid place-items-center text-lg"
                           x-text="(c.customer_name || '?').trim().charAt(0).toUpperCase()"></span>
@@ -37,7 +40,7 @@
                               class="inline-flex min-w-[20px] h-5 px-1.5 rounded-full bg-red-600 text-white text-[11px] font-bold items-center justify-center"
                               x-text="c.unread > 9 ? '9+' : c.unread"></span>
                     </div>
-                </a>
+                </button>
             </template>
         </div>
     </div>

@@ -1055,6 +1055,337 @@ window.adminSupportThread = function (orderId, initialMessages) {
     };
 };
 
+const ADMIN_CHAT_STORAGE_KEY = 'mb_admin_chat_widget';
+
+// Global floating support-chat widget — lives once in admin/layout.blade.php (nested inside the
+// same adminNotifier() scope so its launcher badge/toast can share that scope's `supportUnread`
+// without a second poll). Two views share one panel: 'inbox' (the conversation list) and
+// 'thread' (one order's messages) — switching between them never leaves the current admin page,
+// which is the whole point: an admin can browse Orders/Dashboard/etc. with this open over it.
+//
+// State (open/minimized/expanded/view/activeOrderId/custom size) is mirrored to localStorage
+// because this is a classic server-rendered app — every admin-panel navigation is a full page
+// load, and without this the widget would silently reset on every click.
+window.adminSupportWidget = function () {
+    return {
+        open: false,
+        minimized: false,
+        expanded: false,
+        view: 'inbox', // 'inbox' | 'thread'
+        activeOrderId: null,
+        activeOrder: null, // conversation summary for the thread header (customer_name, order_number, ...)
+        conversations: [],
+        messages: [],
+        draft: '',
+        sending: false,
+        sendError: '',
+        lastId: 0,
+        pendingImage: null,
+        pendingImagePreview: null,
+        customWidth: null,
+        customHeight: null,
+        resizeStart: null,
+
+        init() {
+            this.restoreState();
+            if (this.open && this.view === 'thread' && this.activeOrderId) {
+                window.__activeSupportOrderId = this.minimized ? null : this.activeOrderId;
+                this.loadThread(this.activeOrderId);
+                // the persisted summary redraws the header instantly; this quietly confirms/
+                // refreshes it (status, unread, etc. may have moved on since the last page)
+                this.refreshActiveOrderSummary();
+            } else if (this.open) {
+                this.refreshInbox();
+            }
+            this.$el._inboxTimer = setInterval(() => {
+                if (this.open && !this.minimized && this.view === 'inbox') this.refreshInbox();
+            }, 5000);
+            this.$el._threadTimer = setInterval(() => {
+                if (this.open && !this.minimized && this.view === 'thread' && this.activeOrderId) this.pollThread();
+            }, 3000);
+            // opened from elsewhere on the page: the header chat icon (no detail — inbox), a
+            // conversation row, or a toast (detail.orderId + detail.summary — straight to thread)
+            window.addEventListener('open-support-widget', (e) => {
+                const detail = e.detail || {};
+                if (detail.orderId) this.openThread(detail.orderId, detail.summary || null);
+                else this.openInbox();
+            });
+        },
+        destroy() {
+            clearInterval(this.$el._inboxTimer);
+            clearInterval(this.$el._threadTimer);
+            if (window.__activeSupportOrderId === this.activeOrderId) window.__activeSupportOrderId = null;
+            this.clearPendingImage();
+        },
+
+        persistState() {
+            try {
+                localStorage.setItem(ADMIN_CHAT_STORAGE_KEY, JSON.stringify({
+                    open: this.open,
+                    minimized: this.minimized,
+                    expanded: this.expanded,
+                    view: this.view,
+                    activeOrderId: this.activeOrderId,
+                    // small summary object, not the messages — enough to redraw the thread
+                    // header (name/avatar/Call button) immediately after a page navigation,
+                    // before the fresh fetch below confirms/updates it
+                    activeOrder: this.activeOrder,
+                    customWidth: this.customWidth,
+                    customHeight: this.customHeight,
+                }));
+            } catch (e) {
+                // private browsing / storage disabled — widget still works, just won't survive nav
+            }
+        },
+        restoreState() {
+            try {
+                const raw = localStorage.getItem(ADMIN_CHAT_STORAGE_KEY);
+                if (!raw) return;
+                const s = JSON.parse(raw);
+                this.open = !!s.open;
+                this.minimized = !!s.minimized;
+                this.expanded = !!s.expanded;
+                this.view = s.view === 'thread' ? 'thread' : 'inbox';
+                this.activeOrderId = s.activeOrderId || null;
+                this.activeOrder = s.activeOrder || null;
+                this.customWidth = s.customWidth ?? null;
+                this.customHeight = s.customHeight ?? null;
+                if (this.view === 'thread' && !this.activeOrderId) this.view = 'inbox';
+            } catch (e) {
+                // corrupt/old shape — just start fresh
+            }
+        },
+
+        openInbox() {
+            this.open = true;
+            this.minimized = false;
+            this.view = 'inbox';
+            if (window.__activeSupportOrderId === this.activeOrderId) window.__activeSupportOrderId = null;
+            this.refreshInbox();
+            this.persistState();
+        },
+        openThread(orderId, summary = null) {
+            this.open = true;
+            this.minimized = false;
+            this.view = 'thread';
+            this.activeOrderId = orderId;
+            this.activeOrder = summary;
+            this.messages = [];
+            this.lastId = 0;
+            window.__activeSupportOrderId = orderId;
+            this.loadThread(orderId);
+            this.persistState();
+        },
+        backToInbox() {
+            if (window.__activeSupportOrderId === this.activeOrderId) window.__activeSupportOrderId = null;
+            this.view = 'inbox';
+            this.activeOrderId = null;
+            this.activeOrder = null;
+            this.refreshInbox();
+            this.persistState();
+        },
+        // collapses to the slim "resume" bar — whatever admin page is behind becomes fully
+        // usable again, which is the point of minimize vs. just closing the conversation
+        minimizeChat() {
+            this.minimized = true;
+            if (window.__activeSupportOrderId === this.activeOrderId) window.__activeSupportOrderId = null;
+            this.persistState();
+        },
+        restoreChat() {
+            this.minimized = false;
+            if (this.view === 'thread' && this.activeOrderId) {
+                window.__activeSupportOrderId = this.activeOrderId;
+                this.loadThread(this.activeOrderId);
+            } else {
+                this.refreshInbox();
+            }
+            this.persistState();
+        },
+        closeChat() {
+            this.open = false;
+            this.minimized = false;
+            if (window.__activeSupportOrderId === this.activeOrderId) window.__activeSupportOrderId = null;
+            this.persistState();
+        },
+        toggleExpand() {
+            if (window.innerWidth < 640) return; // mobile is already full-screen
+            this.expanded = !this.expanded;
+            this.customWidth = null;
+            this.customHeight = null;
+            this.persistState();
+        },
+
+        // desktop-only manual resize, dragged from the panel's top-left corner grip
+        startResize(event) {
+            if (window.innerWidth < 640) return;
+            event.preventDefault();
+            const rect = this.$refs.widgetPanel.getBoundingClientRect();
+            this.resizeStart = { x: event.clientX, y: event.clientY, width: rect.width, height: rect.height };
+            document.body.style.userSelect = 'none';
+            const onMove = (e) => this.onResizeMove(e);
+            const onUp = () => {
+                this.resizeStart = null;
+                document.body.style.userSelect = '';
+                this.persistState();
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        },
+        onResizeMove(event) {
+            if (!this.resizeStart) return;
+            const dx = this.resizeStart.x - event.clientX;
+            const dy = this.resizeStart.y - event.clientY;
+            const maxW = Math.min(640, window.innerWidth - 32);
+            const maxH = window.innerHeight - 48;
+            this.customWidth = Math.min(maxW, Math.max(320, this.resizeStart.width + dx));
+            this.customHeight = Math.min(maxH, Math.max(400, this.resizeStart.height + dy));
+        },
+        sizeStyle() {
+            if (window.innerWidth < 640) return '';
+            const width = this.customWidth ?? (this.expanded ? 448 : 384);
+            const height = this.customHeight ?? Math.min(window.innerHeight - 48, this.expanded ? 720 : 544);
+            return `width: ${width}px; height: ${height}px;`;
+        },
+
+        async refreshInbox() {
+            try {
+                const res = await fetch('/admin/support', { headers: { Accept: 'application/json' } });
+                if (!res.ok) return;
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) this.conversations = data.conversations;
+            } catch (e) {
+                // offline / server restarting — next tick will catch up
+            }
+        },
+        // there's no single-conversation endpoint, so this reuses the inbox list just to pick
+        // out the one row matching the persisted thread — only called once, right after a page
+        // navigation restores a thread that was open, to refresh a possibly-stale summary
+        async refreshActiveOrderSummary() {
+            if (!this.activeOrderId) return;
+            try {
+                const res = await fetch('/admin/support', { headers: { Accept: 'application/json' } });
+                if (!res.ok) return;
+                const data = await res.json().catch(() => ({}));
+                if (!data.ok) return;
+                const match = (data.conversations || []).find((c) => c.order_id === this.activeOrderId);
+                if (match) {
+                    this.activeOrder = match;
+                    this.persistState();
+                }
+            } catch (e) {
+                // offline / server hiccup — the persisted summary stays as the fallback
+            }
+        },
+        async loadThread(orderId) {
+            try {
+                const url = new URL(`/admin/support/${orderId}/messages`, window.location.origin);
+                url.searchParams.set('after', 0);
+                const res = await fetch(url, { headers: { Accept: 'application/json' } });
+                if (!res.ok) return;
+                const data = await res.json().catch(() => ({}));
+                if (!data.ok) return;
+                this.appendMessages(data.messages || []);
+                this.$nextTick(() => this.scrollToBottom(true));
+            } catch (e) {
+                // offline / server hiccup — next tick will catch up
+            }
+        },
+        async pollThread() {
+            if (!this.activeOrderId) return;
+            try {
+                const url = new URL(`/admin/support/${this.activeOrderId}/messages`, window.location.origin);
+                url.searchParams.set('after', this.lastId);
+                const res = await fetch(url, { headers: { Accept: 'application/json' } });
+                if (!res.ok) return;
+                const data = await res.json().catch(() => ({}));
+                if (!data.ok) return;
+                const incoming = (data.messages || []).filter((m) => m.id > this.lastId);
+                if (incoming.length) {
+                    this.appendMessages(incoming);
+                    if (incoming.some((m) => m.sender === 'customer')) {
+                        playChatPing();
+                        this.$nextTick(() => this.scrollToBottom());
+                    }
+                }
+            } catch (e) {
+                // offline / server hiccup — next tick will catch up
+            }
+        },
+        appendMessages(list) {
+            list.forEach((m) => {
+                const prev = this.messages[this.messages.length - 1];
+                m.showDay = !prev || prev.day !== m.day;
+                this.messages.push(m);
+                this.lastId = Math.max(this.lastId, m.id);
+            });
+        },
+
+        onImageSelected(event) {
+            const file = event.target.files[0];
+            event.target.value = '';
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                this.sendError = 'Please choose an image file.';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                this.sendError = 'That image is too large — please pick one under 5MB.';
+                return;
+            }
+            this.sendError = '';
+            this.clearPendingImage();
+            this.pendingImage = file;
+            this.pendingImagePreview = URL.createObjectURL(file);
+        },
+        clearPendingImage() {
+            if (this.pendingImagePreview) URL.revokeObjectURL(this.pendingImagePreview);
+            this.pendingImage = null;
+            this.pendingImagePreview = null;
+        },
+
+        async send() {
+            const text = this.draft.trim();
+            if ((!text && !this.pendingImage) || this.sending || !this.activeOrderId) return;
+            this.sending = true;
+            this.sendError = '';
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const body = new FormData();
+                body.append('message', text);
+                if (this.pendingImage) body.append('image', this.pendingImage);
+                const res = await fetch(`/admin/support/${this.activeOrderId}/messages`, {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body,
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) {
+                    this.appendMessages([data.message]);
+                    this.draft = '';
+                    this.clearPendingImage();
+                    this.$nextTick(() => this.scrollToBottom(true));
+                    this.$refs.widgetInput?.focus();
+                } else {
+                    this.sendError = data.message || "Couldn't send — please try again.";
+                }
+            } catch (e) {
+                this.sendError = 'Network error — please try again.';
+            } finally {
+                this.sending = false;
+            }
+        },
+
+        scrollToBottom(force = false) {
+            const el = this.$refs.widgetThread;
+            if (!el) return;
+            const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 140;
+            if (force || nearBottom) el.scrollTop = el.scrollHeight;
+        },
+    };
+};
+
 // Announcement Banner admin form — drives the Quill rich-text editor and the live preview
 // pane, which shares the exact same Blade partial (and Alpine property names) rendered on
 // the live site so what the admin sees here is pixel-for-pixel what visitors will see.

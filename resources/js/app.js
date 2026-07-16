@@ -1470,9 +1470,23 @@ function playChatPing() {
 // per-order support chat — launcher FAB + chat window on the order detail view. Polling-based
 // (like every other live feature here): 3s while the window is open, every ~4th tick while
 // closed just to keep the unread badge honest.
+//
+// Window has three visible forms, all under the one `panelOpen` flag:
+//   - closed (panelOpen=false): only the launcher FAB shows.
+//   - minimized (panelOpen=true, minimized=true): a slim "resume" bar — the order page behind
+//     it is fully visible/usable again, which is the whole point of minimize vs. just closing.
+//   - viewing (panelOpen=true, minimized=false): the actual thread, `expanded` toggling between
+//     the default compact size and a larger one (desktop only — mobile is always full-screen here).
+// `viewingThread` (panelOpen && !minimized) gates anything that should only happen while the
+// customer is actually looking at the thread: unread reset, the "read" receipt query, autoscroll.
 window.supportChat = function (orderId, autoOpen = false) {
     return {
-        open: false,
+        panelOpen: false,
+        minimized: false,
+        expanded: false,
+        customWidth: null,
+        customHeight: null,
+        resizeStart: null,
         messages: [],
         draft: '',
         sending: false,
@@ -1484,11 +1498,15 @@ window.supportChat = function (orderId, autoOpen = false) {
         pendingImage: null,
         pendingImagePreview: null,
 
+        get viewingThread() {
+            return this.panelOpen && !this.minimized;
+        },
+
         init() {
             this.fetchMessages();
             this.$el._chatTimer = setInterval(() => {
                 this.tick += 1;
-                if (this.open || this.tick % 4 === 0) this.fetchMessages();
+                if (this.viewingThread || this.tick % 4 === 0) this.fetchMessages();
             }, 3000);
             // arrived from the notification bell's "admin replied" link — jump straight in
             if (autoOpen) {
@@ -1506,7 +1524,11 @@ window.supportChat = function (orderId, autoOpen = false) {
         },
 
         openChat() {
-            this.open = true;
+            this.panelOpen = true;
+            this.minimized = false;
+            this.expanded = false;
+            this.customWidth = null;
+            this.customHeight = null;
             this.unread = 0;
             this.lockScroll();
             this.fetchMessages();
@@ -1517,15 +1539,70 @@ window.supportChat = function (orderId, autoOpen = false) {
             });
         },
         closeChat() {
-            this.open = false;
+            this.panelOpen = false;
+            this.minimized = false;
             this.unlockScroll();
+        },
+        // collapses to the slim "resume" bar — the order page behind becomes fully usable again,
+        // which is the point: chatting shouldn't block checking/managing the order
+        minimizeChat() {
+            this.minimized = true;
+            this.unlockScroll();
+        },
+        restoreChat() {
+            this.minimized = false;
+            this.unread = 0;
+            this.lockScroll();
+            this.$nextTick(() => this.scrollToBottom(true));
+        },
+        toggleExpand() {
+            if (window.innerWidth < 640) return; // mobile is already full-screen; nothing to expand
+            this.expanded = !this.expanded;
+            this.customWidth = null;
+            this.customHeight = null;
         },
         // the window is a full-screen sheet on phones — the page behind it must not scroll
         lockScroll() {
-            if (window.innerWidth < 640) document.documentElement.style.overflow = 'hidden';
+            if (window.innerWidth < 640 && this.viewingThread) document.documentElement.style.overflow = 'hidden';
         },
         unlockScroll() {
             document.documentElement.style.overflow = '';
+        },
+
+        // desktop-only manual resize, dragged from the panel's top-left corner grip. Clamped so
+        // it can never grow to cover the whole page or shrink below a usable size.
+        startResize(event) {
+            if (window.innerWidth < 640) return;
+            event.preventDefault();
+            const rect = this.$refs.panel.getBoundingClientRect();
+            this.resizeStart = { x: event.clientX, y: event.clientY, width: rect.width, height: rect.height };
+            document.body.style.userSelect = 'none';
+            const onMove = (e) => this.onResizeMove(e);
+            const onUp = () => {
+                this.resizeStart = null;
+                document.body.style.userSelect = '';
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        },
+        onResizeMove(event) {
+            if (!this.resizeStart) return;
+            const dx = this.resizeStart.x - event.clientX; // grip is top-left: dragging left/up grows the panel
+            const dy = this.resizeStart.y - event.clientY;
+            const maxW = Math.min(640, window.innerWidth - 32);
+            const maxH = window.innerHeight - 48;
+            this.customWidth = Math.min(maxW, Math.max(320, this.resizeStart.width + dx));
+            this.customHeight = Math.min(maxH, Math.max(400, this.resizeStart.height + dy));
+        },
+        // inline size wins over the compact/expanded preset classes once the customer has
+        // dragged the grip; left empty on mobile so the sm: full-screen classes stay in control
+        sizeStyle() {
+            if (window.innerWidth < 640) return '';
+            const width = this.customWidth ?? (this.expanded ? 448 : 384);
+            const height = this.customHeight ?? Math.min(window.innerHeight - 48, this.expanded ? 720 : 544);
+            return `width: ${width}px; height: ${height}px;`;
         },
 
         async fetchMessages() {
@@ -1533,7 +1610,7 @@ window.supportChat = function (orderId, autoOpen = false) {
                 const url = new URL(`/orders/${orderId}/support`, window.location.origin);
                 url.searchParams.set('after', this.lastId);
                 // only an on-screen chat counts as "read" — the background badge poll must not
-                if (this.open && !document.hidden) url.searchParams.set('read', 1);
+                if (this.viewingThread && !document.hidden) url.searchParams.set('read', 1);
                 const res = await fetch(url, { headers: { Accept: 'application/json' } });
                 if (!res.ok) return;
                 const data = await res.json().catch(() => ({}));
@@ -1541,12 +1618,12 @@ window.supportChat = function (orderId, autoOpen = false) {
                 const incoming = (data.messages || []).filter((m) => m.id > this.lastId);
                 if (incoming.length) {
                     this.appendMessages(incoming);
-                    if (this.open && incoming.some((m) => m.sender === 'admin')) {
+                    if (this.panelOpen && incoming.some((m) => m.sender === 'admin')) {
                         playChatPing();
-                        this.$nextTick(() => this.scrollToBottom());
+                        if (this.viewingThread) this.$nextTick(() => this.scrollToBottom());
                     }
                 }
-                this.unread = this.open ? 0 : data.unread;
+                this.unread = this.viewingThread ? 0 : data.unread;
                 this.loaded = true;
             } catch (e) {
                 // offline / server hiccup — next tick will catch up

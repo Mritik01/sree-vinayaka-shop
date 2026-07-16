@@ -136,9 +136,10 @@
                     </div>
                 </div>
 
-                {{-- live support-chat shortcut --}}
-                <a href="{{ route('admin.support.index') }}" aria-label="Support chat"
-                   class="relative p-2 rounded-full hover:bg-cream transition text-maroon-700">
+                {{-- live support-chat shortcut — opens the floating widget (see below) instead of
+                     navigating away, so replying never means leaving whatever page you're on --}}
+                <button type="button" @click="window.dispatchEvent(new CustomEvent('open-support-widget'))" aria-label="Support chat"
+                        class="relative p-2 rounded-full hover:bg-cream transition text-maroon-700">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.7">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
                     </svg>
@@ -146,7 +147,7 @@
                           x-transition:enter="transition ease-out duration-300" x-transition:enter-start="scale-0" x-transition:enter-end="scale-100"
                           class="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
                           x-text="supportUnread > 9 ? '9+' : supportUnread"></span>
-                </a>
+                </button>
 
                 {{-- live new-order bell --}}
                 <button @click="openOrders()" type="button" aria-label="New orders"
@@ -243,12 +244,14 @@
             {{-- top-right toast stack: support-chat messages + auto-cancel warnings share one
                  container so simultaneous toasts stack instead of overlapping --}}
             <div class="fixed top-4 right-4 z-[80] space-y-2.5 w-full max-w-sm px-4 sm:px-0">
-                {{-- a customer wrote in — ping + slide-in card linking to the thread --}}
+                {{-- a customer wrote in — ping + slide-in card opening the widget's thread view
+                     directly (not a page navigation, so whatever the admin was doing stays put) --}}
                 <template x-for="toast in supportToasts" :key="toast._key">
-                    <a :href="`/admin/support/${toast.order_id}`"
-                       class="block bg-white border-2 border-gold-400 rounded-xl shadow-xl p-4 hover:bg-cream/60 transition"
-                       x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-6" x-transition:enter-end="opacity-100 translate-x-0"
-                       x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+                    <button type="button"
+                            @click="window.dispatchEvent(new CustomEvent('open-support-widget', { detail: { orderId: toast.order_id, summary: toast } })); supportToasts = supportToasts.filter((t) => t._key !== toast._key)"
+                            class="block w-full text-left bg-white border-2 border-gold-400 rounded-xl shadow-xl p-4 hover:bg-cream/60 transition"
+                            x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-6" x-transition:enter-end="opacity-100 translate-x-0"
+                            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
                         <div class="flex items-start gap-3">
                             <span class="text-xl shrink-0">💬</span>
                             <div class="min-w-0 flex-1">
@@ -262,7 +265,7 @@
                             <button type="button" @click.prevent.stop="supportToasts = supportToasts.filter((t) => t._key !== toast._key)"
                                     class="shrink-0 text-maroon-300 hover:text-maroon-600 transition text-lg leading-none">✕</button>
                         </div>
-                    </a>
+                    </button>
                 </template>
 
                 {{-- auto-cancel warnings: orders the shop failed to deliver within 90 min, self-cancelled --}}
@@ -283,6 +286,199 @@
                                 class="shrink-0 text-maroon-300 hover:text-maroon-600 transition text-lg leading-none">✕</button>
                     </div>
                 </template>
+            </div>
+
+            {{-- ── global support-chat widget ──────────────────────────────────────────
+                 Nested in this same adminNotifier() scope so it can read `supportUnread`
+                 directly without a second poll. Fixed/floating like the customer-facing chat
+                 widget: launcher is the header icon above; opens as a compact, resizable,
+                 minimizable panel that floats over whatever admin page is behind it — an admin
+                 can jump to Orders, look something up, and come straight back without losing
+                 the conversation. Positioned at bottom-24 (not bottom-6) so it never collides
+                 with the floating "scroll to refresh" button that shares this corner. --}}
+            <div x-data="adminSupportWidget()" @keydown.escape.window="open && !minimized && closeChat()">
+
+                {{-- minimized "resume" bar --}}
+                <button x-show="open && minimized" x-cloak @click="restoreChat()" type="button"
+                        x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-75" x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-90"
+                        class="fixed bottom-24 right-6 z-[110] flex items-center gap-2.5 pl-2.5 pr-4 py-2.5 rounded-full bg-gradient-to-r from-maroon-700 to-maroon-800 text-cream shadow-xl shadow-maroon-900/30 hover:shadow-2xl active:scale-95 transition"
+                        aria-label="{{ __('Resume support chat') }}">
+                    <span class="w-8 h-8 shrink-0 rounded-full bg-gold-500 grid place-items-center text-base shadow-inner">💬</span>
+                    <span class="text-sm font-semibold max-w-[9rem] truncate"
+                          x-text="view === 'thread' && activeOrder ? activeOrder.customer_name : @js(__('Support Chat'))"></span>
+                    <span x-show="supportUnread > 0" x-cloak class="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold grid place-items-center animate-bounce"
+                          x-text="supportUnread > 9 ? '9+' : supportUnread"></span>
+                    <svg class="w-4 h-4 shrink-0 text-cream/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                    </svg>
+                </button>
+
+                {{-- panel --}}
+                <div x-show="open && !minimized" x-cloak x-ref="widgetPanel"
+                     x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-10 sm:translate-y-4 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+                     x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-10 sm:translate-y-4 sm:scale-95"
+                     :style="sizeStyle()"
+                     class="fixed inset-x-0 top-0 h-[100dvh] z-[120] flex flex-col bg-ivory overflow-hidden
+                            sm:inset-auto sm:top-auto sm:bottom-24 sm:right-6 sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:border sm:border-gold-300/50 sm:shadow-2xl">
+
+                    {{-- resize grip — desktop only, drags the panel's top-left corner --}}
+                    <div @mousedown="startResize($event)"
+                         class="hidden sm:flex absolute -top-0.5 -left-0.5 w-5 h-5 z-10 cursor-nwse-resize items-center justify-center text-cream/40 hover:text-cream/90 transition"
+                         title="{{ __('Drag to resize') }}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                            <path stroke-linecap="round" d="M20 4 4 20M20 12 12 20" />
+                        </svg>
+                    </div>
+
+                    {{-- header --}}
+                    <div class="relative shrink-0 bg-gradient-to-r from-maroon-800 to-maroon-700 px-4 py-3.5 flex items-center gap-3 overflow-hidden">
+                        <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle, #e9c873 1.5px, transparent 1.5px); background-size: 16px 16px;"></div>
+
+                        <button x-show="view === 'thread'" x-cloak @click="backToInbox()" type="button" aria-label="{{ __('All conversations') }}"
+                                class="relative shrink-0 w-9 h-9 grid place-items-center rounded-full text-cream/80 hover:text-cream hover:bg-cream/10 active:scale-90 transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"/></svg>
+                        </button>
+                        <span x-show="view === 'inbox'" class="relative w-10 h-10 shrink-0 rounded-full bg-gold-500 grid place-items-center text-xl shadow-inner">💬</span>
+                        <span x-show="view === 'thread'" x-cloak
+                              class="relative w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-maroon-600 to-maroon-900 text-cream font-display font-bold grid place-items-center text-lg"
+                              x-text="(activeOrder?.customer_name || '?').trim().charAt(0).toUpperCase()"></span>
+
+                        <div class="relative min-w-0 flex-1">
+                            <p class="font-display font-semibold text-cream leading-tight truncate"
+                               x-text="view === 'thread' ? (activeOrder?.customer_name || @js(__('Support Chat'))) : @js(__('Support Chat'))"></p>
+                            <p class="text-[11px] text-cream/70 truncate"
+                               x-text="view === 'thread' ? (activeOrder?.order_number || '') : (conversations.length + ' ' + @js(__('conversations')))"></p>
+                        </div>
+
+                        <div class="relative flex items-center gap-0.5 shrink-0">
+                            <button @click="minimizeChat()" type="button" aria-label="{{ __('Minimize chat') }}"
+                                    class="w-9 h-9 grid place-items-center rounded-full text-cream/80 hover:text-cream hover:bg-cream/10 active:scale-90 transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.4"><path stroke-linecap="round" d="M5 12h14"/></svg>
+                            </button>
+                            <button @click="toggleExpand()" type="button"
+                                    :aria-label="expanded ? @js(__('Restore chat size')) : @js(__('Maximize chat'))"
+                                    class="hidden sm:grid w-9 h-9 place-items-center rounded-full text-cream/80 hover:text-cream hover:bg-cream/10 active:scale-90 transition">
+                                <svg x-show="!expanded" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/>
+                                </svg>
+                                <svg x-show="expanded" x-cloak class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25"/>
+                                </svg>
+                            </button>
+                            <button @click="closeChat()" type="button" aria-label="{{ __('Close chat') }}"
+                                    class="w-9 h-9 grid place-items-center rounded-full text-cream/80 hover:text-cream hover:bg-cream/10 active:scale-90 transition">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- inbox view: conversation list --}}
+                    <div x-show="view === 'inbox'" class="flex-1 overflow-y-auto overscroll-contain">
+                        <div x-show="conversations.length === 0" x-cloak class="h-full flex flex-col items-center justify-center text-center px-6">
+                            <span class="text-4xl mb-2">💬</span>
+                            <p class="text-sm text-maroon-400">{{ __('No support conversations yet') }}</p>
+                        </div>
+                        <div class="divide-y divide-gold-100">
+                            <template x-for="c in conversations" :key="c.order_id">
+                                <button type="button" @click="openThread(c.order_id, c)"
+                                        class="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-cream/60 transition text-left"
+                                        :class="c.unread > 0 && 'bg-gold-50/60'">
+                                    <span class="w-10 h-10 shrink-0 rounded-full bg-gradient-to-br from-maroon-600 to-maroon-800 text-cream font-display font-bold grid place-items-center"
+                                          x-text="(c.customer_name || '?').trim().charAt(0).toUpperCase()"></span>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex items-center gap-2">
+                                            <p class="font-semibold text-maroon-800 truncate text-sm" x-text="c.customer_name"></p>
+                                            <span class="text-[11px] text-maroon-400 font-mono shrink-0" x-text="c.order_number"></span>
+                                        </div>
+                                        <p class="text-xs mt-0.5 truncate" :class="c.unread > 0 ? 'text-maroon-800 font-semibold' : 'text-maroon-500'">
+                                            <span x-show="c.last_sender === 'admin'" class="text-maroon-400 font-normal">{{ __('You:') }} </span><span x-text="c.snippet"></span>
+                                        </p>
+                                    </div>
+                                    <div class="shrink-0 text-right space-y-1">
+                                        <p class="text-[10px] text-maroon-400" x-text="c.last_at"></p>
+                                        <span x-show="c.unread > 0" x-cloak
+                                              class="inline-flex min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold items-center justify-center"
+                                              x-text="c.unread > 9 ? '9+' : c.unread"></span>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    {{-- thread view: one order's messages --}}
+                    <template x-if="view === 'thread'">
+                        <div class="flex-1 flex flex-col overflow-hidden">
+                            {{-- quick actions: keeps "manage the order while chatting" one tap away --}}
+                            <div class="shrink-0 px-4 py-2 border-b border-gold-100 bg-cream/60 flex items-center gap-2 text-xs">
+                                <a x-show="activeOrder?.customer_phone" x-cloak :href="'tel:' + activeOrder?.customer_phone"
+                                   class="font-semibold text-maroon-700 border border-gold-300/70 hover:border-gold-400 hover:bg-white rounded-lg px-3 py-1.5 transition">📞 {{ __('Call') }}</a>
+                                <a :href="'/admin/orders/' + activeOrderId" target="_blank" rel="noopener"
+                                   class="font-semibold text-maroon-700 border border-gold-300/70 hover:border-gold-400 hover:bg-white rounded-lg px-3 py-1.5 transition">🧾 {{ __('View Order') }}</a>
+                            </div>
+
+                            <div x-ref="widgetThread" class="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+                                <div x-show="messages.length === 0" x-cloak class="h-full flex flex-col items-center justify-center text-center">
+                                    <span class="text-4xl">💬</span>
+                                    <p class="text-sm text-maroon-400 mt-2">{{ __('No messages yet — say hello!') }}</p>
+                                </div>
+                                <template x-for="m in messages" :key="m.id">
+                                    <div>
+                                        <div x-show="m.showDay" class="text-center my-3">
+                                            <span class="text-[10px] font-semibold text-maroon-400 bg-cream border border-gold-200/60 rounded-full px-3 py-1" x-text="m.day"></span>
+                                        </div>
+                                        <div class="flex items-end gap-2 mt-2" :class="m.sender === 'admin' ? 'justify-end' : 'justify-start'">
+                                            <span x-show="m.sender === 'customer'"
+                                                  class="w-7 h-7 shrink-0 rounded-full bg-maroon-100 border border-maroon-400/30 grid place-items-center text-[11px] font-bold text-maroon-700 mb-4"
+                                                  x-text="(activeOrder?.customer_name || '?').trim().charAt(0).toUpperCase()"></span>
+                                            <div class="max-w-[75%]">
+                                                <a x-show="m.image_url" x-cloak :href="m.image_url" target="_blank" rel="noopener"
+                                                   class="block max-w-[210px] rounded-2xl overflow-hidden border border-gold-200/60 shadow-sm mb-1">
+                                                    <img :src="m.image_url" class="w-full h-auto object-cover" loading="lazy" alt="">
+                                                </a>
+                                                <div x-show="m.message" x-cloak
+                                                     class="px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line break-words shadow-sm"
+                                                     :class="m.sender === 'admin'
+                                                         ? 'bg-gradient-to-br from-maroon-700 to-maroon-800 text-cream rounded-2xl rounded-br-md'
+                                                         : 'bg-white text-maroon-800 border border-gold-200/70 rounded-2xl rounded-bl-md'"
+                                                     x-text="m.message"></div>
+                                                <p class="text-[10px] text-maroon-400 mt-1 px-1" :class="m.sender === 'admin' && 'text-right'" x-text="m.time"></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            {{-- composer --}}
+                            <div class="shrink-0 border-t border-gold-200/60 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                                <p x-show="sendError" x-cloak class="text-red-600 text-xs mb-2 px-1" x-text="sendError"></p>
+                                <div x-show="pendingImagePreview" x-cloak class="relative inline-block mb-2 ml-1">
+                                    <img :src="pendingImagePreview" class="h-16 w-16 object-cover rounded-xl border border-gold-300/60 shadow-sm">
+                                    <button @click="clearPendingImage()" type="button" aria-label="{{ __('Remove photo') }}"
+                                            class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-maroon-800 text-cream text-xs grid place-items-center shadow">✕</button>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input x-ref="widgetImageInput" type="file" accept="image/*" class="hidden" @change="onImageSelected($event)">
+                                    <button @click="$refs.widgetImageInput.click()" type="button" aria-label="{{ __('Attach a photo') }}"
+                                            class="shrink-0 w-10 h-10 rounded-full grid place-items-center text-maroon-500 hover:text-maroon-700 hover:bg-cream transition">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 4.5h16.5a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6a1.5 1.5 0 0 1 1.5-1.5Zm10.125 3.375a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                                        </svg>
+                                    </button>
+                                    <input x-ref="widgetInput" x-model="draft" @keydown.enter.prevent="send()"
+                                           type="text" maxlength="1000" placeholder="{{ __('Type a reply…') }}"
+                                           class="flex-1 min-w-0 rounded-full border border-gold-300/70 bg-cream/50 px-4 py-2.5 text-sm text-maroon-800 placeholder-maroon-400/60 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                    <button @click="send()" :disabled="sending || (!draft.trim() && !pendingImage)" type="button" aria-label="{{ __('Send message') }}"
+                                            class="shrink-0 w-11 h-11 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 text-maroon-900 grid place-items-center shadow-md hover:shadow-lg active:scale-90 transition disabled:opacity-40 disabled:shadow-none">
+                                        <svg class="w-5 h-5 translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
             </div>
 
             <main class="p-8">
