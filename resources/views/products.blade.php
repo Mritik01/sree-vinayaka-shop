@@ -17,6 +17,7 @@
         'id' => $p->id,
         'name' => $p->name,
         'category' => $p->category,
+        'search_tags' => $p->search_tags_flat,
         'price' => (int) $p->price,
         'rating' => round($p->reviews_avg_rating ?? 0, 1),
         'reviews' => (int) $p->reviews_count,

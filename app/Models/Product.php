@@ -24,6 +24,7 @@ class Product extends Model
         'portions',
         'weight',
         'tag',
+        'search_tags',
         'image',
         'image_position',
         'color',
@@ -36,6 +37,7 @@ class Product extends Model
         'is_bestseller' => 'boolean',
         'is_festival_special' => 'boolean',
         'portions' => 'array',
+        'search_tags' => 'array',
     ];
 
     public const PORTION_OPTIONS = [250, 500, 750, 1000];
@@ -46,6 +48,20 @@ class Product extends Model
             if (empty($product->slug)) {
                 $product->slug = static::uniqueSlugFor($product->name);
             }
+        });
+
+        // keeps search_tags_flat in sync with search_tags on every save, regardless of which
+        // code path wrote it — trims/dedupes/lowercases once here so search stays a plain
+        // indexed LIKE query against one string column instead of needing JSON-aware SQL
+        static::saving(function (Product $product) {
+            $tags = collect($product->search_tags ?? [])
+                ->map(fn ($tag) => trim((string) $tag))
+                ->filter()
+                ->unique(fn ($tag) => Str::lower($tag))
+                ->values();
+
+            $product->search_tags = $tags->all();
+            $product->search_tags_flat = $tags->map(fn ($tag) => Str::lower($tag))->implode(' ');
         });
     }
 

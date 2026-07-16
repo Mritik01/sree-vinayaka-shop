@@ -542,8 +542,14 @@ window.productListing = function (isLoggedIn, initialFavorites, products, priceB
                 });
                 if (!inAny) return false;
             }
-            const q = this.filters.q.trim().toLowerCase();
-            if (q && !p.name.toLowerCase().includes(q)) return false;
+            // collapse repeated/extra whitespace so "  chini  " and "chini" match the same
+            const q = this.filters.q.trim().toLowerCase().replace(/\s+/g, ' ');
+            if (q) {
+                const inName = p.name.toLowerCase().includes(q);
+                const inCategory = p.category.toLowerCase().includes(q);
+                const inTags = (p.search_tags || '').includes(q);
+                if (!inName && !inCategory && !inTags) return false;
+            }
             return true;
         },
         visible(id) {

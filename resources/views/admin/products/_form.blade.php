@@ -6,6 +6,8 @@
         price: {{ Illuminate\Support\Js::from(old('price', $product->price ?? '')) }},
         weight: {{ Illuminate\Support\Js::from(old('weight', $product->weight ?? '')) }},
         tag: {{ Illuminate\Support\Js::from(old('tag', $product->tag ?? '')) }},
+        searchTags: {{ json_encode(old('search_tags', $product->search_tags ?? [])) }},
+        tagDraft: '',
         color: {{ Illuminate\Support\Js::from(old('color', $product->color ?? '#c8962e')) }},
         description: {{ Illuminate\Support\Js::from(old('description', $product->description ?? '')) }},
         photoPreview: {{ Illuminate\Support\Js::from(isset($product) ? asset($product->image) : '') }},
@@ -90,6 +92,20 @@
         },
         resetImagePosition() {
             this.imagePosition = '50% 50%';
+        },
+
+        // comma or Enter commits the current draft as one or more chips; case-insensitive
+        // de-dup so "Chini" typed twice (or pasted as part of a comma list) doesn't add twice
+        addTag() {
+            this.tagDraft.split(',').map((t) => t.trim()).filter(Boolean).forEach((t) => {
+                if (!this.searchTags.some((existing) => existing.toLowerCase() === t.toLowerCase())) {
+                    this.searchTags.push(t);
+                }
+            });
+            this.tagDraft = '';
+        },
+        removeTag(i) {
+            this.searchTags.splice(i, 1);
         },
      }"
      class="grid lg:grid-cols-[1fr_420px] gap-10 items-start">
@@ -183,6 +199,31 @@
                 <label class="block text-sm font-medium text-maroon-700 mb-1.5">Tag <span class="text-maroon-300">(optional badge, e.g. Chilled)</span></label>
                 <input type="text" name="tag" x-model="tag"
                        class="w-full rounded-lg border border-gold-300/70 px-3.5 py-2.5 text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+            </div>
+
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-maroon-700 mb-1.5">
+                    Search Tags <span class="text-maroon-300">(optional — synonyms/keywords so customers find this product)</span>
+                </label>
+                <div class="w-full rounded-lg border border-gold-300/70 px-2.5 py-2 flex flex-wrap gap-1.5 items-center bg-white focus-within:ring-2 focus-within:ring-gold-400 focus-within:border-gold-400 transition">
+                    <template x-for="(t, i) in searchTags" :key="i + '-' + t">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-medium pl-2.5 pr-1.5 py-1 rounded-full bg-gold-100 text-gold-700 border border-gold-300/60">
+                            <span x-text="t"></span>
+                            <button type="button" @click="removeTag(i)" aria-label="Remove tag"
+                                    class="w-4 h-4 rounded-full flex items-center justify-center hover:bg-gold-300/60 hover:text-gold-900 transition leading-none">✕</button>
+                        </span>
+                    </template>
+                    <input type="text" x-model="tagDraft"
+                           @keydown.enter.prevent="addTag()" @keydown.comma.prevent="addTag()"
+                           @keydown.backspace="if (!tagDraft && searchTags.length) removeTag(searchTags.length - 1)"
+                           @blur="addTag()"
+                           placeholder="{{ __('Type a keyword, press Enter or comma…') }}"
+                           class="flex-1 min-w-[160px] border-0 focus:ring-0 text-sm text-maroon-800 placeholder-maroon-400/50 py-1 px-1">
+                </div>
+                <template x-for="t in searchTags" :key="'hidden-'+t">
+                    <input type="hidden" name="search_tags[]" :value="t">
+                </template>
+                <p class="text-xs text-maroon-400 mt-1.5">e.g. Sugar → Chini, Sakkar, Cheeni, Sweetener. Helps customers find this product when they search in Hindi, Hinglish, or a different spelling.</p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-maroon-700 mb-1.5">Accent Color</label>

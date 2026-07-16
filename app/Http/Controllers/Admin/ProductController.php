@@ -23,7 +23,8 @@ class ProductController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                     ->orWhere('category', 'like', "%{$search}%")
-                    ->orWhere('tag', 'like', "%{$search}%");
+                    ->orWhere('tag', 'like', "%{$search}%")
+                    ->orWhere('search_tags_flat', 'like', '%'.Str::lower($search).'%');
             });
         }
 
@@ -107,6 +108,11 @@ class ProductController extends Controller
                 },
             ],
             'tag' => 'nullable|string|max:50',
+            'search_tags' => 'nullable|array|max:30',
+            // nullable per-item: an accidental blank entry (stray hidden input, JS disabled)
+            // should just get silently dropped — see Product::booted()'s saving hook — rather
+            // than fail the whole form over one empty tag
+            'search_tags.*' => 'nullable|string|max:40',
             'color' => 'required|string|max:20',
             'sort_order' => 'required|integer|min:0',
             'image' => 'nullable|image|max:4096',
