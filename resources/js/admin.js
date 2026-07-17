@@ -2,6 +2,8 @@ import Alpine from 'alpinejs';
 import Chart from 'chart.js/auto';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
+import Cropper from 'cropperjs';
+import 'cropperjs/dist/cropper.css';
 
 const palette = {
     maroon: '#7a1622',
@@ -441,6 +443,56 @@ window.adminOrderShowPage = function (initialOrder, orderId, cancelledReasons) {
             const who = cancelledReasons[this.order.cancelled_by] || '';
             return this.order.cancellation_reason ? `${who} — "${this.order.cancellation_reason}"` : who;
         },
+
+        // internal packing checklist — purely local UI state backed by order_items.confirmed_at;
+        // never touches the order's actual status, never visible to the customer
+        isItemConfirmed(itemId) {
+            return !!this.order.confirmed_items?.[itemId];
+        },
+        confirmedItemsCount() {
+            return Object.values(this.order.confirmed_items || {}).filter(Boolean).length;
+        },
+        totalItemsCount() {
+            return Object.keys(this.order.confirmed_items || {}).length;
+        },
+        allItemsConfirmed() {
+            return this.totalItemsCount() > 0 && this.confirmedItemsCount() === this.totalItemsCount();
+        },
+        async toggleItemConfirmed(itemId) {
+            const was = this.isItemConfirmed(itemId);
+            this.order.confirmed_items = { ...this.order.confirmed_items, [itemId]: !was };
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch(`/admin/orders/${orderId}/items/${itemId}/confirm`, {
+                    method: 'PATCH',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!data.ok) throw new Error('failed');
+                this.order.confirmed_items = { ...this.order.confirmed_items, [itemId]: data.confirmed };
+            } catch (e) {
+                this.order.confirmed_items = { ...this.order.confirmed_items, [itemId]: was };
+            }
+        },
+        async confirmAllItems() {
+            const snapshot = { ...this.order.confirmed_items };
+            const allTrue = {};
+            Object.keys(snapshot).forEach((id) => { allTrue[id] = true; });
+            this.order.confirmed_items = allTrue;
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch(`/admin/orders/${orderId}/items/confirm-all`, {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!data.ok) throw new Error('failed');
+                this.order.confirmed_items = data.confirmed_items;
+            } catch (e) {
+                this.order.confirmed_items = snapshot;
+            }
+        },
+
         async poll() {
             // unlike the customer tracking page, keep polling even once delivered — a proof-of-delivery
             // photo can still land moments after the rider marks the order delivered; only a cancelled
@@ -1055,7 +1107,10 @@ window.adminSupportThread = function (orderId, initialMessages) {
     };
 };
 
-const ADMIN_CHAT_STORAGE_KEY = 'mb_admin_chat_widget';
+// bumped from 'mb_admin_chat_widget' — a bad customWidth/customHeight saved under the old key
+// (from before the panel had a hard CSS max-height) could size the panel off the top of the
+// screen every time it reopened; changing the key orphans that old value for everyone at once
+const ADMIN_CHAT_STORAGE_KEY = 'mb_admin_chat_widget_v2';
 
 // Global floating support-chat widget — lives once in admin/layout.blade.php (nested inside the
 // same adminNotifier() scope so its launcher badge/toast can share that scope's `supportUnread`
@@ -1085,9 +1140,15 @@ window.adminSupportWidget = function () {
         customWidth: null,
         customHeight: null,
         resizeStart: null,
+        // read (but otherwise unused) inside sizeStyle() purely so Alpine tracks it as a
+        // dependency — window.innerWidth/innerHeight aren't reactive on their own, so without
+        // this a live browser-window resize wouldn't re-run sizeStyle() until some other
+        // reactive prop (expanded, customWidth, ...) happened to change again
+        viewportTick: 0,
 
         init() {
             this.restoreState();
+            window.addEventListener('resize', () => { this.viewportTick++; });
             if (this.open && this.view === 'thread' && this.activeOrderId) {
                 window.__activeSupportOrderId = this.minimized ? null : this.activeOrderId;
                 this.loadThread(this.activeOrderId);
@@ -1243,9 +1304,16 @@ window.adminSupportWidget = function () {
             this.customHeight = Math.min(maxH, Math.max(400, this.resizeStart.height + dy));
         },
         sizeStyle() {
+            this.viewportTick; // touch so Alpine re-runs this on window resize — see init()
             if (window.innerWidth < 640) return '';
-            const width = this.customWidth ?? (this.expanded ? 448 : 384);
-            const height = this.customHeight ?? Math.min(window.innerHeight - 48, this.expanded ? 720 : 544);
+            // re-clamped against the CURRENT viewport on every render — not just at drag-time —
+            // so a size persisted from a bigger screen/zoom (or a since-resized window) can never
+            // push the panel's own header/controls off-screen and unreachable (bottom-24/right-6
+            // anchoring means an oversized panel grows upward past the top of the screen)
+            const maxW = Math.min(640, window.innerWidth - 32);
+            const maxH = window.innerHeight - 48;
+            const width = Math.max(320, Math.min(this.customWidth ?? (this.expanded ? 448 : 384), maxW));
+            const height = Math.max(400, Math.min(this.customHeight ?? (this.expanded ? 720 : 544), maxH));
             return `width: ${width}px; height: ${height}px;`;
         },
 
@@ -1440,6 +1508,157 @@ window.announcementForm = function (initial) {
             this.image = null;
             this.removeImageFlag = true;
             if (this.$refs.imageInput) this.$refs.imageInput.value = '';
+        },
+    };
+};
+
+// Terms & Conditions / Privacy Policy editor (admin/legal/_form.blade.php) — same Quill +
+// shared-partial live-preview pattern as announcementForm() above, with a richer toolbar
+// since these are real documents (headings, lists, quotes), not a one-paragraph banner.
+window.legalDocumentForm = function (initial) {
+    let quill = null;
+
+    return {
+        title: initial.title || '',
+        content: initial.content || '',
+        // preview-only — the real "Last Updated" only exists once this version is actually
+        // published (see LegalDocumentVersion::published_at); "today" is the honest preview
+        updatedAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+
+        initEditor() {
+            quill = new Quill(this.$refs.editor, {
+                theme: 'snow',
+                placeholder: 'Write the policy content…',
+                modules: {
+                    toolbar: [
+                        [{ header: [2, 3, false] }],
+                        ['bold', 'italic', 'underline'],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        ['blockquote', 'link'],
+                        ['clean'],
+                    ],
+                },
+            });
+            if (this.content) quill.root.innerHTML = this.content;
+            quill.on('text-change', () => { this.content = quill.root.innerHTML; });
+        },
+    };
+};
+
+// category image editor (admin/categories/_form.blade.php) — crop/zoom/reposition a photo into
+// a perfect square before upload, previewed round to match the final circular tile. The actual
+// crop is always a plain square canvas; only the on-screen viewport/preview are masked round.
+window.categoryImageCropper = function (existingImageUrl) {
+    // kept outside the returned (reactive) object, same reasoning as announcementForm() above —
+    // Alpine can't usefully proxy a Cropper instance
+    let cropper = null;
+
+    return {
+        existingImageUrl: existingImageUrl || null,
+        rawImageSrc: null,
+        livePreview: existingImageUrl || null,
+        hasNewImage: false,
+
+        onFileSelected(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                this.rawImageSrc = ev.target.result;
+                this.hasNewImage = true;
+                this.$nextTick(() => this.mountCropper());
+            };
+            reader.readAsDataURL(file);
+        },
+        mountCropper() {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            cropper = new Cropper(this.$refs.cropperImage, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                background: false,
+                crop: () => this.refreshPreview(),
+                ready: () => this.refreshPreview(),
+            });
+        },
+        zoom(delta) {
+            cropper?.zoom(delta);
+        },
+        refreshPreview() {
+            if (!cropper) return;
+            this.livePreview = cropper.getCroppedCanvas({ width: 300, height: 300 }).toDataURL('image/jpeg', 0.9);
+        },
+        // called from the form's @submit (doesn't preventDefault — the native multipart POST
+        // still happens, this just fills in the hidden field first) — an edit where the admin
+        // didn't touch the photo leaves this empty, so the controller keeps the existing image
+        beforeSubmit() {
+            if (!cropper || !this.hasNewImage) return;
+            this.$refs.croppedImageInput.value = cropper.getCroppedCanvas({ width: 600, height: 600 }).toDataURL('image/jpeg', 0.9);
+        },
+        destroy() {
+            cropper?.destroy();
+            cropper = null;
+        },
+    };
+};
+
+// hero banner image editor (admin/hero-banners/_form.blade.php) — same Cropper flow as the
+// category one above but locked to the wide 21:9 banner shape, with live desktop + mobile
+// frame previews (including the title overlay) so the admin sees the real slide before saving
+window.heroBannerCropper = function (existingImageUrl, initialTitle) {
+    let cropper = null;
+
+    return {
+        existingImageUrl: existingImageUrl || null,
+        rawImageSrc: null,
+        livePreview: existingImageUrl || null,
+        hasNewImage: false,
+        overlayTitle: initialTitle || '',
+
+        onFileSelected(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                this.rawImageSrc = ev.target.result;
+                this.hasNewImage = true;
+                this.$nextTick(() => this.mountCropper());
+            };
+            reader.readAsDataURL(file);
+        },
+        mountCropper() {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            cropper = new Cropper(this.$refs.cropperImage, {
+                aspectRatio: 21 / 9,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                background: false,
+                crop: () => this.refreshPreview(),
+                ready: () => this.refreshPreview(),
+            });
+        },
+        zoom(delta) {
+            cropper?.zoom(delta);
+        },
+        refreshPreview() {
+            if (!cropper) return;
+            this.livePreview = cropper.getCroppedCanvas({ width: 700, height: 300 }).toDataURL('image/jpeg', 0.85);
+        },
+        beforeSubmit() {
+            if (!cropper || !this.hasNewImage) return;
+            this.$refs.croppedImageInput.value = cropper.getCroppedCanvas({ width: 1680, height: 720 }).toDataURL('image/jpeg', 0.85);
+        },
+        destroy() {
+            cropper?.destroy();
+            cropper = null;
         },
     };
 };

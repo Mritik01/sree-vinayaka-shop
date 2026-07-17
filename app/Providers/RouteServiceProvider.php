@@ -54,6 +54,22 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by('auth-complete-signup-ip:'.$request->ip());
         });
 
+        // admin/rider logins are plain username+password with no OTP step — without this,
+        // nothing stops an unlimited password-guessing attempt against either guard
+        RateLimiter::for('admin-login', function (Request $request) {
+            return [
+                Limit::perMinute(5)->by('admin-login-ip:'.$request->ip()),
+                Limit::perMinute(5)->by('admin-login-user:'.strtolower((string) $request->input('username'))),
+            ];
+        });
+
+        RateLimiter::for('rider-login', function (Request $request) {
+            return [
+                Limit::perMinute(5)->by('rider-login-ip:'.$request->ip()),
+                Limit::perMinute(5)->by('rider-login-user:'.strtolower((string) $request->input('username'))),
+            ];
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

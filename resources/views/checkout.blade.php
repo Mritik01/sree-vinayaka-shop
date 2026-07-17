@@ -176,6 +176,9 @@
                         <span class="text-maroon-500">{{ __('Subtotal') }}</span>
                         <span class="text-maroon-800 font-semibold">₹<span x-text="subtotal()"></span></span>
                     </div>
+
+                    @include('partials.free-delivery-progress')
+
                     <div x-show="coupon" x-cloak
                          x-transition:enter="transition ease-out duration-300"
                          x-transition:enter-start="opacity-0 -translate-y-1"
@@ -187,6 +190,21 @@
                         <span class="text-green-700">{{ __('Coupon discount') }}</span>
                         <span class="text-green-700 font-semibold">−₹<span x-text="discount()"></span></span>
                     </div>
+
+                    {{-- operational fees — itemized separately per fee, never merged into one number --}}
+                    <div x-show="deliveryFee() > 0" x-cloak class="flex items-center justify-between mt-2.5 text-sm">
+                        <span class="text-maroon-500">{{ __('Delivery Fee') }}</span>
+                        <span class="text-maroon-800 font-semibold">₹<span x-text="deliveryFee()"></span></span>
+                    </div>
+                    <div x-show="rainFee() > 0" x-cloak class="flex items-center justify-between mt-2.5 text-sm">
+                        <span class="text-sky-700">🌧️ {{ __('Rain Fee') }}</span>
+                        <span class="text-sky-700 font-semibold">₹<span x-text="rainFee()"></span></span>
+                    </div>
+                    <div x-show="highDemandFee() > 0" x-cloak class="flex items-center justify-between mt-2.5 text-sm">
+                        <span class="text-amber-700">⚡ {{ __('High Demand Fee') }}</span>
+                        <span class="text-amber-700 font-semibold">₹<span x-text="highDemandFee()"></span></span>
+                    </div>
+
                     <div class="mt-4">
                         <p class="text-sm text-maroon-500 mb-2">{{ __('Payment') }}</p>
                         <div class="grid grid-cols-2 gap-2 sm:gap-2.5">
@@ -321,7 +339,7 @@
 
                     {{-- desktop-only CTA — on mobile this is replaced by the floating bottom bar
                          below, so a tap doesn't require scrolling all the way past the address form --}}
-                    <div x-show="$store.shop.accepting" x-cloak class="hidden lg:block">
+                    <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop'" x-cloak class="hidden lg:block">
                         <p x-show="checkoutError" x-cloak x-transition class="text-xs text-red-600 mt-4" x-text="checkoutError"></p>
 
                         <button @click="checkout()"
@@ -340,7 +358,7 @@
 
                     {{-- mobile: error/COD/Razorpay notes still show inline, right above where the
                          floating bar sits, so they're not hidden inside an offscreen button --}}
-                    <div x-show="$store.shop.accepting" x-cloak class="lg:hidden">
+                    <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop'" x-cloak class="lg:hidden">
                         <p x-show="checkoutError" x-cloak x-transition class="text-xs text-red-600 mt-4" x-text="checkoutError"></p>
                         <p class="text-xs text-maroon-400 text-center mt-4" x-show="paymentMethod === 'cod'">{{ __("Pay in cash when your sweets arrive. We'll call you if we need directions.") }}</p>
                         <p class="text-xs text-maroon-400 text-center mt-4" x-show="paymentMethod === 'razorpay'" x-cloak>{{ __('You\'ll be redirected to a secure Razorpay checkout to complete payment.') }}</p>
@@ -348,6 +366,9 @@
 
                     <div x-show="!$store.shop.accepting" x-cloak class="mt-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3.5 text-center">
                         🚫 {{ __('We\'re not accepting online orders right now. Please check back soon.') }}
+                    </div>
+                    <div x-show="$store.shop.accepting && $store.shop.highDemandMode === 'stop'" x-cloak class="mt-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3.5 text-center">
+                        <span x-text="$store.shop.highDemandStopMessage"></span>
                     </div>
                 </div>
             </div>
@@ -361,7 +382,7 @@
                  method/total. Mirrors the site's floating "View Cart" pill (same fixed/inset
                  positioning + safe-area handling) but sized as a primary checkout CTA showing
                  the live total; tapping anywhere on it places the order directly. --}}
-            <div x-show="$store.shop.accepting" x-cloak
+            <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop'" x-cloak
                  x-transition:enter="transition ease-out duration-400" x-transition:enter-start="opacity-0 translate-y-8 scale-95" x-transition:enter-end="opacity-100 translate-y-0 scale-100"
                  x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 scale-100" x-transition:leave-end="opacity-0 translate-y-8 scale-95"
                  class="lg:hidden fixed inset-x-0 z-[55] px-4 pointer-events-none"

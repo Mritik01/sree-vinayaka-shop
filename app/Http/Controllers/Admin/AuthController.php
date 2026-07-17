@@ -24,7 +24,9 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        if (!Auth::guard('admin')->attempt($data, remember: true)) {
+        // no persistent "remember me" for an operational/staff account — a stolen or shared
+        // device should not stay authenticated as an admin indefinitely via a long-lived cookie
+        if (!Auth::guard('admin')->attempt($data)) {
             return back()->withErrors(['username' => 'Incorrect username or password.'])->onlyInput('username');
         }
 

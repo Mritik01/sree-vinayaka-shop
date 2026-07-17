@@ -88,6 +88,12 @@
                 <td class="value">− Rs. {{ number_format($order->discount_amount) }}</td>
             </tr>
         @endif
+        @foreach ($order->fees as $fee)
+            <tr>
+                <td class="label">{{ $fee->label }}</td>
+                <td class="value">Rs. {{ number_format($fee->amount) }}</td>
+            </tr>
+        @endforeach
         <tr class="total">
             <td>Total</td>
             <td class="value">Rs. {{ number_format($order->total) }}</td>

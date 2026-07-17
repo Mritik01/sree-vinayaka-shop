@@ -88,6 +88,14 @@ class Product extends Model
         return $this->belongsToMany(User::class, 'favorites')->withTimestamps();
     }
 
+    // additive to the plain `category` string column above (which keeps driving bestseller/
+    // festival-special grouping, breadcrumbs, etc. untouched) — this is the new multi-assign
+    // relation for the admin Category Management screen and the mobile category panel
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class);
+    }
+
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class)->latest();

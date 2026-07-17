@@ -163,10 +163,21 @@
 
         <div class="grid lg:grid-cols-[1fr_360px] gap-5 items-start">
             <div class="space-y-5">
-                {{-- items --}}
+                {{-- items — the confirm checkmarks below are a purely internal packing
+                     checklist (order_items.confirmed_at); never shown to the customer and never
+                     touches the order's real status/timeline --}}
                 <div class="bg-white rounded-2xl border border-gold-200/60 shadow-sm overflow-hidden animate-fade-up" style="animation-delay: 100ms">
-                    <div class="px-5 py-4 border-b border-gold-100">
-                        <p class="font-display text-maroon-800">{{ __('Items') }}</p>
+                    <div class="px-5 py-4 border-b border-gold-100 flex items-center justify-between gap-3">
+                        <p class="font-display text-maroon-800">
+                            {{ __('Items') }}
+                            <span class="text-xs font-normal text-maroon-400 ml-1" x-text="`(${confirmedItemsCount()}/${totalItemsCount()} ${confirmedItemsCount() === totalItemsCount() ? '✓' : 'confirmed'})`"></span>
+                        </p>
+                        <button type="button" @click="confirmAllItems()" :disabled="allItemsConfirmed()"
+                                class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition disabled:opacity-40 disabled:cursor-default"
+                                :class="allItemsConfirmed() ? 'border-pista-400/60 text-pista-600 bg-pista-100' : 'border-pista-500 text-pista-600 hover:bg-pista-100'">
+                            <span x-show="!allItemsConfirmed()">✓ {{ __('Confirm All') }}</span>
+                            <span x-show="allItemsConfirmed()" x-cloak>✓ {{ __('All Confirmed') }}</span>
+                        </button>
                     </div>
                     <div class="divide-y divide-gold-50">
                         @foreach ($order->items as $item)
@@ -197,6 +208,18 @@
                                     </p>
                                 </div>
                                 <p class="text-sm font-semibold text-maroon-800 shrink-0">{{ $item->is_gift ? __('FREE') : '₹'.number_format($item->line_total) }}</p>
+
+                                {{-- packing-verification button — green outline "Confirm" until clicked,
+                                     then a solid green checkmark --}}
+                                <button type="button" @click="toggleItemConfirmed({{ $item->id }})"
+                                        aria-label="{{ __('Toggle packed/confirmed') }}"
+                                        class="shrink-0 rounded-lg transition font-semibold"
+                                        :class="isItemConfirmed({{ $item->id }})
+                                            ? 'w-9 h-9 grid place-items-center bg-pista-500 text-white text-base shadow-sm hover:bg-pista-600'
+                                            : 'text-xs px-3 py-2 border-2 border-pista-500 text-pista-600 hover:bg-pista-100'">
+                                    <span x-show="isItemConfirmed({{ $item->id }})" x-cloak>✓</span>
+                                    <span x-show="!isItemConfirmed({{ $item->id }})">{{ __('Confirm') }}</span>
+                                </button>
                             </div>
                         @endforeach
                     </div>
@@ -206,6 +229,9 @@
                         @if ($order->discount_amount > 0)
                             <div class="flex justify-between"><span class="text-pista-600">{{ __('Coupon discount') }} ({{ $order->coupon->code ?? __('removed') }})</span><span class="text-pista-600">−₹{{ number_format($order->discount_amount) }}</span></div>
                         @endif
+                        @foreach ($order->fees as $fee)
+                            <div class="flex justify-between"><span class="text-maroon-500">{{ $fee->label }}</span><span class="text-maroon-800">₹{{ number_format($fee->amount) }}</span></div>
+                        @endforeach
                         <div class="flex justify-between font-semibold text-base pt-1.5 border-t border-gold-100"><span class="text-maroon-800">{{ __('Total') }}</span><span class="text-maroon-800">₹{{ number_format($order->total) }}</span></div>
                     </div>
                 </div>

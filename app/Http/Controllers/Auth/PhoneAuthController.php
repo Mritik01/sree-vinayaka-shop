@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Auth;
 
 use App\Exceptions\OtpDeliveryException;
 use App\Http\Controllers\Controller;
+use App\Models\LegalDocumentVersion;
 use App\Models\SiteVisit;
 use App\Models\User;
 use App\Models\UserActivity;
+use App\Models\UserConsent;
 use App\Services\ActivityLogger;
 use App\Services\MasterCouponAssigner;
 use App\Services\TwoFactorOtpService;
@@ -172,6 +174,10 @@ class PhoneAuthController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:100'],
             'phone' => ['required', 'string'],
+            'agree_terms' => ['required', 'accepted'],
+        ], [
+            'agree_terms.required' => 'Please agree to the Terms & Conditions and Privacy Policy to continue.',
+            'agree_terms.accepted' => 'Please agree to the Terms & Conditions and Privacy Policy to continue.',
         ]);
 
         $phone = PhoneNumber::normalize($data['phone']);
@@ -192,6 +198,18 @@ class PhoneAuthController extends Controller
 
         if ($user->wasRecentlyCreated) {
             MasterCouponAssigner::assignFor($user);
+
+            // consent is captured once, at account creation — an existing account re-using
+            // this endpoint (shouldn't normally happen, firstOrCreate found them above) never
+            // re-records it here to avoid a misleading duplicate entry
+            UserConsent::record(
+                $user->id,
+                'signup',
+                LegalDocumentVersion::current('terms')?->version,
+                LegalDocumentVersion::current('privacy')?->version,
+                $request->ip(),
+                (string) $request->userAgent()
+            );
         }
 
         $this->loginAndAttribute($request, $user);

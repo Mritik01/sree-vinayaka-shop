@@ -10,6 +10,7 @@ use App\Services\ActivityLogger;
 use App\Services\RewardService;
 use App\Support\PhoneNumber;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Razorpay\Api\Api;
 
 class CheckoutController extends Controller
@@ -111,12 +112,26 @@ class CheckoutController extends Controller
 
     public function store(Request $request)
     {
+        if (\App\Services\ImpersonationService::active()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Placing orders is disabled while viewing this account as an admin.',
+            ], 403);
+        }
+
         $settings = ShopSetting::current();
 
         if (!$settings->accepting_orders) {
             return response()->json([
                 'ok' => false,
                 'message' => "We're not accepting online orders right now. Please check back soon.",
+            ], 422);
+        }
+
+        if ($settings->high_demand_mode === 'stop') {
+            return response()->json([
+                'ok' => false,
+                'message' => $settings->highDemandStopMessage(),
             ], 422);
         }
 
@@ -268,6 +283,13 @@ class CheckoutController extends Controller
             ], 422);
         }
 
+        // authoritative fee computation — the client only ever shows a preview (Alpine.store('shop')
+        // in app.js); ShopSetting::activeFees() is the single source of truth on both sides.
+        // Based on subtotal alone (matches the free-delivery threshold's usual real-world meaning —
+        // goods value before a coupon), separate from the min/max order checks above.
+        $fees = $settings->activeFees($subtotal);
+        $feesTotal = collect($fees)->sum('amount');
+
         // never trust the client flag alone — re-check eligibility server-side right before spending it
         $claimGift = false;
         $giftProduct = null;
@@ -283,7 +305,7 @@ class CheckoutController extends Controller
             try {
                 $api = new Api(config('services.razorpay.key'), config('services.razorpay.secret'));
                 $razorpayOrder = $api->order->create([
-                    'amount' => ($subtotal - $discount) * 100,
+                    'amount' => ($subtotal - $discount + $feesTotal) * 100,
                     'currency' => 'INR',
                     'receipt' => 'order_rcpt_'.$user->id.'_'.now()->timestamp,
                     'payment_capture' => 1,
@@ -309,70 +331,110 @@ class CheckoutController extends Controller
             ]);
         }
 
-        $order = Order::create([
-            'user_id' => $user->id,
-            'coupon_id' => $coupon?->id,
-            'customer_name' => $data['customer_name'],
-            'customer_phone' => $normalizedPhone,
-            'delivery_address' => $resolvedAddress,
-            'latitude' => $resolvedLat,
-            'longitude' => $resolvedLng,
-            'distance_km' => $distanceKm,
-            'subtotal' => $subtotal,
-            'discount_amount' => $discount,
-            'total' => $subtotal - $discount,
-            'status' => 'pending',
-            'payment_method' => $paymentMethod,
-            'razorpay_order_id' => $razorpayOrder['id'] ?? null,
-            'is_gift_order' => $claimGift,
-        ]);
+        $order = DB::transaction(function () use (
+            $user, $coupon, $data, $normalizedPhone, $resolvedAddress, $resolvedLat, $resolvedLng,
+            $distanceKm, $subtotal, $discount, $paymentMethod, $razorpayOrder, $claimGift,
+            $orderLines, $giftProduct, $settings, $buyNowProductId, $fees, $feesTotal
+        ) {
+            // a single_use coupon is only ever meant to be spent by ONE customer, but that was
+            // previously only checked at /coupon/apply time — two different customers applying
+            // the same code before either finished checkout could BOTH reach here and both
+            // redeem it. Re-verify right at the point of no return, with the lock held for the
+            // rest of this transaction, so this can never be exploited even by genuinely
+            // simultaneous requests from different accounts.
+            if ($coupon && $coupon->usage_type === 'single_use') {
+                $claimedByAnotherUser = DB::table('coupon_redemptions')
+                    ->where('coupon_id', $coupon->id)
+                    ->where('user_id', '!=', $user->id)
+                    ->whereNotNull('redeemed_at')
+                    ->lockForUpdate()
+                    ->exists();
 
-        // once online payment ships, a successful non-COD order should count against the strike
-        if ($paymentMethod !== 'cod' && $user->cod_blocked_orders > 0) {
-            $user->decrement('cod_blocked_orders');
-        }
+                if ($claimedByAnotherUser) {
+                    return null;
+                }
+            }
 
-        foreach ($orderLines as $line) {
-            $unitPrice = $line['product']->priceForPortion($line['portion']);
-            $order->items()->create([
-                'product_id' => $line['product']->id,
-                'product_name' => $line['product']->name,
-                'product_price' => $unitPrice,
-                'quantity' => $line['quantity'],
-                'portion' => $line['portion'] ?? 0,
-                'line_total' => $unitPrice * $line['quantity'],
-            ]);
-        }
-
-        if ($claimGift && $giftProduct) {
-            $order->items()->create([
-                'product_id' => $giftProduct->id,
-                'product_name' => $settings->reward_gift_label ?: $giftProduct->name,
-                'product_price' => 0,
-                'quantity' => 1,
-                'line_total' => 0,
-                'is_gift' => true,
+            $order = Order::create([
+                'user_id' => $user->id,
+                'coupon_id' => $coupon?->id,
+                'customer_name' => $data['customer_name'],
+                'customer_phone' => $normalizedPhone,
+                'delivery_address' => $resolvedAddress,
+                'latitude' => $resolvedLat,
+                'longitude' => $resolvedLng,
+                'distance_km' => $distanceKm,
+                'subtotal' => $subtotal,
+                'discount_amount' => $discount,
+                'total' => $subtotal - $discount + $feesTotal,
+                'status' => 'pending',
+                'payment_method' => $paymentMethod,
+                'razorpay_order_id' => $razorpayOrder['id'] ?? null,
+                'is_gift_order' => $claimGift,
             ]);
 
-            // a single conditional UPDATE — atomic even without a row lock, so two
-            // simultaneous checkout requests can never both decrement past zero
-            User::where('id', $user->id)->where('free_gifts_available', '>', 0)->decrement('free_gifts_available');
+            // snapshot exactly what was charged and why — immune to the admin changing the fee
+            // amount/message later (see OrderFee, the generic table any future fee type reuses)
+            foreach ($fees as $fee) {
+                $order->fees()->create($fee);
+            }
 
-            ActivityLogger::log('gift_claimed', "Order {$order->orderNumber()} claimed free gift: {$giftProduct->name}");
-        }
+            // once online payment ships, a successful non-COD order should count against the strike
+            if ($paymentMethod !== 'cod' && $user->cod_blocked_orders > 0) {
+                $user->decrement('cod_blocked_orders');
+            }
 
-        // clear the cart; the coupon redemption record itself stays intact as proof of usage.
-        // Skipped for a buy-now order, which never touched the cart in the first place.
-        if (!$buyNowProductId) {
-            $user->cart()->detach();
-        }
-        if ($coupon) {
-            // only now — an order has actually been placed — does the redemption become
-            // permanent; before this it was just a pending apply, freely reusable/removable
-            $user->redeemedCoupons()->updateExistingPivot($coupon->id, ['redeemed_at' => now()]);
-        }
-        if ($user->applied_coupon_id) {
-            $user->forceFill(['applied_coupon_id' => null])->save();
+            foreach ($orderLines as $line) {
+                $unitPrice = $line['product']->priceForPortion($line['portion']);
+                $order->items()->create([
+                    'product_id' => $line['product']->id,
+                    'product_name' => $line['product']->name,
+                    'product_price' => $unitPrice,
+                    'quantity' => $line['quantity'],
+                    'portion' => $line['portion'] ?? 0,
+                    'line_total' => $unitPrice * $line['quantity'],
+                ]);
+            }
+
+            if ($claimGift && $giftProduct) {
+                $order->items()->create([
+                    'product_id' => $giftProduct->id,
+                    'product_name' => $settings->reward_gift_label ?: $giftProduct->name,
+                    'product_price' => 0,
+                    'quantity' => 1,
+                    'line_total' => 0,
+                    'is_gift' => true,
+                ]);
+
+                // a single conditional UPDATE — atomic even without a row lock, so two
+                // simultaneous checkout requests can never both decrement past zero
+                User::where('id', $user->id)->where('free_gifts_available', '>', 0)->decrement('free_gifts_available');
+
+                ActivityLogger::log('gift_claimed', "Order {$order->orderNumber()} claimed free gift: {$giftProduct->name}");
+            }
+
+            // clear the cart; the coupon redemption record itself stays intact as proof of usage.
+            // Skipped for a buy-now order, which never touched the cart in the first place.
+            if (!$buyNowProductId) {
+                $user->cart()->detach();
+            }
+            if ($coupon) {
+                // only now — an order has actually been placed — does the redemption become
+                // permanent; before this it was just a pending apply, freely reusable/removable
+                $user->redeemedCoupons()->updateExistingPivot($coupon->id, ['redeemed_at' => now()]);
+            }
+            if ($user->applied_coupon_id) {
+                $user->forceFill(['applied_coupon_id' => null])->save();
+            }
+
+            return $order;
+        });
+
+        if ($order === null) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'This coupon was just used by someone else and is no longer available. Please remove it and try again.',
+            ], 422);
         }
 
         ActivityLogger::log('order_placed', "Order {$order->orderNumber()} — ₹".number_format($order->total));

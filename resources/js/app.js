@@ -210,6 +210,8 @@ window.authModal = function () {
         devOtp: '',
         isNewUser: false,
         welcomeName: '',
+        agreeTerms: false,
+        nameSubmitted: false,
 
         init() {
             this.$watch('authOpen', (isOpen) => {
@@ -225,6 +227,8 @@ window.authModal = function () {
             this.devOtp = '';
             this.isNewUser = false;
             this.welcomeName = '';
+            this.agreeTerms = false;
+            this.nameSubmitted = false;
             this.clearCooldown();
         },
         clearCooldown() {
@@ -310,12 +314,15 @@ window.authModal = function () {
             }
         },
         async completeSignup() {
+            this.nameSubmitted = true;
+            if (!this.agreeTerms) return;
             this.error = '';
             this.loading = true;
             try {
                 const { ok, data } = await this.postJson('/auth/complete-signup', {
                     name: this.name,
                     phone: this.phone,
+                    agree_terms: this.agreeTerms,
                 });
                 if (ok && data.ok) {
                     this.celebrate(true);
@@ -360,6 +367,122 @@ async function persistFavoriteToggle(id) {
     if (!res.ok) throw new Error('favorite toggle failed');
     return res.json();
 }
+
+// fired once, the moment a cart/checkout subtotal crosses the free-delivery threshold (see
+// cartPage()/checkoutPage() below) — shared so both pages celebrate identically. The
+// 'minimal' admin-chosen style skips confetti and just lets the CSS banner speak for itself.
+function celebrateFreeDelivery() {
+    window.dispatchEvent(new CustomEvent('free-delivery-unlocked'));
+    if (Alpine.store('shop').deliverySuccessAnimation === 'minimal') return;
+    const colors = ['#7a1622', '#e9c873', '#3d7a52'];
+    confetti({ particleCount: 90, spread: 75, origin: { x: 0.5, y: 0.5 }, colors });
+    setTimeout(() => confetti({ particleCount: 50, angle: 60, spread: 60, origin: { x: 0.1, y: 0.65 }, colors }), 150);
+    setTimeout(() => confetti({ particleCount: 50, angle: 120, spread: 60, origin: { x: 0.9, y: 0.65 }, colors }), 300);
+}
+
+// header live search (partials/header-search.blade.php) — debounced suggestions from
+// /search-suggest, Enter/see-all lands on the Shop All page with the query pre-filled
+window.headerSearch = function () {
+    return {
+        q: '',
+        results: [],
+        open: false,
+        loading: false,
+
+        async suggest() {
+            const query = this.q.trim();
+            if (query.length < 2) {
+                this.results = [];
+                this.open = false;
+                return;
+            }
+            this.loading = true;
+            try {
+                const res = await fetch(`/search-suggest?q=${encodeURIComponent(query)}`, { headers: { Accept: 'application/json' } });
+                const data = res.ok ? await res.json() : { products: [] };
+                // ignore stale responses that come back after the user kept typing
+                if (this.q.trim() === query) {
+                    this.results = data.products || [];
+                    this.open = true;
+                }
+            } catch (e) {
+                this.results = [];
+            } finally {
+                this.loading = false;
+            }
+        },
+        goToResults() {
+            const query = this.q.trim();
+            if (!query) return;
+            window.location.href = `/products?q=${encodeURIComponent(query)}`;
+        },
+    };
+};
+
+// "Deliver to" address switcher in the header (partials/deliver-to.blade.php) — switching
+// reuses the existing addresses.set-default endpoint, so checkout picks the same address up
+window.deliverTo = function (addresses, isLoggedIn, labels = {}) {
+    const current = (addresses || []).find((a) => a.is_default) || (addresses || [])[0] || null;
+
+    return {
+        addresses: addresses || [],
+        isLoggedIn,
+        open: false,
+        currentId: current ? current.id : null,
+
+        get currentLine() {
+            const a = this.addresses.find((x) => x.id === this.currentId);
+            if (a) return a.label ? `${a.label} — ${a.line}` : a.line;
+            return this.isLoggedIn ? (labels.empty || 'Add address') : (labels.guest || 'Thuthibari & nearby');
+        },
+        handleEmpty() {
+            if (!this.isLoggedIn) {
+                window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                return;
+            }
+            window.location.href = '/account?tab=addresses';
+        },
+        async choose(address) {
+            this.open = false;
+            if (address.id === this.currentId) return;
+            const previous = this.currentId;
+            this.currentId = address.id;
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch(`/addresses/${address.id}/default`, {
+                    method: 'PATCH',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                });
+                if (!res.ok) this.currentId = previous;
+            } catch (e) {
+                this.currentId = previous;
+            }
+        },
+    };
+};
+
+// circular category row on the homepage (partials/category-row.blade.php) — scroll-by-arrow
+// buttons that only appear when the row actually overflows
+window.categoryRow = function () {
+    return {
+        canLeft: false,
+        canRight: false,
+
+        init() {
+            this.$nextTick(() => this.update());
+            window.addEventListener('resize', () => this.update());
+        },
+        update() {
+            const el = this.$refs.track;
+            if (!el) return;
+            this.canLeft = el.scrollLeft > 4;
+            this.canRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+        },
+        scrollBy(direction) {
+            this.$refs.track?.scrollBy({ left: direction * 280, behavior: 'smooth' });
+        },
+    };
+};
 
 // grams -> "250g" / "1kg" — mirrors Product::portionLabel() on the PHP side; keep the two
 // in sync if the format ever changes
@@ -521,19 +644,25 @@ window.productSlider = function (isLoggedIn, initialFavorites, bucketCounts) {
 // /products listing page — client-side filtering/sorting over server-rendered cards.
 // Cards are hidden with x-show and reordered via the CSS `order` property, so no DOM
 // is rebuilt and the Blade product-card partial stays the single source of card markup.
-window.productListing = function (isLoggedIn, initialFavorites, products, priceBuckets) {
+window.productListing = function (isLoggedIn, initialFavorites, products, priceBuckets, activeCategoryId) {
     return {
         isLoggedIn,
         favorites: initialFavorites || [],
         products: products || [],
         priceBuckets: priceBuckets || [],
-        filters: { categories: [], prices: [], q: '' },
+        // categoryId is a separate filter dimension from the checkbox-driven `categories`
+        // (old plain-text field) above — it's set only via ?category=slug (the mobile category
+        // panel / a shared link), resolved server-side into an id by the /products route
+        // q pre-seeds from ?q= so the header search's Enter/see-all lands here already filtered
+        filters: { categories: [], prices: [], q: new URLSearchParams(window.location.search).get('q') || '', categoryId: activeCategoryId || null },
         sort: 'recommended',
-        // the mobile bottom nav's "Categories" tab links here with ?open_filters=1 so the
-        // filter sheet is already open on arrival, instead of landing on a plain grid
+        // the mobile bottom nav's "Categories" tab used to link here with ?open_filters=1 to
+        // auto-open this sheet; it now opens the image-tile category panel instead (see
+        // partials/category-panel.blade.php), but a manually-typed ?open_filters=1 still works
         sheetOpen: new URLSearchParams(window.location.search).has('open_filters'),
 
         matches(p) {
+            if (this.filters.categoryId && !(p.category_ids || []).includes(this.filters.categoryId)) return false;
             if (this.filters.categories.length && !this.filters.categories.includes(p.category)) return false;
             if (this.filters.prices.length) {
                 const inAny = this.filters.prices.some((i) => {
@@ -576,10 +705,23 @@ window.productListing = function (isLoggedIn, initialFavorites, products, priceB
             return this.products.filter((p) => p.category === cat).length;
         },
         activeCount() {
-            return this.filters.categories.length + this.filters.prices.length + (this.filters.q.trim() ? 1 : 0);
+            return this.filters.categories.length + this.filters.prices.length + (this.filters.q.trim() ? 1 : 0) + (this.filters.categoryId ? 1 : 0);
         },
         clearAll() {
-            this.filters = { categories: [], prices: [], q: '' };
+            this.filters = { categories: [], prices: [], q: '', categoryId: null };
+            this.stripCategoryFromUrl();
+        },
+        // the dedicated "Filtered by: X ✕" chip — leaves the checkbox filters (categories/
+        // prices/search) untouched, only clears the one set via ?category=slug
+        clearCategoryFilter() {
+            this.filters.categoryId = null;
+            this.stripCategoryFromUrl();
+        },
+        stripCategoryFromUrl() {
+            const url = new URL(window.location.href);
+            if (!url.searchParams.has('category')) return;
+            url.searchParams.delete('category');
+            window.history.replaceState(null, '', url.pathname + (url.search ? url.search : ''));
         },
         isFavorited(id) {
             return this.favorites.includes(id);
@@ -848,9 +990,28 @@ window.reviewsList = function (initialReviews, initialAverage, initialCount) {
 window.cartPage = function (initialItems) {
     return {
         items: initialItems || [],
+        crossedFreeDeliveryThreshold: false,
 
         subtotal() {
             return this.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        },
+        estimatedFees() {
+            return Alpine.store('shop').totalFees(this.subtotal());
+        },
+        init() {
+            // if a customer arrives already above the threshold (e.g. items added on the product
+            // page), don't fire the unlock celebration on load — only when they actually cross it
+            // while watching, which is the moment worth celebrating
+            this.crossedFreeDeliveryThreshold = Alpine.store('shop').amountToFreeDelivery(this.subtotal()) === 0;
+            this.$watch('items', () => {
+                const remaining = Alpine.store('shop').amountToFreeDelivery(this.subtotal());
+                if (remaining === 0 && !this.crossedFreeDeliveryThreshold) {
+                    this.crossedFreeDeliveryThreshold = true;
+                    celebrateFreeDelivery();
+                } else if (remaining > 0) {
+                    this.crossedFreeDeliveryThreshold = false;
+                }
+            });
         },
         async increment(item) {
             if (item.quantity >= 10) return;
@@ -943,11 +1104,24 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
         locationDistanceKm: null,
         cachedCoords: null,
         lastRestricted: null,
+        crossedFreeDeliveryThreshold: false,
 
         get selectedAddress() {
             return this.addresses.find((a) => a.id === this.selectedAddressId) || null;
         },
 
+        init() {
+            this.crossedFreeDeliveryThreshold = Alpine.store('shop').amountToFreeDelivery(this.subtotal()) === 0;
+            this.$watch('items', () => {
+                const remaining = Alpine.store('shop').amountToFreeDelivery(this.subtotal());
+                if (remaining === 0 && !this.crossedFreeDeliveryThreshold) {
+                    this.crossedFreeDeliveryThreshold = true;
+                    celebrateFreeDelivery();
+                } else if (remaining > 0) {
+                    this.crossedFreeDeliveryThreshold = false;
+                }
+            });
+        },
         subtotal() {
             return this.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
         },
@@ -959,8 +1133,17 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                 : this.coupon.discount_value;
             return Math.min(raw, subtotal);
         },
+        deliveryFee() {
+            return Alpine.store('shop').deliveryFee(this.subtotal());
+        },
+        rainFee() {
+            return Alpine.store('shop').rainFee();
+        },
+        highDemandFee() {
+            return Alpine.store('shop').highDemandFee();
+        },
         total() {
-            return this.subtotal() - this.discount();
+            return this.subtotal() - this.discount() + Alpine.store('shop').totalFees(this.subtotal());
         },
         async applyCoupon(codeOverride = null) {
             const code = codeOverride || this.couponCode;
@@ -1135,6 +1318,7 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
         },
         async checkout() {
             if (this.checkingOut || this.items.length === 0) return;
+            if (Alpine.store('shop').highDemandMode === 'stop') return;
             if (!this.customerName.trim()) {
                 this.checkoutError = "Please enter the recipient's name.";
                 return;
@@ -1890,6 +2074,75 @@ window.accountPage = function (initialAddresses, initialReward, initialTab, init
     };
 };
 
+// site-wide Terms/Privacy popup (partials/legal-document-modal.blade.php) — content comes
+// straight from window.__mbLegalDocs (embedded once in layouts/app.blade.php), so opening
+// is instant with no fetch. Triggered from anywhere via the `open-legal-modal` window event.
+window.legalDocumentModal = function () {
+    return {
+        open: false,
+        type: null,
+        title: '',
+        content: '',
+        updatedAt: '',
+
+        init() {
+            window.addEventListener('open-legal-modal', (e) => {
+                const type = e.detail?.type;
+                const doc = window.__mbLegalDocs?.[type];
+                this.type = type;
+                this.title = doc?.title || '';
+                this.content = doc?.content || '';
+                this.updatedAt = doc?.updatedAt || '';
+                this.open = true;
+            });
+        },
+        close() {
+            this.open = false;
+        },
+    };
+};
+
+// forced re-consent gate (partials/reconsent-gate.blade.php) — only ever rendered by the
+// server when $needsReconsent is true, so there's no client-side check to bypass; accepting
+// just records the event and reloads so the layout re-evaluates and stops rendering the gate
+window.reconsentGate = function () {
+    return {
+        agreeTerms: false,
+        loading: false,
+        error: '',
+        accepted: false,
+
+        async accept() {
+            if (!this.agreeTerms || this.loading) return;
+            this.loading = true;
+            this.error = '';
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch('/consent/accept', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': csrf,
+                    },
+                    body: JSON.stringify({ agree_terms: this.agreeTerms }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.ok) {
+                    this.accepted = true;
+                    window.location.reload();
+                } else {
+                    this.error = data.message || 'Something went wrong, please try again.';
+                    this.loading = false;
+                }
+            } catch (e) {
+                this.error = 'Network error, please check your connection and try again.';
+                this.loading = false;
+            }
+        },
+    };
+};
+
 // navbar notifications bell — polls the user's notifications so an admin message
 // shows up live while browsing; opening the dropdown marks everything read
 window.notificationsBell = function () {
@@ -1959,6 +2212,44 @@ Alpine.store('shop', {
     restricted: (window.__mbShopStatus || {}).restricted === true,
     radiusKm: (window.__mbShopStatus || {}).radiusKm || 7,
     toast: null,
+
+    // operational fees — mirrors ShopSetting::activeFees()/deliveryFeeFor() (the server is
+    // always the authority at checkout; these just drive an instant client-side preview,
+    // refreshed live by pollShopStatus() below so an admin change needs no reload anywhere
+    deliveryFeeStrategy: (window.__mbShopStatus || {}).deliveryFeeStrategy || 'fixed',
+    deliveryFreeMinOrder: (window.__mbShopStatus || {}).deliveryFreeMinOrder || 0,
+    deliveryFeeBelowMinimum: (window.__mbShopStatus || {}).deliveryFeeBelowMinimum || 0,
+    deliveryFeeFixed: (window.__mbShopStatus || {}).deliveryFeeFixed || 0,
+    deliverySuccessMessage: (window.__mbShopStatus || {}).deliverySuccessMessage || 'Free Delivery Unlocked! 🚚',
+    deliverySuccessAnimation: (window.__mbShopStatus || {}).deliverySuccessAnimation || 'confetti_truck',
+    rainFeeEnabled: (window.__mbShopStatus || {}).rainFeeEnabled === true,
+    rainFeeAmount: (window.__mbShopStatus || {}).rainFeeAmount || 0,
+    rainFeeMessage: (window.__mbShopStatus || {}).rainFeeMessage || null,
+    highDemandMode: (window.__mbShopStatus || {}).highDemandMode || 'normal',
+    highDemandFeeAmount: (window.__mbShopStatus || {}).highDemandFeeAmount || 0,
+    highDemandFeeMessage: (window.__mbShopStatus || {}).highDemandFeeMessage || null,
+    highDemandStopMessage: (window.__mbShopStatus || {}).highDemandStopMessage || null,
+    deliveryTimeMinutes: (window.__mbShopStatus || {}).deliveryTimeMinutes || 0,
+
+    deliveryFee(subtotal) {
+        if (this.deliveryFeeStrategy === 'free_above_minimum') {
+            return subtotal >= this.deliveryFreeMinOrder ? 0 : this.deliveryFeeBelowMinimum;
+        }
+        return this.deliveryFeeFixed;
+    },
+    amountToFreeDelivery(subtotal) {
+        if (this.deliveryFeeStrategy !== 'free_above_minimum') return 0;
+        return Math.max(0, this.deliveryFreeMinOrder - subtotal);
+    },
+    rainFee() {
+        return this.rainFeeEnabled ? this.rainFeeAmount : 0;
+    },
+    highDemandFee() {
+        return this.highDemandMode === 'fee' ? this.highDemandFeeAmount : 0;
+    },
+    totalFees(subtotal) {
+        return this.deliveryFee(subtotal) + this.rainFee() + this.highDemandFee();
+    },
 });
 
 // backs the slide-out cart drawer (partials/cart-drawer.blade.php), mounted once in the
@@ -2035,6 +2326,20 @@ function pollShopStatus() {
                     ? `📍 Heads up — we now deliver only within ${store.radiusKm} km of Thuthibari.`
                     : '🚚 Delivery area restriction lifted — we accept orders from anywhere again.');
             }
+            store.deliveryFeeStrategy = data.delivery_fee_strategy || store.deliveryFeeStrategy;
+            store.deliveryFreeMinOrder = data.delivery_free_min_order || 0;
+            store.deliveryFeeBelowMinimum = data.delivery_fee_below_minimum || 0;
+            store.deliveryFeeFixed = data.delivery_fee_fixed || 0;
+            store.deliverySuccessMessage = data.delivery_success_message || store.deliverySuccessMessage;
+            store.deliverySuccessAnimation = data.delivery_success_animation || store.deliverySuccessAnimation;
+            store.rainFeeEnabled = data.rain_fee_enabled === true;
+            store.rainFeeAmount = data.rain_fee_amount || 0;
+            store.rainFeeMessage = data.rain_fee_message || null;
+            store.highDemandMode = data.high_demand_mode || 'normal';
+            store.highDemandFeeAmount = data.high_demand_fee_amount || 0;
+            store.highDemandFeeMessage = data.high_demand_fee_message || null;
+            store.highDemandStopMessage = data.high_demand_stop_message || null;
+            store.deliveryTimeMinutes = data.delivery_time_estimate_minutes || 0;
         })
         .catch(() => {});
 }

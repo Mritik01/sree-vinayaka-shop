@@ -30,18 +30,22 @@
                         ['route' => 'admin.customers.index', 'label' => __('Customers'), 'icon' => '👥'],
                         ['route' => 'admin.visitors.index', 'label' => __('Visitors'), 'icon' => '🌐'],
                         ['route' => 'admin.leads.index', 'label' => __('Shadi/Function Leads'), 'icon' => '💍'],
+                        ['route' => 'admin.categories.index', 'label' => __('Categories'), 'icon' => '🗂️'],
                         ['route' => 'admin.products.index', 'label' => __('Products'), 'icon' => '🍬'],
                         ['route' => 'admin.bestsellers.index', 'label' => __('Bestsellers'), 'icon' => '⭐'],
                         ['route' => 'admin.festival-special.index', 'label' => __('Festival Special'), 'icon' => '🎉'],
                         ['route' => 'admin.announcement.edit', 'label' => __('Announcement'), 'icon' => '📢'],
+                        ['route' => 'admin.hero-banners.index', 'label' => __('Hero Banners'), 'icon' => '🖼️'],
                         ['route' => 'admin.coupons.index', 'label' => __('Coupons'), 'icon' => '🏷️'],
                         ['route' => 'admin.riders.index', 'label' => __('Delivery Riders'), 'icon' => '🛵'],
+                        ['route' => 'admin.legal.index', 'label' => __('Legal Pages'), 'icon' => '📜'],
                         ['route' => 'admin.configuration', 'label' => __('Configuration'), 'icon' => '⚙️'],
                     ];
 
                     // only a Super Admin can manage other admin accounts — see EnsureSuperAdmin
                     if (Auth::guard('admin')->user()?->isSuperAdmin()) {
                         $navItems[] = ['route' => 'admin.admins.index', 'label' => __('Admin Accounts'), 'icon' => '🛡️'];
+                        $navItems[] = ['route' => 'admin.impersonation-log.index', 'label' => __('Impersonation Log'), 'icon' => '🕵️'];
                     }
                 @endphp
                 @foreach ($navItems as $item)
@@ -314,13 +318,27 @@
                     </svg>
                 </button>
 
-                {{-- panel --}}
+                {{-- panel — x-show/x-transition live on this OUTER element, position-only, with no
+                     reactive :style binding of its own. See the inner wrapper below for why. --}}
                 <div x-show="open && !minimized" x-cloak x-ref="widgetPanel"
                      x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-10 sm:translate-y-4 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
                      x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-10 sm:translate-y-4 sm:scale-95"
-                     :style="sizeStyle()"
-                     class="fixed inset-x-0 top-0 h-[100dvh] z-[120] flex flex-col bg-ivory overflow-hidden
-                            sm:inset-auto sm:top-auto sm:bottom-24 sm:right-6 sm:max-h-[calc(100dvh-3rem)] sm:rounded-3xl sm:border sm:border-gold-300/50 sm:shadow-2xl">
+                     class="fixed inset-x-0 top-0 z-[120] sm:inset-auto sm:top-auto sm:bottom-24 sm:right-6">
+
+                    {{-- inner sizing wrapper — carries :style="sizeStyle()", which re-runs on every
+                         window resize (see viewportTick). This MUST live on a different element than
+                         x-show/x-transition above: both directives write to this node's `style`
+                         attribute, and a resize firing mid-close-transition raced the two, leaving
+                         Alpine's leave-transition bookkeeping unresolved and the panel stuck visible
+                         forever even after clicking Close (open was correctly false, but the DOM
+                         never got display:none) — reproduced with Playwright, fixed by this split.
+                         sm:max-w-/max-h- stay a hard ceiling in plain CSS, independent of the JS-computed
+                         inline style — even if sizeStyle() ever miscalculates, the panel physically
+                         cannot grow past these bounds and push its own header/controls off-screen. --}}
+                    <div :style="sizeStyle()"
+                         class="relative h-[100dvh] w-full flex flex-col bg-ivory overflow-hidden
+                                sm:h-[34rem] sm:w-96 sm:max-w-[min(40rem,calc(100vw-3rem))] sm:max-h-[calc(100dvh-7rem)]
+                                sm:rounded-3xl sm:border sm:border-gold-300/50 sm:shadow-2xl">
 
                     {{-- resize grip — desktop only, drags the panel's top-left corner --}}
                     <div @mousedown="startResize($event)"
@@ -478,6 +496,7 @@
                             </div>
                         </div>
                     </template>
+                    </div>
                 </div>
             </div>
 

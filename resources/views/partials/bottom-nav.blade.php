@@ -13,14 +13,8 @@
         [
             'href' => route('products.index'),
             'label' => __('Shop All'),
-            'active' => $isProductsIndex && !request()->has('open_filters'),
+            'active' => $isProductsIndex,
             'icon' => 'M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12A1.125 1.125 0 0 1 5.513 7.5h12.974c.576 0 1.06.435 1.119 1.007ZM8.625 10.5a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm7.5 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z',
-        ],
-        [
-            'href' => route('products.index', ['open_filters' => 1]),
-            'label' => __('Categories'),
-            'active' => $isProductsIndex && request()->has('open_filters'),
-            'icon' => 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z',
         ],
     ];
 @endphp
@@ -35,6 +29,17 @@
             <span class="text-[11px] font-medium leading-none">{{ $tab['label'] }}</span>
         </a>
     @endforeach
+
+    {{-- opens the mobile category panel as an overlay (partials/category-panel.blade.php)
+         instead of navigating — same instant-feel as the auth modal/cart drawer, and avoids a
+         page reload just to browse categories --}}
+    <button type="button" onclick="window.dispatchEvent(new CustomEvent('open-category-panel'))"
+            class="flex-1 flex flex-col items-center justify-center gap-0.5 transition text-maroon-400">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.7">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+        </svg>
+        <span class="text-[11px] font-medium leading-none">{{ __('Categories') }}</span>
+    </button>
 
     <a href="{{ route('account') }}"
        onclick="if (!window.__mbIsLoggedIn) { event.preventDefault(); window.dispatchEvent(new CustomEvent('open-auth-modal')); }"

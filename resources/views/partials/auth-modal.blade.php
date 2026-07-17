@@ -173,8 +173,31 @@
                                 class="w-full rounded-xl bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 px-4 py-3 text-sm text-center focus:outline-none focus:ring-2 focus:ring-gold-400">
                         </div>
 
+                        <div>
+                            <label class="flex items-start gap-2.5 text-left cursor-pointer">
+                                <input type="checkbox" x-model="agreeTerms" required
+                                       class="mt-0.5 w-4 h-4 shrink-0 rounded border-gold-300 text-gold-600 focus:ring-gold-400 focus:ring-offset-0">
+                                <span class="text-xs text-maroon-500 leading-snug">
+                                    {{ __('I have read and agree to the') }}
+                                    <button type="button" @click.prevent="window.dispatchEvent(new CustomEvent('open-legal-modal', { detail: { type: 'terms' } }))"
+                                            class="text-maroon-700 font-medium underline hover:text-gold-600">{{ __('Terms & Conditions') }}</button>
+                                    {{ __('and') }}
+                                    <button type="button" @click.prevent="window.dispatchEvent(new CustomEvent('open-legal-modal', { detail: { type: 'privacy' } }))"
+                                            class="text-maroon-700 font-medium underline hover:text-gold-600">{{ __('Privacy Policy') }}</button>.
+                                </span>
+                            </label>
+                            <p x-show="nameSubmitted && !agreeTerms" x-cloak class="text-xs text-maroon-600 font-medium mt-1.5">
+                                {{ __('Please agree to the Terms & Conditions and Privacy Policy to continue.') }}
+                            </p>
+                        </div>
+
                         <p x-show="error" x-cloak x-text="error" class="text-xs text-maroon-600 font-medium text-center"></p>
 
+                        {{-- not gated on !agreeTerms here — a natively disabled button can never
+                             be clicked (browsers/Playwright both refuse), so it would silently
+                             block submission with no way to ever show the validation message
+                             below. completeSignup() does its own agreeTerms check and surfaces
+                             the message; the server independently re-validates regardless. --}}
                         <button type="submit" :disabled="loading || !name.trim()" class="btn-maroon w-full text-center disabled:opacity-60">
                             <span x-show="!loading">{{ __("Let's Go!") }}</span>
                             <span x-show="loading" x-cloak>{{ __('Just a moment...') }}</span>
@@ -192,9 +215,9 @@
                         </svg>
                     </div>
                     <h2 class="font-display font-bold text-2xl text-maroon-800 mt-5"
-                        x-text="isNewUser
-                            ? (@json(__('You\'re all set! Welcome to the family.')) + ' ❤️')
-                            : (welcomeName ? (@json(__('Welcome back')) + ', ' + welcomeName + '! 👋') : (@json(__('Welcome back!')) + ' 👋'))"></h2>
+                        x-text='isNewUser
+                            ? (@json(__("You're all set! Welcome to the family.")) + " ❤️")
+                            : (welcomeName ? (@json(__("Welcome back")) + ", " + welcomeName + "! 👋") : (@json(__("Welcome back!")) + " 👋"))'></h2>
                     <p class="text-maroon-400 text-sm mt-2">{{ __('Redirecting you now...') }}</p>
                 </div>
             </template>

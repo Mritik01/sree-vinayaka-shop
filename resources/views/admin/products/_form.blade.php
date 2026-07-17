@@ -95,7 +95,7 @@
         },
 
         // comma or Enter commits the current draft as one or more chips; case-insensitive
-        // de-dup so "Chini" typed twice (or pasted as part of a comma list) doesn't add twice
+        // de-dup so 'Chini' typed twice (or pasted as part of a comma list) doesn't add twice
         addTag() {
             this.tagDraft.split(',').map((t) => t.trim()).filter(Boolean).forEach((t) => {
                 if (!this.searchTags.some((existing) => existing.toLowerCase() === t.toLowerCase())) {
@@ -135,6 +135,23 @@
                     @endforeach
                 </select>
             </div>
+
+            @if ($allCategories->isNotEmpty())
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-maroon-700 mb-1.5">Categories</label>
+                    <p class="text-xs text-maroon-400 mb-2">Shown in the mobile Categories panel — a product can belong to more than one.</p>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach ($allCategories as $cat)
+                            <label class="flex items-center gap-2 text-sm text-maroon-700 border border-gold-300/60 rounded-lg px-3 py-2 cursor-pointer hover:border-gold-500 transition">
+                                <input type="checkbox" name="categories[]" value="{{ $cat->id }}"
+                                       @checked(in_array($cat->id, old('categories', isset($product) ? $product->categories->pluck('id')->all() : [])))
+                                       class="w-4 h-4 rounded border-gold-300 text-gold-500 focus:ring-gold-400">
+                                {{ $cat->name }}
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-maroon-700 mb-1.5">Product Type</label>

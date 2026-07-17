@@ -27,9 +27,15 @@ class SupportMessage extends Model
 
     // shared by both the customer and admin send() endpoints — same public-disk convention
     // as Rider\OrderController::uploadPhoto() (random filename, no originals kept)
+    //
+    // extension is derived from the file's actual detected content type, never from the
+    // client-supplied original filename — trusting getClientOriginalExtension() would let
+    // an attacker upload a real image but name it "x.php" and have it written into the public
+    // webroot with a .php extension (the validated "image" rule only checks the content is a
+    // genuine image, not that the extension matches it)
     public static function storeImage(UploadedFile $file): string
     {
-        $filename = Str::random(20).'.'.$file->getClientOriginalExtension();
+        $filename = Str::random(20).'.'.($file->extension() ?: 'jpg');
         $file->move(public_path('images/support-chat'), $filename);
 
         return 'images/support-chat/'.$filename;

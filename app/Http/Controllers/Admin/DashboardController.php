@@ -75,6 +75,7 @@ class DashboardController extends Controller
             'restrictDeliveryArea' => $settings->restrict_delivery_area,
             'deliveryRadiusKm' => $settings->delivery_radius_km,
             'rewardSettings' => $settings,
+            'settings' => $settings,
             'promoPopupEnabled' => $settings->promo_popup_enabled,
             'products' => Product::orderBy('name')->get(['id', 'name']),
         ]);
@@ -85,6 +86,14 @@ class DashboardController extends Controller
         $accepting = ShopSetting::toggleAcceptingOrders();
 
         return response()->json(['ok' => true, 'accepting_orders' => $accepting, 'value' => $accepting]);
+    }
+
+    public function toggleRainFeeEnabled(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $settings->update(['rain_fee_enabled' => !$settings->rain_fee_enabled]);
+
+        return response()->json(['ok' => true, 'value' => $settings->rain_fee_enabled]);
     }
 
     public function toggleDeliveryArea(Request $request)
@@ -137,5 +146,61 @@ class DashboardController extends Controller
         ShopSetting::current()->update($data);
 
         return back()->with('status', 'Order limits updated.');
+    }
+
+    public function updateDeliveryTimeSettings(Request $request)
+    {
+        $data = $request->validate([
+            'delivery_time_estimate_minutes' => 'nullable|integer|min:0|max:999',
+        ]);
+
+        ShopSetting::current()->update($data);
+
+        return back()->with('status', 'Delivery time estimate updated.');
+    }
+
+    public function updateDeliveryFeeSettings(Request $request)
+    {
+        $data = $request->validate([
+            'delivery_fee_strategy' => 'required|in:free_above_minimum,fixed',
+            'delivery_free_min_order' => 'nullable|integer|min:0',
+            'delivery_fee_below_minimum' => 'nullable|integer|min:0',
+            'delivery_fee_fixed' => 'nullable|integer|min:0',
+            'delivery_success_message' => 'required|string|max:150',
+            'delivery_success_animation' => 'required|in:confetti_truck,minimal',
+        ]);
+
+        $data['delivery_fee_fixed'] = $data['delivery_fee_fixed'] ?? 0;
+
+        ShopSetting::current()->update($data);
+
+        return back()->with('status', 'Delivery fee settings updated.');
+    }
+
+    public function updateRainFeeSettings(Request $request)
+    {
+        $data = $request->validate([
+            'rain_fee_amount' => 'nullable|integer|min:0',
+            'rain_fee_reason' => 'nullable|string|max:100',
+            'rain_fee_message' => 'nullable|string|max:500',
+        ]);
+
+        ShopSetting::current()->update($data);
+
+        return back()->with('status', 'Rain fee settings updated.');
+    }
+
+    public function updateHighDemandSettings(Request $request)
+    {
+        $data = $request->validate([
+            'high_demand_mode' => 'required|in:normal,stop,fee',
+            'high_demand_fee_amount' => 'nullable|integer|min:0',
+            'high_demand_message' => 'nullable|string|max:500',
+            'high_demand_stop_message' => 'nullable|string|max:500',
+        ]);
+
+        ShopSetting::current()->update($data);
+
+        return back()->with('status', 'High demand settings updated.');
     }
 }

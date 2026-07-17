@@ -14,6 +14,13 @@ class RazorpayController extends Controller
     // signature proves the payment actually happened and wasn't forged client-side
     public function verify(Request $request)
     {
+        if (\App\Services\ImpersonationService::active()) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Payment is disabled while viewing this account as an admin.',
+            ], 403);
+        }
+
         $data = $request->validate([
             'order_id' => 'required|integer|exists:orders,id',
             'razorpay_order_id' => 'required|string',

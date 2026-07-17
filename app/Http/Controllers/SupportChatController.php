@@ -37,7 +37,9 @@ class SupportChatController extends Controller
 
         $data = $request->validate([
             'message' => 'nullable|string|max:1000',
-            'image' => 'nullable|image|max:5120',
+            // excludes svg/bmp on top of Laravel's base "image" check — an uploaded SVG can carry
+            // an embedded <script> and would execute if the stored file is ever opened directly
+            'image' => 'nullable|image|mimes:jpeg,jpg,png,webp,gif|max:5120',
         ]);
 
         if (empty(trim($data['message'] ?? '')) && !$request->hasFile('image')) {

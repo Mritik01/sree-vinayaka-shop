@@ -5,11 +5,16 @@ use App\Http\Controllers\Admin\AdminAccountController;
 use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
 use App\Http\Controllers\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Admin\BestsellerController as AdminBestsellerController;
+use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\CouponController as AdminCouponController;
 use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\FestivalSpecialController as AdminFestivalSpecialController;
+use App\Http\Controllers\Admin\HeroBannerController as AdminHeroBannerController;
+use App\Http\Controllers\Admin\ImpersonationController as AdminImpersonationController;
+use App\Http\Controllers\Admin\ImpersonationLogController as AdminImpersonationLogController;
 use App\Http\Controllers\Admin\LeadController as AdminLeadController;
+use App\Http\Controllers\Admin\LegalDocumentController as AdminLegalDocumentController;
 use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
@@ -22,8 +27,10 @@ use App\Http\Controllers\Rider\OrderController as RiderOrderController;
 use App\Http\Controllers\Auth\PhoneAuthController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\ConsentController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\FavoriteController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderTrackingController;
@@ -31,6 +38,8 @@ use App\Http\Controllers\PromoLeadController;
 use App\Http\Controllers\RazorpayController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\SupportChatController;
+use App\Models\Category;
+use App\Models\HeroBanner;
 use App\Models\Product;
 use App\Models\ShopSetting;
 use App\Services\ActivityLogger;
@@ -55,8 +64,51 @@ Route::get('/shop-status', function () {
         'accepting_orders' => $settings->accepting_orders,
         'restrict_delivery_area' => $settings->restrict_delivery_area,
         'delivery_radius_km' => $settings->delivery_radius_km,
+        'delivery_fee_strategy' => $settings->delivery_fee_strategy,
+        'delivery_free_min_order' => $settings->delivery_free_min_order,
+        'delivery_fee_below_minimum' => $settings->delivery_fee_below_minimum,
+        'delivery_fee_fixed' => $settings->delivery_fee_fixed,
+        'delivery_success_message' => $settings->delivery_success_message,
+        'delivery_success_animation' => $settings->delivery_success_animation,
+        'rain_fee_enabled' => $settings->rain_fee_enabled,
+        'rain_fee_amount' => $settings->rain_fee_amount ?? 0,
+        'rain_fee_message' => $settings->rain_fee_enabled ? $settings->rainFeeMessage() : null,
+        'high_demand_mode' => $settings->high_demand_mode,
+        'high_demand_fee_amount' => $settings->high_demand_fee_amount ?? 0,
+        'high_demand_fee_message' => $settings->high_demand_mode === 'fee' ? $settings->highDemandFeeMessage() : null,
+        'high_demand_stop_message' => $settings->high_demand_mode === 'stop' ? $settings->highDemandStopMessage() : null,
+        'delivery_time_estimate_minutes' => $settings->delivery_time_estimate_minutes,
     ]);
 })->name('shop.status');
+
+// live product suggestions for the header search — small payload, throttled, public
+Route::get('/search-suggest', function (Illuminate\Http\Request $request) {
+    $q = trim((string) $request->get('q', ''));
+
+    if (mb_strlen($q) < 2) {
+        return response()->json(['products' => []]);
+    }
+
+    $like = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($q)).'%';
+
+    $products = Product::where(function ($query) use ($like) {
+            $query->whereRaw('LOWER(name) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(search_tags_flat) LIKE ?', [$like])
+                ->orWhereRaw('LOWER(category) LIKE ?', [$like]);
+        })
+        ->orderBy('sort_order')
+        ->limit(8)
+        ->get()
+        ->map(fn ($p) => [
+            'name' => $p->name,
+            'image' => asset($p->image),
+            'weight' => $p->isLoose() ? Product::portionLabel($p->defaultPortion()) : $p->weight,
+            'price' => $p->priceForPortion($p->defaultPortion()),
+            'url' => route('products.show', $p),
+        ]);
+
+    return response()->json(['products' => $products]);
+})->middleware('throttle:60,1')->name('search.suggest');
 
 Route::get('/delivery-check', function (Illuminate\Http\Request $request) {
     $data = $request->validate([
@@ -78,19 +130,31 @@ Route::get('/delivery-check', function (Illuminate\Http\Request $request) {
 
 Route::get('/', function () {
     return view('home', [
-        'products' => Product::where('is_bestseller', true)->orderBy('sort_order')->get(),
+        'products' => Product::where('is_bestseller', true)
+            ->withAvg('reviews', 'rating')->withCount('reviews')
+            ->orderBy('sort_order')->get(),
         'festivalProducts' => Product::where('is_festival_special', true)->orderBy('sort_order')->get(),
+        'heroBanners' => HeroBanner::active()->get(),
     ]);
 });
 
 Route::get('/products', function () {
     $products = Product::withAvg('reviews', 'rating')->withCount('reviews')
+        ->with('categories:id')
         ->orderBy('sort_order')
         ->get();
+
+    // arriving from the mobile category panel (?category=slug) — resolved server-side so the
+    // grid can be pre-filtered on load via productListing()'s new `filters.categoryId`, and so
+    // a shared/bookmarked link works the same way
+    $activeCategory = request()->filled('category')
+        ? Category::where('slug', request('category'))->where('is_active', true)->first()
+        : null;
 
     return view('products', [
         'products' => $products,
         'categories' => $products->pluck('category')->unique()->values(),
+        'activeCategory' => $activeCategory,
     ]);
 })->name('products.index');
 
@@ -149,6 +213,13 @@ Route::get('/account', function () {
 Route::get('/orders', function () {
     return redirect()->route('account', ['tab' => 'orders']);
 })->name('orders');
+
+Route::get('/terms', [LegalController::class, 'terms'])->name('legal.terms');
+Route::get('/privacy', [LegalController::class, 'privacy'])->name('legal.privacy');
+
+Route::post('/consent/accept', [ConsentController::class, 'accept'])
+    ->middleware('auth')
+    ->name('consent.accept');
 
 Route::middleware('auth')->group(function () {
     Route::get('/orders/{order}', [OrderTrackingController::class, 'show'])->name('orders.show');
@@ -279,7 +350,7 @@ Route::post('/webhooks/razorpay', [RazorpayController::class, 'webhook'])
 
 Route::prefix('admin')->name('admin.')->group(function () {
     Route::get('/login', [AdminAuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [AdminAuthController::class, 'login'])->name('login.attempt');
+    Route::post('/login', [AdminAuthController::class, 'login'])->middleware('throttle:admin-login')->name('login.attempt');
     Route::post('/locale/{locale}', [LocaleController::class, 'switchAdmin'])->name('locale.switch');
 
     Route::middleware('admin.auth')->group(function () {
@@ -292,6 +363,11 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/settings/promo-popup', [AdminDashboardController::class, 'togglePromoPopup'])->name('settings.promo-popup');
         Route::patch('/settings/rewards', [AdminDashboardController::class, 'updateRewardSettings'])->name('settings.rewards');
         Route::patch('/settings/order-limits', [AdminDashboardController::class, 'updateOrderLimits'])->name('settings.order-limits');
+        Route::patch('/settings/delivery-time', [AdminDashboardController::class, 'updateDeliveryTimeSettings'])->name('settings.delivery-time');
+        Route::patch('/settings/rain-fee-enabled', [AdminDashboardController::class, 'toggleRainFeeEnabled'])->name('settings.rain-fee-enabled');
+        Route::patch('/settings/delivery-fee', [AdminDashboardController::class, 'updateDeliveryFeeSettings'])->name('settings.delivery-fee');
+        Route::patch('/settings/rain-fee', [AdminDashboardController::class, 'updateRainFeeSettings'])->name('settings.rain-fee');
+        Route::patch('/settings/high-demand', [AdminDashboardController::class, 'updateHighDemandSettings'])->name('settings.high-demand');
 
         Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
         Route::get('/orders/poll', [AdminOrderController::class, 'poll'])->name('orders.poll');
@@ -300,6 +376,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.status');
         Route::patch('/orders/{order}/rider', [AdminOrderController::class, 'assignRider'])->name('orders.rider');
         Route::post('/orders/{order}/refund', [AdminOrderController::class, 'refund'])->name('orders.refund');
+        Route::patch('/orders/{order}/items/{item}/confirm', [AdminOrderController::class, 'confirmItem'])->name('orders.items.confirm');
+        Route::post('/orders/{order}/items/confirm-all', [AdminOrderController::class, 'confirmAllItems'])->name('orders.items.confirm-all');
 
         Route::get('/products', [AdminProductController::class, 'index'])->name('products.index');
         Route::get('/products/create', [AdminProductController::class, 'create'])->name('products.create');
@@ -307,6 +385,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/products/{product}/edit', [AdminProductController::class, 'edit'])->name('products.edit');
         Route::put('/products/{product}', [AdminProductController::class, 'update'])->name('products.update');
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy'])->name('products.destroy');
+
+        Route::get('/categories', [AdminCategoryController::class, 'index'])->name('categories.index');
+        Route::get('/categories/create', [AdminCategoryController::class, 'create'])->name('categories.create');
+        Route::post('/categories', [AdminCategoryController::class, 'store'])->name('categories.store');
+        Route::get('/categories/{category}/edit', [AdminCategoryController::class, 'edit'])->name('categories.edit');
+        Route::put('/categories/{category}', [AdminCategoryController::class, 'update'])->name('categories.update');
+        Route::patch('/categories/{category}/toggle', [AdminCategoryController::class, 'toggle'])->name('categories.toggle');
+        Route::delete('/categories/{category}', [AdminCategoryController::class, 'destroy'])->name('categories.destroy');
 
         Route::get('/bestsellers', [AdminBestsellerController::class, 'index'])->name('bestsellers.index');
         Route::post('/bestsellers', [AdminBestsellerController::class, 'update'])->name('bestsellers.update');
@@ -316,6 +402,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
         Route::get('/announcement', [AdminAnnouncementController::class, 'edit'])->name('announcement.edit');
         Route::post('/announcement', [AdminAnnouncementController::class, 'update'])->name('announcement.update');
+
+        Route::get('/hero-banners', [AdminHeroBannerController::class, 'index'])->name('hero-banners.index');
+        Route::get('/hero-banners/create', [AdminHeroBannerController::class, 'create'])->name('hero-banners.create');
+        Route::post('/hero-banners', [AdminHeroBannerController::class, 'store'])->name('hero-banners.store');
+        Route::get('/hero-banners/{heroBanner}/edit', [AdminHeroBannerController::class, 'edit'])->name('hero-banners.edit');
+        Route::put('/hero-banners/{heroBanner}', [AdminHeroBannerController::class, 'update'])->name('hero-banners.update');
+        Route::patch('/hero-banners/{heroBanner}/toggle', [AdminHeroBannerController::class, 'toggle'])->name('hero-banners.toggle');
+        Route::delete('/hero-banners/{heroBanner}', [AdminHeroBannerController::class, 'destroy'])->name('hero-banners.destroy');
 
         Route::get('/notifications', [AdminNotificationController::class, 'index'])->name('notifications.index');
         Route::post('/notifications/mark-read', [AdminNotificationController::class, 'markAllRead'])->name('notifications.mark-read');
@@ -340,6 +434,10 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/riders/{rider}', [AdminRiderController::class, 'update'])->name('riders.update');
         Route::delete('/riders/{rider}', [AdminRiderController::class, 'destroy'])->name('riders.destroy');
 
+        Route::get('/legal', [AdminLegalDocumentController::class, 'index'])->name('legal.index');
+        Route::get('/legal/{type}', [AdminLegalDocumentController::class, 'edit'])->name('legal.edit');
+        Route::put('/legal/{type}', [AdminLegalDocumentController::class, 'update'])->name('legal.update');
+
         Route::get('/coupons', [AdminCouponController::class, 'index'])->name('coupons.index');
         Route::get('/coupons/create', [AdminCouponController::class, 'create'])->name('coupons.create');
         Route::post('/coupons', [AdminCouponController::class, 'store'])->name('coupons.store');
@@ -356,6 +454,14 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/customers/{user}/coupons', [AdminCustomerController::class, 'attachCoupon'])->name('customers.coupons.attach');
         Route::delete('/customers/{user}/coupons/{coupon}', [AdminCustomerController::class, 'detachCoupon'])->name('customers.coupons.detach');
 
+        // "Login as Customer" — super-admin only (see EnsureSuperAdmin); stop is reachable by any
+        // logged-in admin since it just ends whatever impersonation their own session started
+        Route::post('/customers/{user}/impersonate', [AdminImpersonationController::class, 'start'])
+            ->middleware('admin.super')
+            ->name('customers.impersonate');
+        Route::post('/impersonate/stop', [AdminImpersonationController::class, 'stop'])->name('impersonate.stop');
+        Route::middleware('admin.super')->get('/impersonation-log', [AdminImpersonationLogController::class, 'index'])->name('impersonation-log.index');
+
         Route::get('/visitors', [AdminVisitorController::class, 'index'])->name('visitors.index');
 
         Route::get('/leads', [AdminLeadController::class, 'index'])->name('leads.index');
@@ -371,7 +477,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
 
 Route::prefix('rider')->name('rider.')->group(function () {
     Route::get('/login', [RiderAuthController::class, 'showLogin'])->name('login');
-    Route::post('/login', [RiderAuthController::class, 'login'])->name('login.attempt');
+    Route::post('/login', [RiderAuthController::class, 'login'])->middleware('throttle:rider-login')->name('login.attempt');
     Route::post('/locale/{locale}', [LocaleController::class, 'switchRider'])->name('locale.switch');
 
     Route::middleware('rider.auth')->group(function () {

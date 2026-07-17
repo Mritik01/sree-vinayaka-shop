@@ -40,11 +40,23 @@
                         <p class="text-maroon-500 text-sm">📞 <a href="tel:+91{{ preg_replace('/\D/', '', $customer->phone) }}" class="hover:text-gold-600">{{ $customer->phone }}</a></p>
                         <p class="text-maroon-400 text-xs mt-0.5">Customer since {{ $customer->created_at->format('d M Y') }}</p>
                     </div>
-                    <button type="button"
-                            onclick='window.dispatchEvent(new CustomEvent("open-notify-modal", { detail: { id: {{ $customer->id }}, name: @json($customer->name) } }))'
-                            class="shrink-0 text-sm px-4 py-2 rounded-full bg-maroon-700 text-cream hover:bg-maroon-800 transition font-medium inline-flex items-center gap-1.5">
-                        🔔 Send Notification
-                    </button>
+                    <div class="shrink-0 flex items-center gap-2">
+                        @if (Auth::guard('admin')->user()?->isSuperAdmin())
+                            <form method="POST" action="{{ route('admin.customers.impersonate', $customer) }}"
+                                  onsubmit="return confirm('Log in as {{ $customer->name }}? This starts a logged, time-limited session viewing the site as this customer.');">
+                                @csrf
+                                <button type="submit"
+                                        class="text-sm px-4 py-2 rounded-full bg-gold-500 text-maroon-900 hover:bg-gold-600 transition font-medium inline-flex items-center gap-1.5">
+                                    🕵️ Login as Customer
+                                </button>
+                            </form>
+                        @endif
+                        <button type="button"
+                                onclick='window.dispatchEvent(new CustomEvent("open-notify-modal", { detail: { id: {{ $customer->id }}, name: @json($customer->name) } }))'
+                                class="text-sm px-4 py-2 rounded-full bg-maroon-700 text-cream hover:bg-maroon-800 transition font-medium inline-flex items-center gap-1.5">
+                            🔔 Send Notification
+                        </button>
+                    </div>
                 </div>
 
                 @if (array_filter($mvpBadges))
@@ -149,6 +161,74 @@
                                 @endforeach
                             </tbody>
                         </table>
+                    @endif
+                </div>
+
+                {{-- legal consent — read-only audit trail, never editable by an admin --}}
+                @php
+                    $latestSignupConsent = $customer->consents->firstWhere('context', 'signup');
+                    $latestConsentOverall = $customer->consents->first();
+                @endphp
+                <div class="bg-white rounded-2xl border border-gold-200/60 overflow-hidden animate-fade-up">
+                    <div class="px-5 py-4 border-b border-gold-100">
+                        <p class="font-display text-maroon-800">Legal Consent</p>
+                    </div>
+                    @if ($customer->consents->isEmpty())
+                        <p class="text-maroon-400 text-sm px-5 py-8 text-center">No consent recorded — this account predates the Terms &amp; Conditions system.</p>
+                    @else
+                        <div class="grid sm:grid-cols-2 gap-4 px-5 py-4">
+                            <div class="rounded-xl bg-cream/50 border border-gold-100 p-4">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-maroon-400">Terms &amp; Conditions</p>
+                                @if ($latestConsentOverall?->terms_version)
+                                    <p class="text-sm text-pista-600 font-semibold mt-1.5">✓ Accepted — v{{ $latestConsentOverall->terms_version }}</p>
+                                @else
+                                    <p class="text-sm text-red-600 font-semibold mt-1.5">Not accepted</p>
+                                @endif
+                            </div>
+                            <div class="rounded-xl bg-cream/50 border border-gold-100 p-4">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-maroon-400">Privacy Policy</p>
+                                @if ($latestConsentOverall?->privacy_version)
+                                    <p class="text-sm text-pista-600 font-semibold mt-1.5">✓ Accepted — v{{ $latestConsentOverall->privacy_version }}</p>
+                                @else
+                                    <p class="text-sm text-red-600 font-semibold mt-1.5">Not accepted</p>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="px-5 pb-2 -mt-1">
+                            <p class="text-xs text-maroon-400">
+                                Most recent acceptance: {{ $latestConsentOverall->accepted_at->format('d M Y, h:i A') }}
+                                @if ($latestConsentOverall->ip_address) · IP {{ $latestConsentOverall->ip_address }} @endif
+                            </p>
+                            @if ($latestConsentOverall->user_agent)
+                                <p class="text-xs text-maroon-400 truncate mt-0.5" title="{{ $latestConsentOverall->user_agent }}">Device: {{ $latestConsentOverall->user_agent }}</p>
+                            @endif
+                        </div>
+
+                        <div class="overflow-x-auto mt-2">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="text-left text-maroon-400 border-y border-gold-100">
+                                        <th class="px-5 py-2.5 font-medium">Event</th>
+                                        <th class="px-5 py-2.5 font-medium">Terms</th>
+                                        <th class="px-5 py-2.5 font-medium">Privacy</th>
+                                        <th class="px-5 py-2.5 font-medium">Date</th>
+                                        <th class="px-5 py-2.5 font-medium">IP Address</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($customer->consents as $consent)
+                                        <tr class="border-b border-gold-50 last:border-0">
+                                            <td class="px-5 py-2.5 text-maroon-800 font-medium capitalize">{{ $consent->context }}</td>
+                                            <td class="px-5 py-2.5 text-maroon-500">{{ $consent->terms_version ? 'v'.$consent->terms_version : '—' }}</td>
+                                            <td class="px-5 py-2.5 text-maroon-500">{{ $consent->privacy_version ? 'v'.$consent->privacy_version : '—' }}</td>
+                                            <td class="px-5 py-2.5 text-maroon-400">{{ $consent->accepted_at->format('d M Y, h:i A') }}</td>
+                                            <td class="px-5 py-2.5 text-maroon-400">{{ $consent->ip_address ?? '—' }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
                     @endif
                 </div>
             </div>

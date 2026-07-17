@@ -19,10 +19,12 @@ class OrderItem extends Model
         'portion',
         'line_total',
         'is_gift',
+        'confirmed_at',
     ];
 
     protected $casts = [
         'is_gift' => 'boolean',
+        'confirmed_at' => 'datetime',
     ];
 
     public function order(): BelongsTo

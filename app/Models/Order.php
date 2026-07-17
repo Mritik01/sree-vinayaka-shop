@@ -89,6 +89,11 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    public function fees(): HasMany
+    {
+        return $this->hasMany(OrderFee::class);
+    }
+
     public function supportMessages(): HasMany
     {
         return $this->hasMany(SupportMessage::class);

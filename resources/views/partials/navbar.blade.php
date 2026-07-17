@@ -6,24 +6,97 @@
     🚫 {{ __("We're not accepting online orders right now — please check back soon. You can still browse our sweets!") }}
 </div>
 
+{{-- rain fee banner — subtle falling-raindrop accent, respects prefers-reduced-motion --}}
+<div x-show="$store.shop.rainFeeEnabled" x-cloak class="relative overflow-hidden bg-sky-700 text-white text-xs sm:text-sm text-center py-2 px-4 font-medium tracking-wide">
+    <span class="relative z-10" x-text="$store.shop.rainFeeMessage"></span>
+    <span class="raindrop" style="left: 8%; animation-delay: 0s;"></span>
+    <span class="raindrop" style="left: 22%; animation-delay: 0.4s;"></span>
+    <span class="raindrop" style="left: 46%; animation-delay: 0.8s;"></span>
+    <span class="raindrop" style="left: 68%; animation-delay: 0.2s;"></span>
+    <span class="raindrop" style="left: 88%; animation-delay: 0.6s;"></span>
+</div>
+
+{{-- high demand fee banner (only shown in "fee" mode — "stop" mode's message appears at
+     checkout instead, where it actually blocks the action) --}}
+<div x-show="$store.shop.highDemandMode === 'fee'" x-cloak class="bg-amber-600 text-white text-xs sm:text-sm text-center py-2 px-4 font-medium tracking-wide">
+    <span x-text="$store.shop.highDemandFeeMessage"></span>
+</div>
+
+<style>
+    @keyframes raindrop-fall {
+        0% { transform: translateY(-10px); opacity: 0; }
+        20% { opacity: 0.8; }
+        100% { transform: translateY(28px); opacity: 0; }
+    }
+    .raindrop {
+        position: absolute;
+        top: 0;
+        width: 2px;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.55);
+        border-radius: 2px;
+        animation: raindrop-fall 1.6s linear infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .raindrop { display: none; }
+    }
+</style>
+
+@php
+    // "Deliver to" data for the header — the default (or most recent) saved address, plus the
+    // rest for the switcher dropdown. Guests just see an area hint that opens the auth modal.
+    $headerAddresses = Auth::check()
+        ? Auth::user()->addresses()->orderByDesc('is_default')->orderByDesc('id')->get()
+            ->map(fn ($a) => ['id' => $a->id, 'label' => $a->label, 'line' => $a->address_line, 'is_default' => $a->is_default])
+            ->values()
+        : collect();
+@endphp
+
 <header x-data="{ open: false }" class="sticky top-0 z-50 bg-cream/95 backdrop-blur text-maroon-900 shadow-sm border-b border-gold-300/40">
-    <nav class="relative w-full flex items-center justify-between px-3 sm:px-10 lg:px-16 py-3 gap-2">
-        <a href="/" class="flex items-center gap-2 sm:gap-3 z-10 min-w-0">
-            <img src="{{ asset('images/logo-circle.png') }}" alt="Makhanbhog Sweets" class="h-9 w-9 sm:h-12 sm:w-12 lg:h-14 lg:w-14 shrink-0">
-            <span class="font-display text-sm sm:text-lg lg:text-xl font-bold tracking-wide leading-tight truncate">Makhanbhog <span class="text-gold-600">Sweets</span></span>
+    <nav class="relative w-full px-3 sm:px-6 lg:px-10 py-2.5 sm:py-3">
+        <div class="max-w-[1760px] mx-auto flex items-center justify-between gap-2 lg:gap-4">
+        <a href="/" class="flex items-center gap-2 sm:gap-3 z-10 min-w-0 shrink-0">
+            <img src="{{ asset('images/logo-circle.png') }}" alt="Makhanbhog Sweets" class="h-9 w-9 sm:h-11 sm:w-11 lg:h-12 lg:w-12 shrink-0">
+            {{-- desktop-only stacked wordmark — hidden below sm so mobile shows just the logo icon --}}
+            <span class="hidden sm:flex flex-col justify-center leading-tight min-w-0">
+                <span class="font-display text-base lg:text-lg font-bold tracking-wide truncate">
+                    <span class="text-gold-600">Makhanbhog</span> <span class="text-maroon-800">Sweets</span>
+                </span>
+                <span class="text-[11px] font-medium text-gold-600/80 tracking-wide truncate">{{ __('Sweet Shop') }}</span>
+            </span>
         </a>
 
-        <div class="hidden md:flex items-center gap-8 text-sm font-medium absolute left-1/2 -translate-x-1/2">
-            <a href="#home" class="hover:text-gold-600 transition">{{ __('Home') }}</a>
-            <a href="{{ route('products.index') }}" class="hover:text-gold-600 transition">{{ __('Shop All') }}</a>
-            <a href="#range" class="hover:text-gold-600 transition">{{ __('Our Kitchen') }}</a>
-            <a href="#bestsellers" class="hover:text-gold-600 transition">{{ __('Favourites') }}</a>
-            <a href="#about" class="hover:text-gold-600 transition">{{ __('Our Story') }}</a>
-            <a href="#contact" class="hover:text-gold-600 transition">{{ __('Contact') }}</a>
+        {{-- delivery-time badge (desktop) — live via $store.shop, hidden when the admin blanks it --}}
+        <div x-show="$store.shop.deliveryTimeMinutes > 0" x-cloak
+             class="hidden lg:flex items-center gap-1.5 rounded-xl border border-gold-300/60 bg-white px-3 py-2 shadow-sm shrink-0">
+            <span class="text-gold-500 text-base leading-none">⚡</span>
+            <span class="leading-tight">
+                <span class="block text-sm font-bold text-maroon-800"><span x-text="$store.shop.deliveryTimeMinutes"></span> {{ __('mins') }}</span>
+                <span class="block text-[10px] text-maroon-400">{{ __('Delivery Time') }}</span>
+            </span>
         </div>
 
-        <div class="flex items-center gap-0.5 sm:gap-3 z-10 shrink-0">
+        {{-- search (desktop center) --}}
+        <div class="hidden lg:block flex-1 max-w-xl">
+            @include('partials.header-search')
+        </div>
+
+        {{-- deliver-to (desktop) --}}
+        <div class="hidden lg:block shrink-0 max-w-[230px]">
+            @include('partials.deliver-to')
+        </div>
+
+        <div class="flex items-center gap-0.5 sm:gap-2 z-10 shrink-0">
             @include('partials.language-switcher')
+
+            {{-- wishlist --}}
+            <a href="{{ route('account', ['tab' => 'favorites']) }}" aria-label="My favorites"
+               @guest @click="$event.preventDefault(); window.dispatchEvent(new CustomEvent('open-auth-modal'))" @endguest
+               class="hidden sm:flex relative w-8 h-8 sm:w-10 sm:h-10 rounded-full items-center justify-center hover:bg-maroon-900/5 transition">
+                <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                </svg>
+            </a>
 
             <div class="relative"
                  x-data="{ count: {{ Auth::check() ? (int) Auth::user()->cart()->sum('quantity') : 0 }}, isLoggedIn: {{ Auth::check() ? 'true' : 'false' }}, bump: false }"
@@ -166,14 +239,29 @@
                 </div>
             @endguest
 
-            <button @click="open = !open" class="md:hidden w-8 h-8 flex items-center justify-center rounded-lg hover:bg-maroon-900/5 transition shrink-0" aria-label="Toggle menu">
+            <button @click="open = !open" class="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-lg hover:bg-maroon-900/5 transition shrink-0" aria-label="Toggle menu">
                 <svg x-show="!open" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
                 <svg x-show="open" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
         </div>
+        </div>
+
+        {{-- mobile: delivery-time + deliver-to row, then full-width search (per the mobile reference) --}}
+        <div class="lg:hidden mt-2.5 flex items-center gap-2.5">
+            <div x-show="$store.shop.deliveryTimeMinutes > 0" x-cloak
+                 class="flex items-center gap-1 rounded-lg bg-gold-400 text-maroon-900 px-2.5 py-1.5 text-xs font-bold shrink-0 shadow-sm">
+                ⚡ <span x-text="$store.shop.deliveryTimeMinutes"></span> {{ __('mins') }}
+            </div>
+            <div class="flex-1 min-w-0">
+                @include('partials.deliver-to')
+            </div>
+        </div>
+        <div class="lg:hidden mt-2.5 pb-0.5">
+            @include('partials.header-search')
+        </div>
     </nav>
 
-    <div x-show="open" x-cloak x-transition class="md:hidden bg-cream border-t border-gold-300/40 px-4 py-4 flex flex-col gap-4 text-sm font-medium">
+    <div x-show="open" x-cloak x-transition class="bg-cream border-t border-gold-300/40 px-4 py-4 flex flex-col gap-4 text-sm font-medium lg:px-10">
         <a href="#home" @click="open = false" class="hover:text-gold-600 transition">{{ __('Home') }}</a>
         <a href="{{ route('products.index') }}" @click="open = false" class="hover:text-gold-600 transition">{{ __('Shop All') }}</a>
         <a href="#range" @click="open = false" class="hover:text-gold-600 transition">{{ __('Our Kitchen') }}</a>

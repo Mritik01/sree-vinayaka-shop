@@ -46,7 +46,11 @@
         </div>
     </div>
 
-    <div class="border-t border-gold-300/20 py-6 text-center text-xs text-cream/50">
-        &copy; {{ date('Y') }} Makhanbhog Sweets, Thuthibari. {{ __('All rights reserved.') }}
+    <div class="border-t border-gold-300/20 py-6 px-4 text-center text-xs text-cream/50 flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
+        <span>&copy; {{ date('Y') }} Makhanbhog Sweets, Thuthibari. {{ __('All rights reserved.') }}</span>
+        <span class="flex items-center gap-3">
+            <a href="{{ route('legal.terms') }}" class="hover:text-gold-300 underline underline-offset-2 transition">{{ __('Terms & Conditions') }}</a>
+            <a href="{{ route('legal.privacy') }}" class="hover:text-gold-300 underline underline-offset-2 transition">{{ __('Privacy Policy') }}</a>
+        </span>
     </div>
 </footer>

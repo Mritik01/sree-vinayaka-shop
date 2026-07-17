@@ -24,7 +24,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // guarded so a missing table (first `migrate`) or an unreachable DB doesn't crash every request at boot
-        $shopStatus = ['accepting' => true, 'restricted' => false, 'radiusKm' => 6.0];
+        $shopStatus = [
+            'accepting' => true, 'restricted' => false, 'radiusKm' => 6.0,
+            'deliveryFeeStrategy' => 'fixed', 'deliveryFreeMinOrder' => null, 'deliveryFeeBelowMinimum' => null,
+            'deliveryFeeFixed' => 0, 'deliverySuccessMessage' => 'Free Delivery Unlocked! 🚚', 'deliverySuccessAnimation' => 'confetti_truck',
+            'rainFeeEnabled' => false, 'rainFeeAmount' => 0, 'rainFeeMessage' => null,
+            'highDemandMode' => 'normal', 'highDemandFeeAmount' => 0, 'highDemandFeeMessage' => null, 'highDemandStopMessage' => null,
+            'deliveryTimeMinutes' => null,
+        ];
         $promoPopupEnabled = true;
         try {
             if (Schema::hasTable('shop_settings')) {
@@ -33,6 +40,23 @@ class AppServiceProvider extends ServiceProvider
                     'accepting' => $settings->accepting_orders,
                     'restricted' => $settings->restrict_delivery_area,
                     'radiusKm' => $settings->delivery_radius_km,
+                    // fee config — the single source of truth is ShopSetting::activeFees()/deliveryFeeFor();
+                    // this just exposes the same inputs to the client for an instant preview, refreshed
+                    // live by pollShopStatus() in app.js so an admin change needs no page reload anywhere
+                    'deliveryFeeStrategy' => $settings->delivery_fee_strategy,
+                    'deliveryFreeMinOrder' => $settings->delivery_free_min_order,
+                    'deliveryFeeBelowMinimum' => $settings->delivery_fee_below_minimum,
+                    'deliveryFeeFixed' => $settings->delivery_fee_fixed,
+                    'deliverySuccessMessage' => $settings->delivery_success_message,
+                    'deliverySuccessAnimation' => $settings->delivery_success_animation,
+                    'rainFeeEnabled' => $settings->rain_fee_enabled,
+                    'rainFeeAmount' => $settings->rain_fee_amount ?? 0,
+                    'rainFeeMessage' => $settings->rain_fee_enabled ? $settings->rainFeeMessage() : null,
+                    'highDemandMode' => $settings->high_demand_mode,
+                    'highDemandFeeAmount' => $settings->high_demand_fee_amount ?? 0,
+                    'highDemandFeeMessage' => $settings->high_demand_mode === 'fee' ? $settings->highDemandFeeMessage() : null,
+                    'highDemandStopMessage' => $settings->high_demand_mode === 'stop' ? $settings->highDemandStopMessage() : null,
+                    'deliveryTimeMinutes' => $settings->delivery_time_estimate_minutes,
                 ];
                 $promoPopupEnabled = $settings->promo_popup_enabled;
             }

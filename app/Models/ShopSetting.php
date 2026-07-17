@@ -20,6 +20,21 @@ class ShopSetting extends Model
         'min_order_amount',
         'max_order_amount',
         'promo_popup_enabled',
+        'delivery_time_estimate_minutes',
+        'delivery_fee_strategy',
+        'delivery_free_min_order',
+        'delivery_fee_below_minimum',
+        'delivery_fee_fixed',
+        'delivery_success_message',
+        'delivery_success_animation',
+        'rain_fee_enabled',
+        'rain_fee_amount',
+        'rain_fee_reason',
+        'rain_fee_message',
+        'high_demand_mode',
+        'high_demand_fee_amount',
+        'high_demand_message',
+        'high_demand_stop_message',
     ];
 
     protected $casts = [
@@ -33,6 +48,13 @@ class ShopSetting extends Model
         'reward_orders_required' => 'integer',
         'min_order_amount' => 'integer',
         'max_order_amount' => 'integer',
+        'delivery_time_estimate_minutes' => 'integer',
+        'delivery_free_min_order' => 'integer',
+        'delivery_fee_below_minimum' => 'integer',
+        'delivery_fee_fixed' => 'integer',
+        'rain_fee_enabled' => 'boolean',
+        'rain_fee_amount' => 'integer',
+        'high_demand_fee_amount' => 'integer',
     ];
 
     public static function current(): self
@@ -71,6 +93,80 @@ class ShopSetting extends Model
     public function rewardConfigured(): bool
     {
         return $this->reward_enabled && $this->reward_gift_product_id !== null;
+    }
+
+    public function deliveryFeeFor(int $subtotal): int
+    {
+        if ($this->delivery_fee_strategy === 'free_above_minimum') {
+            $threshold = $this->delivery_free_min_order ?? 0;
+
+            return $subtotal >= $threshold ? 0 : (int) ($this->delivery_fee_below_minimum ?? 0);
+        }
+
+        return (int) $this->delivery_fee_fixed;
+    }
+
+    // how much more the customer needs to add to their cart to unlock free delivery —
+    // 0 once they're already there, or always under the fixed-fee strategy (nothing to unlock)
+    public function amountToFreeDelivery(int $subtotal): int
+    {
+        if ($this->delivery_fee_strategy !== 'free_above_minimum') {
+            return 0;
+        }
+
+        return max(0, ($this->delivery_free_min_order ?? 0) - $subtotal);
+    }
+
+    public function rainFeeMessage(): string
+    {
+        if ($this->rain_fee_message) {
+            return $this->rain_fee_message;
+        }
+
+        $reason = $this->rain_fee_reason ?: 'heavy rainfall';
+
+        return "🌧️ Due to {$reason}, an additional ₹{$this->rain_fee_amount} Rain Fee has been added to support our delivery partners. Thank you for your understanding ❤️";
+    }
+
+    public function highDemandFeeMessage(): string
+    {
+        if ($this->high_demand_message) {
+            return $this->high_demand_message;
+        }
+
+        return "⚡ We're experiencing a high volume of orders. A temporary High Demand Fee of ₹{$this->high_demand_fee_amount} has been added to help us maintain fast deliveries. Thank you for your support ❤️";
+    }
+
+    public function highDemandStopMessage(): string
+    {
+        return $this->high_demand_stop_message
+            ?: "🚫 We're currently experiencing exceptionally high demand and are temporarily unable to accept new orders. Please try again in a little while. Thank you for your patience ❤️";
+    }
+
+    // single source of truth for every operational fee — called both by the live customer-facing
+    // preview (/shop-status) and by CheckoutController::store() as the authoritative charge.
+    // Adding a future fee (festival, night delivery, weather surcharge...) is just a new branch
+    // here plus its own ShopSetting columns — orders/order_fees and every display template that
+    // loops over $order->fees never need to change.
+    public function activeFees(int $subtotal): array
+    {
+        $fees = [];
+
+        $deliveryFee = $this->deliveryFeeFor($subtotal);
+        if ($deliveryFee > 0) {
+            $fees[] = ['key' => 'delivery', 'label' => 'Delivery Fee', 'amount' => $deliveryFee];
+        }
+
+        if ($this->rain_fee_enabled && $this->rain_fee_amount > 0) {
+            $label = 'Rain Fee'.($this->rain_fee_reason ? " — {$this->rain_fee_reason}" : '');
+            $fees[] = ['key' => 'rain', 'label' => $label, 'amount' => (int) $this->rain_fee_amount];
+        }
+
+        if ($this->high_demand_mode === 'fee' && $this->high_demand_fee_amount > 0) {
+            $fees[] = ['key' => 'high_demand', 'label' => 'High Demand Fee', 'amount' => (int) $this->high_demand_fee_amount];
+        }
+
+        return $fees;
     }
 
     // great-circle (haversine) distance in km from the shop to the given point

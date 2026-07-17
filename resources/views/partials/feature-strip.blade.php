@@ -1,0 +1,41 @@
+{{-- "Why Makhanbhog?" feature strip — 4-across desktop, 2×2 mobile per the reference.
+     The delivery item reads the live admin-configured minutes from $store.shop. --}}
+<section x-data class="bg-ivory">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 pt-5 sm:pt-6">
+        <div class="bg-white rounded-2xl border border-gold-200/60 shadow-sm px-4 sm:px-6 py-4 sm:py-5">
+            <p class="sm:hidden text-center font-display font-bold text-maroon-800 mb-3">✦ {{ __('Why Makhanbhog?') }} ✦</p>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-5 sm:divide-x sm:divide-gold-100">
+                @foreach ([
+                    ['icon' => '🌿', 'title' => __('Made Fresh Daily'), 'text' => __('Prepared every morning with love')],
+                    ['icon' => '🥣', 'title' => __('Pure & Premium Ingredients'), 'text' => __('Quality you can taste in every bite')],
+                    ['icon' => '🎁', 'title' => __('Perfect for Every Occasion'), 'text' => __('Gifting made sweet and memorable')],
+                ] as $feature)
+                    <div class="flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-3 text-center sm:text-left sm:px-4 first:sm:pl-0">
+                        <span class="w-11 h-11 rounded-full bg-gold-50 border border-gold-200/70 flex items-center justify-center text-xl shrink-0">{{ $feature['icon'] }}</span>
+                        <span>
+                            <span class="block text-sm font-bold text-maroon-800 leading-snug">{{ $feature['title'] }}</span>
+                            <span class="block text-xs text-maroon-500 mt-0.5 leading-snug">{{ $feature['text'] }}</span>
+                        </span>
+                    </div>
+                @endforeach
+
+                {{-- delivery feature — minutes are live from the admin setting; wording flips
+                     to a fresh-delivery promise when the admin hides the estimate --}}
+                <div class="flex flex-col sm:flex-row items-center sm:items-start gap-2 sm:gap-3 text-center sm:text-left sm:px-4">
+                    <span class="w-11 h-11 rounded-full bg-gold-50 border border-gold-200/70 flex items-center justify-center text-xl shrink-0">🛵</span>
+                    <span>
+                        <span class="block text-sm font-bold text-maroon-800 leading-snug">
+                            <template x-if="$store.shop.deliveryTimeMinutes > 0">
+                                <span>{{ __('Fast Delivery in') }} <span x-text="$store.shop.deliveryTimeMinutes"></span> {{ __('Minutes') }}</span>
+                            </template>
+                            <template x-if="!($store.shop.deliveryTimeMinutes > 0)">
+                                <span>{{ __('Fast Home Delivery') }}</span>
+                            </template>
+                        </span>
+                        <span class="block text-xs text-maroon-500 mt-0.5 leading-snug">{{ __('Freshness delivered right to your door') }}</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

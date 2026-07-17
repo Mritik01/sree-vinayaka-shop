@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Admin\Concerns\PaginatesAdminLists;
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -38,23 +39,31 @@ class ProductController extends Controller
 
     public function create()
     {
-        return view('admin.products.create', ['categories' => self::CATEGORIES]);
+        return view('admin.products.create', [
+            'categories' => self::CATEGORIES,
+            'allCategories' => Category::where('is_active', true)->orderBy('sort_order')->get(),
+        ]);
     }
 
     public function store(Request $request)
     {
-        $request->validate(['image' => 'required|image|max:4096']);
+        $request->validate(['image' => 'required|image|mimes:jpeg,jpg,png,webp,gif|max:4096']);
         $data = $this->validateData($request);
         $data['image'] = $this->storeImage($request);
 
-        Product::create($data);
+        $product = Product::create($data);
+        $product->categories()->sync($request->input('categories', []));
 
         return redirect()->route('admin.products.index')->with('status', 'Product added.');
     }
 
     public function edit(Product $product)
     {
-        return view('admin.products.edit', ['product' => $product, 'categories' => self::CATEGORIES]);
+        return view('admin.products.edit', [
+            'product' => $product,
+            'categories' => self::CATEGORIES,
+            'allCategories' => Category::where('is_active', true)->orderBy('sort_order')->get(),
+        ]);
     }
 
     public function update(Request $request, Product $product)
@@ -66,6 +75,7 @@ class ProductController extends Controller
         }
 
         $product->update($data);
+        $product->categories()->sync($request->input('categories', []));
 
         return redirect()->route('admin.products.index')->with('status', 'Product updated.');
     }
@@ -115,7 +125,9 @@ class ProductController extends Controller
             'search_tags.*' => 'nullable|string|max:40',
             'color' => 'required|string|max:20',
             'sort_order' => 'required|integer|min:0',
-            'image' => 'nullable|image|max:4096',
+            'categories' => 'nullable|array',
+            'categories.*' => 'exists:categories,id',
+            'image' => 'nullable|image|mimes:jpeg,jpg,png,webp,gif|max:4096',
             // CSS object-position, e.g. "50% 30%" — set by dragging the photo in the live
             // preview; regex keeps it to plain percentages since it's echoed into an inline style
             'image_position' => ['nullable', 'regex:/^\d{1,3}% \d{1,3}%$/'],
@@ -141,7 +153,7 @@ class ProductController extends Controller
             $data['discount_type'] = null;
             $data['discount_value'] = null;
         }
-        unset($data['discount_enabled']);
+        unset($data['discount_enabled'], $data['categories']);
 
         return $data;
     }
@@ -153,7 +165,7 @@ class ProductController extends Controller
         }
 
         $file = $request->file('image');
-        $filename = Str::slug($request->input('name')).'-'.Str::random(6).'.'.$file->getClientOriginalExtension();
+        $filename = Str::slug($request->input('name')).'-'.Str::random(6).'.'.($file->extension() ?: 'jpg');
         $file->move(public_path('images/products'), $filename);
 
         return 'images/products/'.$filename;

@@ -13,7 +13,7 @@ class OrderTrackingController extends Controller
 {
     public function show(Request $request, int $orderId)
     {
-        $order = $request->user()->orders()->with(['items', 'coupon'])->findOrFail($orderId);
+        $order = $request->user()->orders()->with(['items', 'coupon', 'fees'])->findOrFail($orderId);
 
         return view('order-tracking', [
             'order' => $order,
@@ -37,7 +37,7 @@ class OrderTrackingController extends Controller
     // instead of navigating to a separate page — see resources/js/app.js: accountPage().viewOrder()
     public function partial(Request $request, int $orderId)
     {
-        $order = $request->user()->orders()->with(['items', 'coupon'])->findOrFail($orderId);
+        $order = $request->user()->orders()->with(['items', 'coupon', 'fees'])->findOrFail($orderId);
 
         return view('partials.order-detail', [
             'order' => $order,
@@ -108,7 +108,7 @@ class OrderTrackingController extends Controller
 
     public function invoice(Request $request, int $orderId)
     {
-        $order = $request->user()->orders()->with(['items', 'coupon'])->findOrFail($orderId);
+        $order = $request->user()->orders()->with(['items', 'coupon', 'fees'])->findOrFail($orderId);
 
         $pdf = Pdf::loadView('invoice', ['order' => $order]);
 

@@ -17,6 +17,7 @@
         'id' => $p->id,
         'name' => $p->name,
         'category' => $p->category,
+        'category_ids' => $p->categories->pluck('id'),
         'search_tags' => $p->search_tags_flat,
         'price' => (int) $p->price,
         'rating' => round($p->reviews_avg_rating ?? 0, 1),
@@ -24,8 +25,11 @@
     ])->values();
 @endphp
 
+{{-- $activeCategory is resolved server-side from ?category=slug (see the /products route
+     closure) — e.g. arriving from the mobile category panel — and pre-filters the grid via
+     productListing()'s `filters.categoryId` below --}}
 <section class="relative py-10 sm:py-14 bg-ivory min-h-[80vh] overflow-hidden"
-         x-data='productListing({{ Auth::check() ? 'true' : 'false' }}, @json($favoritedIds), @json($productsForJs), @json($priceBuckets))'>
+         x-data='productListing({{ Auth::check() ? 'true' : 'false' }}, @json($favoritedIds), @json($productsForJs), @json($priceBuckets), {{ $activeCategory?->id ?? 'null' }})'>
 
     {{-- ambient glow blobs --}}
     <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -49,6 +53,16 @@
                 {{ __('Showing') }} <span class="font-semibold text-maroon-700" x-text="visibleCount()"></span> {{ __('of') }} {{ $products->count() }} {{ __('treats') }}
             </p>
         </div>
+
+        {{-- arrived via the mobile category panel / a shared ?category=slug link — visible
+             indicator + easy way to undo it, since it's not one of the checkbox filters --}}
+        @if ($activeCategory)
+            <div x-show="filters.categoryId" x-cloak class="mt-4 inline-flex items-center gap-2 bg-gold-100 border border-gold-300/60 text-maroon-700 text-sm font-semibold rounded-full pl-4 pr-2 py-1.5">
+                {{ __('Filtered by') }}: {{ $activeCategory->name }}
+                <button type="button" @click="clearCategoryFilter()" aria-label="{{ __('Clear category filter') }}"
+                        class="w-5 h-5 rounded-full bg-white/70 hover:bg-white text-maroon-500 hover:text-maroon-800 transition flex items-center justify-center text-xs leading-none">✕</button>
+            </div>
+        @endif
 
         {{-- toolbar: search + sort --}}
         <div class="flex items-center gap-3 mt-6 mb-8">

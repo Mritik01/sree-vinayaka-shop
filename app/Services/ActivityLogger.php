@@ -20,6 +20,12 @@ class ActivityLogger
 
     public static function log(string $event, ?string $label = null, array $extra = []): void
     {
+        // an admin impersonating this customer must never pollute their real activity feed
+        // or "last seen / online" indicator (see ImpersonationService)
+        if (ImpersonationService::active()) {
+            return;
+        }
+
         $request = request();
         $ua = (string) $request->userAgent();
         $device = DeviceDetector::parse($ua);

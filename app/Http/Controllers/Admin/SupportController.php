@@ -74,7 +74,7 @@ class SupportController extends Controller
     {
         $data = $request->validate([
             'message' => 'nullable|string|max:1000',
-            'image' => 'nullable|image|max:5120',
+            'image' => 'nullable|image|mimes:jpeg,jpg,png,webp,gif|max:5120',
         ]);
 
         if (empty(trim($data['message'] ?? '')) && !$request->hasFile('image')) {

@@ -17,6 +17,7 @@
     "dependencies": {
         "canvas-confetti": "^1.9.4",
         "chart.js": "^4.5.1",
+        "cropperjs": "^1.6.2",
         "quill": "^2.0.3"
     }
 }

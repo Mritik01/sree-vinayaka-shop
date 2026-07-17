@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Admin\Concerns\PaginatesAdminLists;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\Rider;
 use App\Models\SupportMessage;
 use App\Notifications\OrderCancelled;
@@ -172,7 +173,7 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        $order->load(['items.product', 'coupon', 'user', 'rider']);
+        $order->load(['items.product', 'coupon', 'user', 'rider', 'fees']);
 
         $etaEndsAt = ($order->confirmed_at && $order->eta_minutes)
             ? $order->confirmed_at->addMinutes($order->eta_minutes)->valueOf()
@@ -190,7 +191,7 @@ class OrderController extends Controller
     // live without the admin needing to reload — see resources/js/admin.js: adminOrderShowPage()
     public function status(Order $order)
     {
-        $order->load('rider');
+        $order->load('rider', 'items');
 
         return response()->json(['ok' => true, 'order' => $this->orderDetailForJs($order)]);
     }
@@ -201,6 +202,10 @@ class OrderController extends Controller
             'id' => $order->id,
             'order_number' => $order->orderNumber(),
             'status' => $order->status,
+            // internal packing checklist — keyed by order_item id so a second admin tab/device
+            // packing the same order (or a page refresh) stays in sync; never sent anywhere
+            // customer-facing (see OrderTrackingController, which has its own separate payload)
+            'confirmed_items' => $order->items->mapWithKeys(fn ($item) => [$item->id => $item->confirmed_at !== null]),
             'payment_method' => strtoupper($order->payment_method ?? 'COD'),
             'payment_status' => $order->payment_status,
             'cancelled_by' => $order->cancelled_by,
@@ -220,6 +225,28 @@ class OrderController extends Controller
 
     // a rider's delivery queue only ever shows orders an admin has explicitly assigned to them
     // (see Rider\OrderController::index) — this is the only place that assignment happens
+    // internal packing checklist — an admin ticks each item off after physically verifying it
+    // while packing. Purely a per-order_item timestamp: never surfaced to the customer, never
+    // touches the order's real status/timeline (see the class-level note in OrderItem).
+    public function confirmItem(Order $order, OrderItem $item)
+    {
+        abort_unless($item->order_id === $order->id, 404);
+
+        $item->forceFill(['confirmed_at' => $item->confirmed_at ? null : now()])->save();
+
+        return response()->json(['ok' => true, 'confirmed' => $item->confirmed_at !== null]);
+    }
+
+    public function confirmAllItems(Order $order)
+    {
+        $order->items()->whereNull('confirmed_at')->update(['confirmed_at' => now()]);
+
+        return response()->json([
+            'ok' => true,
+            'confirmed_items' => $order->items()->get()->mapWithKeys(fn ($item) => [$item->id => true]),
+        ]);
+    }
+
     public function assignRider(Request $request, Order $order)
     {
         $data = $request->validate([

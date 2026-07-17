@@ -91,7 +91,9 @@
                         <span class="font-display font-semibold text-2xl text-maroon-800">₹<span x-text="subtotal()"></span></span>
                     </div>
 
-                    <div x-show="$store.shop.accepting" x-cloak>
+                    @include('partials.free-delivery-progress')
+
+                    <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop'" x-cloak>
                         <a href="/checkout" class="btn-gold w-full text-center mt-5 inline-flex items-center justify-center gap-2">
                             {{ __('Proceed to Checkout') }}
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -102,6 +104,9 @@
                     </div>
                     <div x-show="!$store.shop.accepting" x-cloak class="mt-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3.5 text-center">
                         🚫 {{ __("We're not accepting online orders right now. Please check back soon — your cart will be waiting.") }}
+                    </div>
+                    <div x-show="$store.shop.accepting && $store.shop.highDemandMode === 'stop'" x-cloak class="mt-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3.5 text-center">
+                        <span x-text="$store.shop.highDemandStopMessage"></span>
                     </div>
                 </div>
             </div>

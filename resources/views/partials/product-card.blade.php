@@ -62,7 +62,7 @@
          }"
          @endif>
         <p class="text-[11px] font-semibold tracking-widest uppercase text-gold-600">{{ $product->category }}</p>
-        <h3 class="font-display font-bold {{ $compact ? 'text-base sm:text-lg' : 'text-lg' }} text-maroon-800 mt-0.5">
+        <h3 class="font-display font-bold {{ $compact ? 'text-base sm:text-lg' : 'text-lg' }} text-maroon-800 mt-0.5 truncate">
             <a href="{{ route('products.show', $product) }}" class="hover:text-gold-600 transition">{{ $product->name }}</a>
         </h3>
 
@@ -75,12 +75,15 @@
             </div>
         @endif
 
-        <div class="flex flex-wrap gap-2 mt-2.5">
+        {{-- always a single line, same height on every card regardless of tag text length —
+             previously this wrapped to 2 lines on longer tags ("Melt in Mouth", "Savoury Bite"),
+             which threw off the vertical rhythm between cards sharing a mobile grid row --}}
+        <div class="flex items-center gap-2 mt-2.5">
             @if ($hasMultiplePortions)
                 <button type="button"
                         @click="portionOpen ? (portionOpen = false) : openPicker($el)"
                         @dblclick.stop
-                        class="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md border transition"
+                        class="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md border transition shrink-0"
                         :class="portionOpen ? 'border-maroon-600 bg-maroon-50 text-maroon-800' : 'border-gold-300/60 text-maroon-600 hover:border-maroon-400'">
                     <span x-text="window.portionLabel(selPortion)"></span>
                     <svg class="w-3 h-3 transition-transform duration-200" :class="portionOpen && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
@@ -88,11 +91,11 @@
                     </svg>
                 </button>
             @else
-                <span class="text-xs font-semibold px-2.5 py-1 rounded-md border border-gold-300/60 text-maroon-600">
+                <span class="text-xs font-semibold px-2.5 py-1 rounded-md border border-gold-300/60 text-maroon-600 shrink-0">
                     {{ $product->isLoose() ? \App\Models\Product::portionLabel($product->defaultPortion()) : $product->weight }}
                 </span>
             @endif
-            <span class="text-xs font-semibold px-2.5 py-1 rounded-md" style="background-color: {{ $product->color }}; color: {{ $onColor }};">{{ $product->tag }}</span>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-md truncate min-w-0" style="background-color: {{ $product->color }}; color: {{ $onColor }};">{{ $product->tag }}</span>
         </div>
 
         @if ($hasMultiplePortions)

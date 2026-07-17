@@ -224,6 +224,9 @@
                     @if ($order->discount_amount > 0)
                         <div class="flex justify-between"><span class="text-pista-600">{{ __('Coupon') }} ({{ $order->coupon->code ?? __('applied') }})</span><span class="text-pista-600">−₹{{ number_format($order->discount_amount) }}</span></div>
                     @endif
+                    @foreach ($order->fees as $fee)
+                        <div class="flex justify-between"><span class="text-maroon-500">{{ $fee->label }}</span><span class="text-maroon-800">₹{{ number_format($fee->amount) }}</span></div>
+                    @endforeach
                     <div class="flex justify-between font-semibold text-base pt-1.5 border-t border-gold-100"><span class="text-maroon-800">{{ __('Total') }}</span><span class="text-maroon-800">₹{{ number_format($order->total) }}</span></div>
                     <p class="text-xs text-maroon-400 pt-1">
                         @if ($order->payment_method === 'razorpay')

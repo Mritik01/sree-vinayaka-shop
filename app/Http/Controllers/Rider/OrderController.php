@@ -99,7 +99,7 @@ class OrderController extends Controller
     {
         abort_unless($order->rider_id === Auth::guard('rider')->id(), 404);
 
-        $request->validate(['photo' => 'required|image|max:8192']);
+        $request->validate(['photo' => 'required|image|mimes:jpeg,jpg,png,webp,gif|max:8192']);
 
         // replace, don't accumulate — only ever one proof-of-delivery photo per order
         if ($order->delivery_photo_path) {
@@ -107,7 +107,9 @@ class OrderController extends Controller
         }
 
         $file = $request->file('photo');
-        $filename = 'order-'.$order->id.'-'.Str::random(8).'.'.$file->getClientOriginalExtension();
+        // extension from the detected content type, never the client-supplied original filename
+        // (see SupportMessage::storeImage for why that matters — same fix applied here)
+        $filename = 'order-'.$order->id.'-'.Str::random(8).'.'.($file->extension() ?: 'jpg');
         $file->move(public_path('images/delivery-photos'), $filename);
 
         $order->delivery_photo_path = 'images/delivery-photos/'.$filename;
