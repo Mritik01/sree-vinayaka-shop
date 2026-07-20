@@ -5,15 +5,16 @@
 
 @section('content')
     <p class="text-maroon-500 text-sm -mt-1 mb-5">
-        Manage the Terms &amp; Conditions and Privacy Policy shown on the public site. Every save creates a new version — customers who already agreed to an older version will be prompted to accept the update the next time they visit.
+        Manage the policy pages shown on the public site. Every save creates a new version. For Terms &amp; Conditions and Privacy Policy specifically, customers who already agreed to an older version will be prompted to accept the update the next time they visit — the other pages are informational only and update silently.
     </p>
 
     <div class="grid sm:grid-cols-2 gap-5 max-w-3xl">
+        @php $docIcons = ['terms' => '📜', 'privacy' => '🔒', 'refund' => '💰', 'shipping' => '🚚']; @endphp
         @foreach ($documents as $doc)
             <a href="{{ route('admin.legal.edit', $doc['type']) }}"
                class="block bg-white rounded-2xl border border-gold-200/60 p-6 hover:border-gold-400 hover:shadow-md transition">
                 <div class="flex items-center gap-3">
-                    <span class="text-2xl">{{ $doc['type'] === 'terms' ? '📜' : '🔒' }}</span>
+                    <span class="text-2xl">{{ $docIcons[$doc['type']] ?? '📄' }}</span>
                     <p class="font-display text-lg text-maroon-800">{{ $doc['label'] }}</p>
                 </div>
                 @if ($doc['current'])

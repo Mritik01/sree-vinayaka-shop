@@ -71,6 +71,87 @@
                      x-text="on ? '✓' : '✕'"></div>
             </label>
         </div>
+
+        {{-- circular category row (above the hero banner) show/hide toggle --}}
+        <div x-data="settingToggle({{ $settings->show_category_row ? 'true' : 'false' }}, '{{ route('admin.settings.category-row') }}')"
+             class="rounded-2xl border p-5 flex items-center justify-between gap-4 transition-colors duration-300"
+             :class="on ? 'bg-white border-gold-200/60' : 'bg-gold-50 border-gold-300/60'">
+            <div>
+                <p class="font-display text-maroon-800 flex items-center gap-2">🗂️ Category Row</p>
+                <p class="text-sm mt-1 text-maroon-500">
+                    <span x-show="on" x-cloak>The circular category icons shown above the hero banner on the homepage.</span>
+                    <span x-show="!on" x-cloak>Hidden — the homepage goes straight from the header to the hero banner.</span>
+                </p>
+            </div>
+
+            <label class="relative inline-flex items-center cursor-pointer shrink-0" :class="updating && 'opacity-60 pointer-events-none'">
+                <input type="checkbox" class="sr-only peer" :checked="on" @change="toggle()">
+                <div class="w-16 h-9 rounded-full transition-colors duration-300 bg-gold-300 peer-checked:bg-pista-500"></div>
+                <div class="absolute left-1 top-1 w-7 h-7 bg-white rounded-full shadow-md transition-transform duration-300 peer-checked:translate-x-7 flex items-center justify-center text-xs"
+                     x-text="on ? '✓' : '✕'"></div>
+            </label>
+        </div>
+    </div>
+
+    {{-- business contact number — single source of truth for the footer, WhatsApp links, order
+         help text, invoices, and the legal pages (see AppServiceProvider's $businessPhone share) --}}
+    <div class="rounded-2xl border border-gold-200/60 bg-white p-5 mb-5">
+        <div class="flex items-center gap-3">
+            <span class="text-2xl">📞</span>
+            <div>
+                <p class="font-display text-maroon-800">Business Contact</p>
+                <p class="text-sm text-maroon-500 mt-0.5">Shown in the footer, WhatsApp links, order help text, invoices, and the legal pages.</p>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ route('admin.settings.business-info') }}" class="mt-4">
+            @csrf
+            @method('PATCH')
+            <label class="block text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">Business Mobile Number</label>
+            {{-- maxlength is generous (not 10) on purpose — the server strips any +91/spaces/dashes
+                 and keeps the last 10 digits, so a pasted formatted number like "+91 98765 43210"
+                 (15 raw characters) must not get truncated by the browser before that cleanup runs --}}
+            <input type="text" name="business_mobile_number" maxlength="20" placeholder="10-digit mobile number"
+                   value="{{ old('business_mobile_number', $settings->business_mobile_number) }}"
+                   class="w-full max-w-xs rounded-lg border border-gold-300/70 px-3 py-2 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+            @error('business_mobile_number')
+                <p class="text-xs text-red-600 mt-1.5">{{ $message }}</p>
+            @enderror
+            <p class="text-xs text-maroon-400 mt-1.5">Leave blank to hide all "call"/WhatsApp contact links site-wide.</p>
+            <div class="flex justify-end mt-4">
+                <button type="submit" class="btn-gold text-sm px-5 py-2">Save</button>
+            </div>
+        </form>
+    </div>
+
+    {{-- payment methods — at least one must always stay enabled, enforced server-side --}}
+    <div x-data="paymentMethodsToggle({{ $settings->cod_enabled ? 'true' : 'false' }}, {{ $settings->razorpay_enabled ? 'true' : 'false' }}, '{{ route('admin.settings.cod-enabled') }}', '{{ route('admin.settings.razorpay-enabled') }}')"
+         class="rounded-2xl border border-gold-200/60 bg-white p-5 mb-5">
+        <p class="font-display text-maroon-800 flex items-center gap-2">💳 Payment Methods</p>
+        <p class="text-sm text-maroon-500 mt-0.5 mb-4">Choose which payment options customers see at checkout. At least one must stay enabled.</p>
+
+        <div class="grid sm:grid-cols-2 gap-3">
+            <div class="rounded-xl border p-4 flex items-center justify-between gap-3 transition-colors duration-300"
+                 :class="cod ? 'bg-white border-gold-200/60' : 'bg-gold-50 border-gold-300/60'">
+                <p class="text-sm font-semibold text-maroon-800">💵 Cash on Delivery</p>
+                <label class="relative inline-flex items-center cursor-pointer shrink-0" :class="updating && 'opacity-60 pointer-events-none'">
+                    <input type="checkbox" class="sr-only peer" :checked="cod" @change="toggleCod()">
+                    <div class="w-11 h-6 rounded-full transition-colors duration-300 bg-gold-300 peer-checked:bg-pista-500"></div>
+                    <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-300 peer-checked:translate-x-5"></div>
+                </label>
+            </div>
+            <div class="rounded-xl border p-4 flex items-center justify-between gap-3 transition-colors duration-300"
+                 :class="razorpay ? 'bg-white border-gold-200/60' : 'bg-gold-50 border-gold-300/60'">
+                <p class="text-sm font-semibold text-maroon-800">💳 Pay Online (Razorpay)</p>
+                <label class="relative inline-flex items-center cursor-pointer shrink-0" :class="updating && 'opacity-60 pointer-events-none'">
+                    <input type="checkbox" class="sr-only peer" :checked="razorpay" @change="toggleRazorpay()">
+                    <div class="w-11 h-6 rounded-full transition-colors duration-300 bg-gold-300 peer-checked:bg-pista-500"></div>
+                    <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-300 peer-checked:translate-x-5"></div>
+                </label>
+            </div>
+        </div>
+
+        <p x-show="error" x-cloak x-text="error" class="text-xs text-red-600 font-medium mt-3"></p>
     </div>
 
     {{-- loyalty reward program --}}
@@ -134,7 +215,7 @@
             <span class="text-2xl">🧾</span>
             <div>
                 <p class="font-display text-maroon-800">Order Limits</p>
-                <p class="text-sm text-maroon-500 mt-0.5">Set the minimum and maximum order value a customer can place at checkout. Leave a field blank for no limit.</p>
+                <p class="text-sm text-maroon-500 mt-0.5">Set the minimum and maximum order value a customer can place at checkout, and how many orders they can place per hour. Leave a value field blank for no limit.</p>
             </div>
         </div>
 
@@ -159,6 +240,16 @@
                     <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
                 @enderror
             </div>
+            <div class="sm:col-span-2">
+                <label class="block text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">Max orders per customer, per hour</label>
+                <input type="number" name="max_orders_per_hour" min="1" max="100" required
+                       value="{{ old('max_orders_per_hour', $rewardSettings->max_orders_per_hour) }}"
+                       class="w-full sm:w-40 rounded-lg border border-gold-300/70 px-3 py-2 text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                <p class="text-xs text-maroon-400 mt-1">Stops a customer from placing more than this many orders within a rolling 1-hour window — a simple guard against accidental double-orders or abuse.</p>
+                @error('max_orders_per_hour')
+                    <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                @enderror
+            </div>
             <div class="sm:col-span-2 flex items-center justify-between gap-3">
                 @if ($rewardSettings->min_order_amount || $rewardSettings->max_order_amount)
                     <p class="text-xs text-maroon-400">
@@ -166,7 +257,7 @@
                         {{ $rewardSettings->max_order_amount ? '₹'.number_format($rewardSettings->max_order_amount).' maximum' : 'no maximum' }}.
                     </p>
                 @else
-                    <p class="text-xs text-maroon-400">No order limits set — customers can place an order of any value.</p>
+                    <p class="text-xs text-maroon-400">No value limits set — customers can place an order of any value.</p>
                 @endif
                 <button type="submit" class="btn-gold text-sm px-5 py-2 shrink-0">Save</button>
             </div>

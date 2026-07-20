@@ -6,14 +6,19 @@ use App\Http\Controllers\Admin\Concerns\PaginatesAdminLists;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\Rider;
 use App\Models\SupportMessage;
+use App\Notifications\ItemsRemovedFromOrder;
 use App\Notifications\OrderCancelled;
+use App\Notifications\OrderItemsAdded;
+use App\Notifications\RiderAssigned;
 use App\Services\OrderAutoCancelService;
 use App\Services\RefundService;
 use App\Services\RewardService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 class OrderController extends Controller
@@ -79,7 +84,7 @@ class OrderController extends Controller
             'order_number' => $order->orderNumber(),
             'customer_name' => $order->customer_name,
             'customer_phone' => $order->customer_phone,
-            'items_count' => $order->items->count(),
+            'items_count' => $order->items->whereNull('removed_at')->count(),
             'coupon_code' => $order->coupon->code ?? null,
             'total' => (int) $order->total,
             'status' => $order->status,
@@ -155,14 +160,14 @@ class OrderController extends Controller
                 'payment_method' => strtoupper($order->payment_method ?? 'COD'),
                 'payment_status' => $order->payment_status,
                 'coupon_code' => $order->coupon->code ?? null,
-                'items_count' => $order->items->count(),
+                'items_count' => $order->items->whereNull('removed_at')->count(),
                 'is_gift_order' => $order->is_gift_order,
                 'created_at' => $order->created_at->format('d M, h:i A'),
                 // unix ms the delivery was promised for; the client counts down against it
                 'eta_ends_at' => ($order->confirmed_at && $order->eta_minutes)
                     ? $order->confirmed_at->addMinutes($order->eta_minutes)->valueOf()
                     : null,
-                'items' => $order->items->map(fn ($item) => [
+                'items' => $order->items->whereNull('removed_at')->map(fn ($item) => [
                     'name' => $item->product_name,
                     'quantity' => $item->quantity,
                     'is_gift' => $item->is_gift,
@@ -173,7 +178,7 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        $order->load(['items.product', 'coupon', 'user', 'rider', 'fees']);
+        $order->load(['items.product', 'items.removedByAdmin', 'items.addedByAdmin', 'coupon', 'user', 'rider', 'fees']);
 
         $etaEndsAt = ($order->confirmed_at && $order->eta_minutes)
             ? $order->confirmed_at->addMinutes($order->eta_minutes)->valueOf()
@@ -232,6 +237,10 @@ class OrderController extends Controller
     {
         abort_unless($item->order_id === $order->id, 404);
 
+        if (in_array($order->status, ['out_for_delivery', 'delivered', 'cancelled'])) {
+            return response()->json(['ok' => false, 'message' => 'This order has already been dispatched, so the packing checklist is locked.'], 422);
+        }
+
         $item->forceFill(['confirmed_at' => $item->confirmed_at ? null : now()])->save();
 
         return response()->json(['ok' => true, 'confirmed' => $item->confirmed_at !== null]);
@@ -239,6 +248,10 @@ class OrderController extends Controller
 
     public function confirmAllItems(Order $order)
     {
+        if (in_array($order->status, ['out_for_delivery', 'delivered', 'cancelled'])) {
+            return response()->json(['ok' => false, 'message' => 'This order has already been dispatched, so the packing checklist is locked.'], 422);
+        }
+
         $order->items()->whereNull('confirmed_at')->update(['confirmed_at' => now()]);
 
         return response()->json([
@@ -247,16 +260,195 @@ class OrderController extends Controller
         ]);
     }
 
+    // admin-only escape hatch for genuinely unavailable stock discovered after the order was
+    // placed — removes just this line item (not the whole order), then recalculates totals so
+    // the invoice/bill/customer view all reflect only what's still being fulfilled. Gated to
+    // items not yet packed (see confirmItem() above) — once physically packed it's too late to
+    // quietly drop it, and the admin should cancel/handle it another way instead.
+    public function removeItem(Request $request, Order $order, OrderItem $item)
+    {
+        abort_unless($item->order_id === $order->id, 404);
+
+        if ($item->removed_at !== null) {
+            return back()->with('status', 'That item has already been removed.');
+        }
+
+        if ($item->confirmed_at !== null) {
+            return back()->with('status', 'This item has already been packed and can no longer be removed.');
+        }
+
+        if (in_array($order->status, ['out_for_delivery', 'delivered', 'cancelled'], true)) {
+            return back()->with('status', "Order {$order->orderNumber()} has already left the shop — items can no longer be removed.");
+        }
+
+        $remainingCount = $order->items()->whereNull('removed_at')->where('id', '!=', $item->id)->count();
+        if ($remainingCount === 0) {
+            return back()->with('status', 'Cannot remove the last item on an order — cancel the order instead.');
+        }
+
+        $data = $request->validate([
+            'reason' => 'required|in:'.implode(',', array_keys(OrderItem::REMOVAL_REASONS)),
+            'note' => 'nullable|string|max:255|required_if:reason,custom',
+        ]);
+
+        $item->forceFill([
+            'removed_at' => now(),
+            'removed_by_admin_id' => Auth::guard('admin')->id(),
+            'removal_reason' => $data['reason'],
+            'removal_reason_note' => trim($data['note'] ?? '') ?: null,
+        ])->save();
+
+        $order->recalculateTotals();
+
+        // same locale-switch trick assignRider() already uses — the notification's title/message
+        // are generated with __() at dispatch time, under the CUSTOMER's own locale
+        if ($order->user) {
+            $adminLocale = app()->getLocale();
+            app()->setLocale($order->user->locale ?? 'en');
+            $order->user->notify(new ItemsRemovedFromOrder($order, $item));
+            app()->setLocale($adminLocale);
+        }
+
+        return back()->with('status', "{$item->product_name} removed from order {$order->orderNumber()} — totals updated.");
+    }
+
+    // admin adds one or more products to an order the customer already placed (usually a phoned-in
+    // "add one more box"). Available only until the order leaves the shop — same gate as removeItem.
+    // Prices are ALWAYS re-derived server-side via Product::priceForPortion() (never trusted from the
+    // client), then Order::recalculateTotals() re-sums subtotal/discount/delivery/total exactly as it
+    // does after a removal. Audit lives on the row (added_by_admin_id/added_at), matching removeItem.
+    // Fetch/JSON endpoint (the modal reloads on success so the server-rendered item list refreshes).
+    public function addItems(Request $request, Order $order)
+    {
+        if (in_array($order->status, ['out_for_delivery', 'delivered', 'cancelled'], true)) {
+            return response()->json([
+                'ok' => false,
+                'message' => "Order {$order->orderNumber()} has already left the shop — products can no longer be added.",
+            ], 422);
+        }
+
+        $data = $request->validate([
+            'items' => 'required|array|min:1|max:50',
+            'items.*.product_id' => 'required|integer|exists:products,id',
+            'items.*.portion' => 'required|integer|min:0',
+            'items.*.quantity' => 'required|integer|min:1|max:99',
+        ]);
+
+        // resolve + validate every line first (all-or-nothing), so a single bad portion doesn't
+        // leave the order half-updated
+        $resolved = [];
+        foreach ($data['items'] as $line) {
+            $product = Product::find($line['product_id']);
+            $portion = (int) $line['portion'];
+
+            $allowedPortions = array_column($product->portionPriceList(), 'portion');
+            if (!in_array($portion, $allowedPortions, true)) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => "\"{$product->name}\" isn't available in that portion. Please pick a listed variant.",
+                ], 422);
+            }
+
+            $unit = $product->priceForPortion($portion ?: null);
+            $resolved[] = [
+                'product' => $product,
+                'portion' => $portion,
+                'quantity' => (int) $line['quantity'],
+                'unit' => $unit,
+            ];
+        }
+
+        $addedItems = collect();
+        foreach ($resolved as $line) {
+            $addedItems->push($order->items()->create([
+                'product_id' => $line['product']->id,
+                'product_name' => $line['product']->name,
+                'product_price' => $line['unit'],
+                'quantity' => $line['quantity'],
+                'portion' => $line['portion'],
+                'line_total' => $line['unit'] * $line['quantity'],
+                'is_gift' => false,
+                'confirmed_at' => null,
+                'added_by_admin_id' => Auth::guard('admin')->id(),
+                'added_at' => now(),
+            ]));
+        }
+
+        $order->recalculateTotals();
+
+        // notify the customer in-app, under their own locale — same idiom as removeItem/assignRider
+        if ($order->user) {
+            $adminLocale = app()->getLocale();
+            app()->setLocale($order->user->locale ?? 'en');
+            $order->user->notify(new OrderItemsAdded($order->fresh(), $addedItems));
+            app()->setLocale($adminLocale);
+        }
+
+        $count = $addedItems->count();
+        $message = $count === 1
+            ? "{$addedItems->first()->product_name} added to order {$order->orderNumber()} — totals updated."
+            : "{$count} items added to order {$order->orderNumber()} — totals updated.";
+
+        // this endpoint responds JSON (the modal reloads the page on success rather than
+        // following a redirect), but the flash still needs to survive into that reload so the
+        // admin sees the same confirmation banner every other action on this page shows —
+        // session()->flash() persists across the session cookie regardless of how this request
+        // was made, so it's picked up by the reload exactly like back()->with('status', ...) is
+        session()->flash('status', $message);
+
+        return response()->json(['ok' => true, 'message' => $message]);
+    }
+
+    // audit trail lives on the order row itself (note_decided_by_admin_id/note_decided_at),
+    // same as removeItem()'s removed_by_admin_id above — no separate activity log entry, matching
+    // the rest of this controller's actions
+    public function respondToNote(Request $request, Order $order)
+    {
+        if (!$order->customer_note || $order->note_status !== 'pending') {
+            return back()->with('status', "Order {$order->orderNumber()} has no pending note to respond to.");
+        }
+
+        $data = $request->validate([
+            'status' => 'required|in:accepted,denied',
+            'message' => 'nullable|string|max:500',
+        ]);
+
+        $order->update([
+            'note_status' => $data['status'],
+            'note_decision_message' => trim($data['message'] ?? '') ?: null,
+            'note_decided_by_admin_id' => Auth::guard('admin')->id(),
+            'note_decided_at' => now(),
+        ]);
+
+        return back()->with('status', "Order {$order->orderNumber()}'s note has been {$data['status']}.");
+    }
+
     public function assignRider(Request $request, Order $order)
     {
         $data = $request->validate([
             'rider_id' => 'nullable|exists:riders,id',
         ]);
 
+        $previousRiderId = $order->rider_id;
+
         $order->rider_id = $data['rider_id'] ?: null;
         $order->save();
 
         $rider = $order->rider_id ? Rider::find($order->rider_id) : null;
+
+        // notify the customer only on a genuine change to a real rider — not on every save of
+        // this form, and not when unassigning. Reassigning to a different rider notifies again,
+        // same as a first-time assignment (this is the sole hook a future SMS/WhatsApp send would
+        // extend, but neither is wired up today per product decision)
+        if ($rider && $order->rider_id !== $previousRiderId && $order->user) {
+            // the notification's title/message are built with __() at dispatch time, so they must
+            // be generated under the CUSTOMER's own locale, not whichever locale the admin doing
+            // the assigning happens to be browsing in — switch briefly, then restore
+            $adminLocale = app()->getLocale();
+            app()->setLocale($order->user->locale ?? 'en');
+            $order->user->notify(new RiderAssigned($order, $rider));
+            app()->setLocale($adminLocale);
+        }
 
         return back()->with('status', $rider
             ? "Order {$order->orderNumber()} assigned to {$rider->name}."

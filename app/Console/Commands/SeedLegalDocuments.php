@@ -6,14 +6,15 @@ use App\Models\LegalDocumentVersion;
 use Illuminate\Console\Command;
 
 // One-time operational command — not a fresh-install seeder run automatically. Creates version 1
-// of the Terms & Conditions and Privacy Policy if the site has none yet, so the admin panel and
-// the new /terms, /privacy pages start out with real, business-specific content instead of an
-// empty editor. Safe to re-run: skips any type that already has a version.
+// of the Terms & Conditions, Privacy Policy, Refund & Cancellation Policy, and Shipping &
+// Delivery Policy if the site has none yet, so the admin panel and the public /terms, /privacy,
+// /refund-policy, /shipping-policy pages start out with real, business-specific content instead
+// of an empty editor. Safe to re-run: skips any type that already has a version.
 class SeedLegalDocuments extends Command
 {
     protected $signature = 'legal:seed';
 
-    protected $description = 'Create the initial version of the Terms & Conditions and Privacy Policy if none exist yet';
+    protected $description = 'Create the initial version of the Terms & Conditions, Privacy Policy, Refund & Cancellation Policy, and Shipping & Delivery Policy if none exist yet';
 
     public function handle(): int
     {
@@ -43,6 +44,34 @@ class SeedLegalDocuments extends Command
             $this->info('Privacy Policy v1 created.');
         } else {
             $this->info('Privacy Policy already exist — skipped.');
+        }
+
+        if (!LegalDocumentVersion::current('refund')) {
+            LegalDocumentVersion::create([
+                'type' => 'refund',
+                'version' => 1,
+                'title' => 'Refund & Cancellation Policy',
+                'content' => $this->refund(),
+                'published_at' => now(),
+                'created_by' => null,
+            ]);
+            $this->info('Refund & Cancellation Policy v1 created.');
+        } else {
+            $this->info('Refund & Cancellation Policy already exists — skipped.');
+        }
+
+        if (!LegalDocumentVersion::current('shipping')) {
+            LegalDocumentVersion::create([
+                'type' => 'shipping',
+                'version' => 1,
+                'title' => 'Shipping & Delivery Policy',
+                'content' => $this->shipping(),
+                'published_at' => now(),
+                'created_by' => null,
+            ]);
+            $this->info('Shipping & Delivery Policy v1 created.');
+        } else {
+            $this->info('Shipping & Delivery Policy already exists — skipped.');
         }
 
         return self::SUCCESS;
@@ -144,6 +173,83 @@ HTML;
 
 <h2>13. Contact Information</h2>
 <p>For any questions about this Privacy Policy or to exercise your rights over your personal information, please reach us at:</p>
+<ul>
+<li>Phone: +91 89209 37331</li>
+<li>WhatsApp: <a href="https://wa.me/918920937331">wa.me/918920937331</a></li>
+<li>Address: Main Market Road, Thuthibari</li>
+</ul>
+HTML;
+    }
+
+    private function refund(): string
+    {
+        return <<<'HTML'
+<h2>1. Introduction</h2>
+<p>This Refund &amp; Cancellation Policy explains when you can cancel an order placed with Makhanbhog Sweets, and how and when refunds are issued. It should be read together with our <a href="/terms">Terms &amp; Conditions</a>.</p>
+
+<h2>2. Cancelling an Order Yourself</h2>
+<p>You can cancel an order yourself, free of charge, from your order tracking page for a short window immediately after placing it — while the order is still shown as "Placed" or "Confirmed" and before we've begun preparing it. Once that window has closed, or the order has moved further along (for example, it's already being prepared or is out for delivery), self-service cancellation is no longer available and you'll need to contact us directly using the details below so we can assess whether cancellation is still possible.</p>
+
+<h2>3. Cancellation by Us</h2>
+<p>We may cancel an order — in whole or for a specific item within it — where a product turns out to be unavailable, the delivery address is outside our current delivery area, we're unable to reach you to confirm delivery details, or we reasonably suspect fraud or abuse. Where we cancel or remove an item, we'll always tell you the reason on your order page, and any amount already paid for the cancelled portion is refunded as described below.</p>
+
+<h2>4. Refunds for Online (Razorpay) Payments</h2>
+<p>If you paid online via Razorpay and your order (or part of it) is cancelled — whether by you, by us, or automatically because it couldn't be delivered in a reasonable time — the amount is refunded automatically to your original payment method through Razorpay. Refunds typically reach your account, card, or UPI app within 5–7 business days, though the exact timing beyond that point depends on your bank or payment provider rather than us.</p>
+
+<h2>5. Cash on Delivery Orders</h2>
+<p>Cash on Delivery orders involve no payment until the order is handed to you, so a cancelled COD order naturally involves no refund to process. Repeated cancellation or refusal of Cash on Delivery orders may result in future orders requiring prepayment online, as noted in our Terms &amp; Conditions.</p>
+
+<h2>6. Partial Refunds When an Item Is Removed</h2>
+<p>Occasionally a specific item in your order may turn out to be unavailable after the order is placed. Rather than cancelling the whole order, we'll remove just that item, tell you the reason on your order page, and adjust your total accordingly — for online payments, the difference is refunded automatically the same way as a full cancellation; the rest of your order is still prepared and delivered as normal.</p>
+
+<h2>7. Returns, Damaged or Incorrect Items</h2>
+<p>Because our products are freshly prepared, perishable food items, we're generally not able to accept returns once an order has been delivered and accepted. The exception is where something has genuinely gone wrong — the item received is materially different from what you ordered, arrived damaged, or arrived spoiled. Please contact us with photos as soon as possible after delivery so we can make it right, whether that's a replacement or a refund, assessed case by case.</p>
+
+<h2>8. When Cancellation Is No Longer Possible</h2>
+<p>Once an order is out for delivery, it can no longer be cancelled through the app — at that point, please contact us directly if there's a genuine problem, and see Section 7 above for delivered orders.</p>
+
+<h2>9. How Refunds Are Processed</h2>
+<p>All refunds are issued to the original payment method used for the order — we don't offer refunds by cash, bank transfer, or any other method, and we don't hold refund balances as store credit unless you specifically ask for and agree to that as an alternative.</p>
+
+<h2>10. Contact Information</h2>
+<p>For any questions about a cancellation or refund, please reach us at:</p>
+<ul>
+<li>Phone: +91 89209 37331</li>
+<li>WhatsApp: <a href="https://wa.me/918920937331">wa.me/918920937331</a></li>
+<li>Address: Main Market Road, Thuthibari</li>
+</ul>
+HTML;
+    }
+
+    private function shipping(): string
+    {
+        return <<<'HTML'
+<h2>1. What This Policy Covers</h2>
+<p>Makhanbhog Sweets offers same-day, hyperlocal delivery direct from our own outlet in Thuthibari — we do not ship products by post or courier, and there are no tracking numbers or third-party delivery partners involved. This policy explains how that local delivery works.</p>
+
+<h2>2. Delivery Area</h2>
+<p>We currently deliver within a limited radius of our Thuthibari outlet. If a delivery address falls outside our current delivery area, the Platform will let you know at checkout and the order cannot be placed to that address. Our delivery area may be adjusted from time to time as our team and coverage grow.</p>
+
+<h2>3. Delivery Charges</h2>
+<p>Any delivery fee that applies — or the order value above which delivery is free — is shown live in your cart and at checkout, since it can be adjusted from time to time. You'll always see the exact delivery charge for your order, if any, before you pay or confirm a Cash on Delivery order.</p>
+
+<h2>4. Estimated Delivery Time</h2>
+<p>Your order page shows our best estimate for when your order will be prepared and delivered. This is an estimate, not a guaranteed delivery window — actual timing can be affected by order volume, weather, traffic, or other circumstances beyond our control. Please keep your phone reachable and someone available at the delivery address around the estimated time.</p>
+
+<h2>5. Order Preparation</h2>
+<p>Because our sweets and snacks are made fresh, your order is prepared after it's confirmed rather than picked from ready stock — this is part of why delivery is same-day and local rather than instant or long-distance.</p>
+
+<h2>6. Orders Outside Operating Hours</h2>
+<p>Orders placed while we're closed for the day are queued and prepared for delivery once we reopen the next morning; your order page will reflect this.</p>
+
+<h2>7. If We Can't Deliver Your Order</h2>
+<p>If, despite our best efforts, an order cannot be delivered within a reasonable time — for example, we're unable to reach you, or the address turns out to be inaccessible — the order is automatically cancelled and any amount paid online is refunded in full; see our <a href="/refund-policy">Refund &amp; Cancellation Policy</a> for how that refund is processed.</p>
+
+<h2>8. Our Delivery Partners</h2>
+<p>Deliveries are carried out by our own delivery riders, not an outsourced courier service — your rider's name and contact number are shown on your order tracking page once one is assigned.</p>
+
+<h2>9. Contact Information</h2>
+<p>For any questions about delivery for a specific order, please reach us at:</p>
 <ul>
 <li>Phone: +91 89209 37331</li>
 <li>WhatsApp: <a href="https://wa.me/918920937331">wa.me/918920937331</a></li>

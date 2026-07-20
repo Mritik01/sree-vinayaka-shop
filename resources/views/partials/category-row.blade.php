@@ -1,12 +1,15 @@
 {{-- circular category icons under the header — backend-driven from the Category model.
      Loaded here (not from the layout's $navCategories) because section content renders
-     before the layout itself does. Arrows appear only when the row overflows. --}}
+     before the layout itself does. Arrows appear only when the row overflows.
+     Admin → Configuration → "Category Row" can hide this whole section site-wide. --}}
 @php
-    $rowCategories = \App\Models\Category::where('is_active', true)->orderBy('sort_order')->get();
+    $rowCategories = \App\Models\ShopSetting::current()->show_category_row
+        ? \App\Models\Category::where('is_active', true)->orderBy('sort_order')->get()
+        : collect();
 @endphp
 @if ($rowCategories->isNotEmpty())
     <section id="range" x-data="categoryRow()" class="relative bg-ivory border-b border-gold-200/40">
-        <div class="relative max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-4 sm:py-5">
+        <div class="relative max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12 py-4 sm:py-5">
 
             <button x-show="canLeft" x-cloak @click="scrollBy(-1)" aria-label="{{ __('Scroll categories left') }}"
                     class="hidden sm:flex absolute left-1 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white border border-gold-300/60 shadow-md items-center justify-center text-maroon-700 hover:bg-cream transition">
@@ -14,6 +17,7 @@
             </button>
 
             <div x-ref="track" @scroll.debounce.100ms="update()"
+                 :class="fits() && 'sm:justify-center'"
                  class="flex items-start gap-4 sm:gap-7 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 @foreach ($rowCategories as $category)
                     <a href="{{ route('products.index', ['category' => $category->slug]) }}"

@@ -72,6 +72,67 @@ function playChatPing() {
     }
 }
 
+// customizable sidebar order — drag-and-drop, persisted per-browser via localStorage. Dashboard
+// is deliberately never part of this list at all (it's rendered as its own fixed row in the
+// blade, above this component entirely) so there's no way to drag it out of first place.
+window.adminNavMenu = function (initialItems) {
+    return {
+        items: initialItems || [],
+        dragIndex: null,
+        overIndex: null,
+
+        init() {
+            this.applySavedOrder();
+        },
+        applySavedOrder() {
+            let saved;
+            try {
+                saved = JSON.parse(localStorage.getItem('mb_admin_nav_order') || 'null');
+            } catch (e) {
+                saved = null;
+            }
+            if (!Array.isArray(saved) || saved.length === 0) return;
+
+            const byRoute = new Map(this.items.map((item) => [item.route, item]));
+            const ordered = saved.map((route) => byRoute.get(route)).filter(Boolean);
+            // anything new since the order was last saved (a nav item added after the admin
+            // last customized their sidebar) lands at the end instead of vanishing
+            const remaining = this.items.filter((item) => !saved.includes(item.route));
+            this.items = [...ordered, ...remaining];
+        },
+        persistOrder() {
+            localStorage.setItem('mb_admin_nav_order', JSON.stringify(this.items.map((item) => item.route)));
+        },
+        dragStart(index, event) {
+            this.dragIndex = index;
+            event.dataTransfer.effectAllowed = 'move';
+        },
+        dragOver(index, event) {
+            event.preventDefault();
+            this.overIndex = index;
+        },
+        dragLeave(index) {
+            if (this.overIndex === index) this.overIndex = null;
+        },
+        drop(index) {
+            if (this.dragIndex === null || this.dragIndex === index) {
+                this.dragIndex = null;
+                this.overIndex = null;
+                return;
+            }
+            const moved = this.items.splice(this.dragIndex, 1)[0];
+            this.items.splice(index, 0, moved);
+            this.dragIndex = null;
+            this.overIndex = null;
+            this.persistOrder();
+        },
+        dragEnd() {
+            this.dragIndex = null;
+            this.overIndex = null;
+        },
+    };
+};
+
 window.adminNotifier = function (initialLatestId, isOrdersIndex) {
     return {
         lastSeen: initialLatestId,
@@ -458,7 +519,11 @@ window.adminOrderShowPage = function (initialOrder, orderId, cancelledReasons) {
         allItemsConfirmed() {
             return this.totalItemsCount() > 0 && this.confirmedItemsCount() === this.totalItemsCount();
         },
+        itemsLocked() {
+            return ['out_for_delivery', 'delivered', 'cancelled'].includes(this.order.status);
+        },
         async toggleItemConfirmed(itemId) {
+            if (this.itemsLocked()) return;
             const was = this.isItemConfirmed(itemId);
             this.order.confirmed_items = { ...this.order.confirmed_items, [itemId]: !was };
             try {
@@ -475,6 +540,7 @@ window.adminOrderShowPage = function (initialOrder, orderId, cancelledReasons) {
             }
         },
         async confirmAllItems() {
+            if (this.itemsLocked()) return;
             const snapshot = { ...this.order.confirmed_items };
             const allTrue = {};
             Object.keys(snapshot).forEach((id) => { allTrue[id] = true; });
@@ -603,6 +669,52 @@ window.settingToggle = function (initial, endpoint) {
     };
 };
 
+// Payment Methods card (admin/configuration.blade.php) — two mutually-constrained switches
+// (COD / Razorpay). Not built on settingToggle() above: a rejected toggle here needs a visible
+// reason ("at least one must stay enabled"), which the generic component doesn't surface, and
+// the constraint itself is enforced server-side (this just displays whatever it says).
+window.paymentMethodsToggle = function (codEnabled, razorpayEnabled, codEndpoint, razorpayEndpoint) {
+    return {
+        cod: codEnabled,
+        razorpay: razorpayEnabled,
+        updating: false,
+        error: null,
+
+        async toggleCod() {
+            await this.flip('cod', codEndpoint);
+        },
+        async toggleRazorpay() {
+            await this.flip('razorpay', razorpayEndpoint);
+        },
+        async flip(key, endpoint) {
+            if (this.updating) return;
+            this.updating = true;
+            this.error = null;
+            const previous = this[key];
+            this[key] = !this[key]; // optimistic
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch(endpoint, {
+                    method: 'PATCH',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) {
+                    this[key] = data.value;
+                } else {
+                    this[key] = previous;
+                    this.error = data.message || 'Something went wrong, please try again.';
+                }
+            } catch (e) {
+                this[key] = previous;
+                this.error = 'Network error, please check your connection and try again.';
+            } finally {
+                this.updating = false;
+            }
+        },
+    };
+};
+
 // send-notification modal on the Customers pages — opened via the global
 // `open-notify-modal` event so grid-row buttons keep working after the live-search
 // AJAX partial swap replaces them (inline onclick survives innerHTML swaps)
@@ -659,6 +771,182 @@ window.notifyCustomerModal = function () {
                 this.error = 'Network error, please try again.';
             } finally {
                 this.sending = false;
+            }
+        },
+    };
+};
+
+// shared "remove unavailable item" modal on the admin order detail page — one instance serving
+// every item row's 🗑️ button, opened via the open-remove-item-modal window event with the
+// clicked item's details in e.detail. Submission is a plain form POST (see the Blade template),
+// not fetch — this just tracks which item/order the form's action should point at and drives
+// the reason picker's conditional "custom reason" textarea.
+window.removeItemModal = function (reasons) {
+    return {
+        open: false,
+        orderId: null,
+        itemId: null,
+        itemName: '',
+        itemImage: null,
+        itemMeta: '',
+        reason: '',
+        note: '',
+        reasons: reasons || {},
+
+        init() {
+            window.addEventListener('open-remove-item-modal', (e) => {
+                this.orderId = e.detail.orderId;
+                this.itemId = e.detail.itemId;
+                this.itemName = e.detail.itemName;
+                this.itemImage = e.detail.itemImage;
+                this.itemMeta = e.detail.itemMeta;
+                this.reason = '';
+                this.note = '';
+                this.open = true;
+            });
+        },
+        removeUrl() {
+            return this.orderId && this.itemId ? `/admin/orders/${this.orderId}/items/${this.itemId}` : '#';
+        },
+    };
+};
+
+// "Add Product" modal on the admin order detail page — lets an admin add product(s) to an
+// order the customer already placed (see Admin\OrderController::addItems()). Opened via the
+// open-add-product-modal window event dispatched by the Items card's ➕ button (show.blade.php).
+// Three-part flow in one modal: search (fetch /admin/products/search, debounced via
+// @input.debounce in the template) → configure+stage a pick (portion/qty, "Add to list") →
+// review/confirm (the confirmation dialog the spec asked for) → submit. Prices shown here are
+// only a preview — the server always re-derives them via Product::priceForPortion(), never
+// trusts this payload. Success reloads the page so the server-rendered item list, totals, and
+// audit chip all refresh in one shot (this admin page is otherwise plain Blade + redirects, same
+// convention as removeItemModal above — no partial-refresh machinery to hook into here).
+window.addProductModal = function () {
+    return {
+        open: false,
+        orderId: null,
+        isPaidOnline: false,
+        query: '',
+        results: [],
+        searching: false,
+        selectedProduct: null, // the product currently being configured (portion/qty), or null
+        selectedPortion: null,
+        selectedQuantity: 1,
+        lines: [], // staged picks: {key, product_id, name, image, portion, label, quantity, unitPrice}
+        confirming: false,
+        submitting: false,
+        error: '',
+
+        init() {
+            window.addEventListener('open-add-product-modal', (e) => {
+                this.orderId = e.detail.orderId;
+                this.isPaidOnline = !!e.detail.isPaidOnline;
+                this.query = '';
+                this.results = [];
+                this.selectedProduct = null;
+                this.lines = [];
+                this.confirming = false;
+                this.submitting = false;
+                this.error = '';
+                this.open = true;
+            });
+        },
+        close() {
+            this.open = false;
+        },
+        async search() {
+            const q = this.query.trim();
+            if (q.length < 2) {
+                this.results = [];
+                return;
+            }
+            this.searching = true;
+            try {
+                const res = await fetch(`/admin/products/search?q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' } });
+                const data = res.ok ? await res.json() : { products: [] };
+                if (this.query.trim() === q) this.results = data.products || [];
+            } catch (e) {
+                this.results = [];
+            } finally {
+                this.searching = false;
+            }
+        },
+        pickProduct(product) {
+            this.selectedProduct = product;
+            this.selectedPortion = product.portions[0]?.portion ?? 0;
+            this.selectedQuantity = 1;
+        },
+        cancelPick() {
+            this.selectedProduct = null;
+        },
+        selectedVariant() {
+            if (!this.selectedProduct) return null;
+            return this.selectedProduct.portions.find((p) => p.portion === this.selectedPortion) || this.selectedProduct.portions[0];
+        },
+        selectedUnitPrice() {
+            return this.selectedVariant()?.price ?? 0;
+        },
+        selectedLineTotal() {
+            return this.selectedUnitPrice() * this.selectedQuantity;
+        },
+        stageSelected() {
+            if (!this.selectedProduct) return;
+            const variant = this.selectedVariant();
+            this.lines.push({
+                key: `${this.selectedProduct.id}-${this.selectedPortion}-${Date.now()}`,
+                product_id: this.selectedProduct.id,
+                name: this.selectedProduct.name,
+                image: this.selectedProduct.image,
+                portion: this.selectedPortion,
+                label: variant?.label ?? null,
+                quantity: this.selectedQuantity,
+                unitPrice: this.selectedUnitPrice(),
+            });
+            this.selectedProduct = null;
+            this.query = '';
+            this.results = [];
+        },
+        removeStaged(key) {
+            this.lines = this.lines.filter((l) => l.key !== key);
+        },
+        lineTotal(line) {
+            return line.unitPrice * line.quantity;
+        },
+        stagedTotal() {
+            return this.lines.reduce((sum, l) => sum + this.lineTotal(l), 0);
+        },
+        startConfirm() {
+            if (this.lines.length === 0) return;
+            this.confirming = true;
+        },
+        backToEdit() {
+            this.confirming = false;
+        },
+        async submit() {
+            if (this.submitting || this.lines.length === 0) return;
+            this.submitting = true;
+            this.error = '';
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch(`/admin/orders/${this.orderId}/items`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify({
+                        items: this.lines.map((l) => ({ product_id: l.product_id, portion: l.portion, quantity: l.quantity })),
+                    }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.ok) {
+                    window.location.reload();
+                } else {
+                    this.error = data.message || 'Could not add the product(s) to this order.';
+                    this.confirming = false;
+                }
+            } catch (e) {
+                this.error = 'Network error, please try again.';
+                this.confirming = false;
+            } finally {
+                this.submitting = false;
             }
         },
     };
@@ -965,6 +1253,9 @@ window.adminDashboardCharts = function (data) {
 window.adminSupportInbox = function (initialConversations) {
     return {
         conversations: initialConversations || [],
+        search: '',
+        page: 1,
+        perPage: 15,
 
         init() {
             this.$el._inboxTimer = setInterval(() => this.refresh(), 5000);
@@ -980,6 +1271,60 @@ window.adminSupportInbox = function (initialConversations) {
                 if (data.ok) this.conversations = data.conversations;
             } catch (e) {
                 // offline / server restarting — try again next tick
+            }
+        },
+        // client-side only — the whole inbox is already loaded/polled in one shot, so a second
+        // round-trip just to filter it would be pure overhead. Matches name, order #, or phone.
+        filteredConversations() {
+            const q = this.search.trim().toLowerCase();
+            if (!q) return this.conversations;
+            return this.conversations.filter((c) =>
+                (c.customer_name || '').toLowerCase().includes(q)
+                || (c.order_number || '').toLowerCase().includes(q)
+                || (c.customer_phone || '').includes(q)
+            );
+        },
+        // also client-side, over the (already-searched) in-memory list — clamps `page` in case
+        // a delete, a fresh search, or the next 5s poll leaves it pointing past the new last page
+        totalPages() {
+            return Math.max(1, Math.ceil(this.filteredConversations().length / this.perPage));
+        },
+        pagedConversations() {
+            if (this.page > this.totalPages()) this.page = this.totalPages();
+            const start = (this.page - 1) * this.perPage;
+            return this.filteredConversations().slice(start, start + this.perPage);
+        },
+        pageFirstItem() {
+            return this.filteredConversations().length === 0 ? 0 : (this.page - 1) * this.perPage + 1;
+        },
+        pageLastItem() {
+            return Math.min(this.page * this.perPage, this.filteredConversations().length);
+        },
+        goToPage(p) {
+            this.page = Math.min(Math.max(1, p), this.totalPages());
+        },
+        // same "current page ± 2" window as the server-rendered <x-admin.pagination> component,
+        // so this client-side list looks and behaves the same as every paginated table elsewhere
+        pageRange() {
+            const last = this.totalPages();
+            const start = Math.max(1, this.page - 2);
+            const end = Math.min(last, this.page + 2);
+            const range = [];
+            for (let i = start; i <= end; i++) range.push(i);
+            return range;
+        },
+        async deleteConversation(orderId, customerName) {
+            if (!confirm(`Delete the entire conversation with ${customerName}? This cannot be undone.`)) return;
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch(`/admin/support/${orderId}`, {
+                    method: 'DELETE',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) this.conversations = this.conversations.filter((c) => c.order_id !== orderId);
+            } catch (e) {
+                alert('Could not delete — check your connection and try again.');
             }
         },
     };
@@ -1606,6 +1951,63 @@ window.categoryImageCropper = function (existingImageUrl) {
     };
 };
 
+// rider profile photo editor (admin/riders/_form.blade.php) — identical square-crop Cropper
+// flow to categoryImageCropper() above; kept as its own function (not a shared helper) since
+// that's the established convention in this file (each admin photo uploader gets its own
+// window.xCropper, even when the body is a near-exact copy — see hero banners below too)
+window.riderPhotoCropper = function (existingImageUrl) {
+    let cropper = null;
+
+    return {
+        existingImageUrl: existingImageUrl || null,
+        rawImageSrc: null,
+        livePreview: existingImageUrl || null,
+        hasNewImage: false,
+
+        onFileSelected(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                this.rawImageSrc = ev.target.result;
+                this.hasNewImage = true;
+                this.$nextTick(() => this.mountCropper());
+            };
+            reader.readAsDataURL(file);
+        },
+        mountCropper() {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            cropper = new Cropper(this.$refs.cropperImage, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                background: false,
+                crop: () => this.refreshPreview(),
+                ready: () => this.refreshPreview(),
+            });
+        },
+        zoom(delta) {
+            cropper?.zoom(delta);
+        },
+        refreshPreview() {
+            if (!cropper) return;
+            this.livePreview = cropper.getCroppedCanvas({ width: 300, height: 300 }).toDataURL('image/jpeg', 0.9);
+        },
+        beforeSubmit() {
+            if (!cropper || !this.hasNewImage) return;
+            this.$refs.croppedImageInput.value = cropper.getCroppedCanvas({ width: 600, height: 600 }).toDataURL('image/jpeg', 0.9);
+        },
+        destroy() {
+            cropper?.destroy();
+            cropper = null;
+        },
+    };
+};
+
 // hero banner image editor (admin/hero-banners/_form.blade.php) — same Cropper flow as the
 // category one above but locked to the wide 21:9 banner shape, with live desktop + mobile
 // frame previews (including the title overlay) so the admin sees the real slide before saving
@@ -1655,6 +2057,64 @@ window.heroBannerCropper = function (existingImageUrl, initialTitle) {
         beforeSubmit() {
             if (!cropper || !this.hasNewImage) return;
             this.$refs.croppedImageInput.value = cropper.getCroppedCanvas({ width: 1680, height: 720 }).toDataURL('image/jpeg', 0.85);
+        },
+        destroy() {
+            cropper?.destroy();
+            cropper = null;
+        },
+    };
+};
+
+// featured-category icon editor (admin/featured-categories/_form.blade.php) — same Cropper flow
+// as categoryImageCropper() above (square 1:1), but deliberately kept as PNG end-to-end rather
+// than re-encoded to JPEG, so a transparent-background icon stays transparent. `fillColor:
+// 'transparent'` is explicit because Cropper's canvas would otherwise paint white behind any
+// transparent pixels on export.
+window.featuredCategoryImageCropper = function (existingImageUrl) {
+    let cropper = null;
+
+    return {
+        existingImageUrl: existingImageUrl || null,
+        rawImageSrc: null,
+        livePreview: existingImageUrl || null,
+        hasNewImage: false,
+
+        onFileSelected(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                this.rawImageSrc = ev.target.result;
+                this.hasNewImage = true;
+                this.$nextTick(() => this.mountCropper());
+            };
+            reader.readAsDataURL(file);
+        },
+        mountCropper() {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            cropper = new Cropper(this.$refs.cropperImage, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                background: false,
+                crop: () => this.refreshPreview(),
+                ready: () => this.refreshPreview(),
+            });
+        },
+        zoom(delta) {
+            cropper?.zoom(delta);
+        },
+        refreshPreview() {
+            if (!cropper) return;
+            this.livePreview = cropper.getCroppedCanvas({ width: 300, height: 300, fillColor: 'transparent' }).toDataURL('image/png');
+        },
+        beforeSubmit() {
+            if (!cropper || !this.hasNewImage) return;
+            this.$refs.croppedImageInput.value = cropper.getCroppedCanvas({ width: 512, height: 512, fillColor: 'transparent' }).toDataURL('image/png');
         },
         destroy() {
             cropper?.destroy();

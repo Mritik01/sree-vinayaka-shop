@@ -24,12 +24,17 @@
             @if ($isUnpaidOnline)
                 <p class="font-display font-bold text-red-700">{{ __('Payment Not Confirmed') }}</p>
                 <p class="text-xs text-red-600 mt-0.5">{{ __('Check with the shop before handing over this order.') }}</p>
+            @elseif ($isPaidOnline && $order->hasPostPaymentBalance())
+                {{-- the customer already paid online, but an admin added item(s) to this order
+                     afterwards — see Order::balanceDueOnDelivery() --}}
+                <p class="font-display font-bold text-gold-600">{{ __('Partially Paid') }}</p>
+                <p class="text-xs text-gold-600/80 mt-0.5">{{ __('Collect') }} ₹{{ number_format($order->balanceDueOnDelivery()) }} {{ __('for items added after payment.') }}</p>
             @elseif ($isPaidOnline)
                 <p class="font-display font-bold text-pista-600">{{ __('Paid Online') }}</p>
                 <p class="text-xs text-pista-600/80 mt-0.5">{{ __('No cash to collect from the customer.') }}</p>
             @else
                 <p class="font-display font-bold text-gold-600">{{ __('Cash on Delivery') }}</p>
-                <p class="text-xs text-gold-600/80 mt-0.5">{{ __('Collect') }} ₹{{ number_format($order->total) }} {{ __('from the customer.') }}</p>
+                <p class="text-xs text-gold-600/80 mt-0.5">{{ __('Collect') }} ₹{{ number_format($order->balanceDueOnDelivery()) }} {{ __('from the customer.') }}</p>
             @endif
         </div>
     </div>
@@ -70,7 +75,9 @@
         <div class="mt-4 pt-4 border-t border-gold-100">
             <p class="text-xs text-maroon-400 uppercase tracking-wide font-semibold mb-2">{{ __('Items') }}</p>
             <div class="space-y-1.5">
-                @foreach ($order->items as $item)
+                {{-- an item the admin removed for unavailability is nothing left for the rider to
+                     pack/deliver — it never shows here (Total below already excludes it too) --}}
+                @foreach ($order->items->whereNull('removed_at') as $item)
                     <div class="flex items-center justify-between text-sm">
                         <span class="text-maroon-700">{{ $item->product_name }} × {{ $item->quantity }}</span>
                         <span class="text-maroon-500">₹{{ number_format($item->line_total) }}</span>

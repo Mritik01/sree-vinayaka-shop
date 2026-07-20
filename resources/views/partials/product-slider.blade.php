@@ -47,12 +47,12 @@
         @endforeach
     </div>
 
-    <div class="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12">
+    <div class="relative z-10 max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12">
         <h2 class="section-heading">{{ __("Thuthibari's Favourites") }}</h2>
         <p class="text-center text-maroon-500 mt-3 mb-10 max-w-xl mx-auto">{{ __("Hand-picked bestsellers, made fresh every morning — swipe through and see what everyone's ordering.") }}</p>
     </div>
 
-    <div class="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12">
+    <div class="relative z-10 max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12">
         <button @click="scrollTrack(-1)" aria-label="Previous products"
             class="hidden sm:flex absolute left-1 sm:left-3 top-[calc(50%-1rem)] -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-white shadow-lg border border-gold-300/50 items-center justify-center text-maroon-700 hover:bg-gold-50 transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">

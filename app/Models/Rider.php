@@ -18,6 +18,7 @@ class Rider extends Model implements Authenticatable
         'password',
         'phone',
         'locale',
+        'photo_path',
     ];
 
     protected $hidden = [
@@ -32,5 +33,34 @@ class Rider extends Model implements Authenticatable
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(RiderRating::class);
+    }
+
+    // computed live at query time, never cached — matches how Product's own review aggregates
+    // (reviews_avg_rating/reviews_count) already work in this codebase, so a fresh rating shows
+    // up immediately with no propagation/observer needed
+    public function averageRating(): ?float
+    {
+        $avg = $this->ratings()->avg('rating');
+
+        return $avg !== null ? round($avg, 1) : null;
+    }
+
+    public function ratingsCount(): int
+    {
+        return $this->ratings()->count();
+    }
+
+    // [5 => count, 4 => count, ..., 1 => count] — every star always present, even at 0, so the
+    // dashboard's distribution bars don't need to guard against a missing key
+    public function ratingDistribution(): array
+    {
+        $counts = $this->ratings()->selectRaw('rating, count(*) as c')->groupBy('rating')->pluck('c', 'rating');
+
+        return collect(range(5, 1))->mapWithKeys(fn ($star) => [$star => $counts[$star] ?? 0])->all();
     }
 }

@@ -18,6 +18,7 @@
         'name' => $p->name,
         'category' => $p->category,
         'category_ids' => $p->categories->pluck('id'),
+        'tag_ids' => $p->tags->pluck('id'),
         'search_tags' => $p->search_tags_flat,
         'price' => (int) $p->price,
         'rating' => round($p->reviews_avg_rating ?? 0, 1),
@@ -26,10 +27,15 @@
 @endphp
 
 {{-- $activeCategory is resolved server-side from ?category=slug (see the /products route
-     closure) — e.g. arriving from the mobile category panel — and pre-filters the grid via
-     productListing()'s `filters.categoryId` below --}}
+     closure) — e.g. arriving from the mobile category panel — and pre-checks that entry in
+     productListing()'s checkbox-driven `filters.categories` below (same array the sidebar/sheet
+     checkboxes use — keeping it a single dimension is what lets it combine with price/search
+     instead of AND-ing against itself and zeroing out the grid). $activeFeaturedCategory
+     (?featured_category=slug, from the homepage's Featured Categories row) works the same way
+     but resolves to a SET of tag ids (filters.tagIds), since a Featured Category can map to more
+     than one tag. --}}
 <section class="relative py-10 sm:py-14 bg-ivory min-h-[80vh] overflow-hidden"
-         x-data='productListing({{ Auth::check() ? 'true' : 'false' }}, @json($favoritedIds), @json($productsForJs), @json($priceBuckets), {{ $activeCategory?->id ?? 'null' }})'>
+         x-data='productListing({{ Auth::check() ? 'true' : 'false' }}, @json($favoritedIds), @json($productsForJs), @json($priceBuckets), @json($activeCategory?->name), @json($activeTagIds))'>
 
     {{-- ambient glow blobs --}}
     <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -57,9 +63,18 @@
         {{-- arrived via the mobile category panel / a shared ?category=slug link — visible
              indicator + easy way to undo it, since it's not one of the checkbox filters --}}
         @if ($activeCategory)
-            <div x-show="filters.categoryId" x-cloak class="mt-4 inline-flex items-center gap-2 bg-gold-100 border border-gold-300/60 text-maroon-700 text-sm font-semibold rounded-full pl-4 pr-2 py-1.5">
+            <div x-show="initialCategoryName && filters.categories.includes(initialCategoryName)" x-cloak class="mt-4 inline-flex items-center gap-2 bg-gold-100 border border-gold-300/60 text-maroon-700 text-sm font-semibold rounded-full pl-4 pr-2 py-1.5">
                 {{ __('Filtered by') }}: {{ $activeCategory->name }}
                 <button type="button" @click="clearCategoryFilter()" aria-label="{{ __('Clear category filter') }}"
+                        class="w-5 h-5 rounded-full bg-white/70 hover:bg-white text-maroon-500 hover:text-maroon-800 transition flex items-center justify-center text-xs leading-none">✕</button>
+            </div>
+        @endif
+
+        {{-- arrived via the homepage's Featured Categories row (?featured_category=slug) --}}
+        @if ($activeFeaturedCategory)
+            <div x-show="filters.tagIds.length" x-cloak class="mt-4 inline-flex items-center gap-2 bg-gold-100 border border-gold-300/60 text-maroon-700 text-sm font-semibold rounded-full pl-4 pr-2 py-1.5">
+                {{ __('Filtered by') }}: {{ $activeFeaturedCategory->name }}
+                <button type="button" @click="clearTagFilter()" aria-label="{{ __('Clear filter') }}"
                         class="w-5 h-5 rounded-full bg-white/70 hover:bg-white text-maroon-500 hover:text-maroon-800 transition flex items-center justify-center text-xs leading-none">✕</button>
             </div>
         @endif
@@ -101,7 +116,7 @@
                              x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
                              x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
                              class="animate-fade-up" style="animation-delay: {{ min($loop->index, 11) * 60 }}ms">
-                            @include('partials.product-card', ['compact' => true])
+                            @include('partials.product-card-mini', ['product' => $product, 'fixedWidth' => false])
                         </div>
                     @endforeach
                 </div>
@@ -119,8 +134,12 @@
     </div>
 
     {{-- mobile floating filter button — small icon-only, tucked to the right so the centered
-         "View Cart" pill stays the visual focus of this row --}}
-    <div class="lg:hidden fixed bottom-20 right-5 z-40">
+         "View Cart" pill stays the visual focus of this row. It lifts above that pill (rather
+         than sitting at a fixed bottom-20) whenever the cart has items, since the pill's own
+         height at bottom-[4.6rem] (see layouts/app.blade.php) otherwise overlaps and z-index
+         alone can't make an overlapping button comfortable to tap. --}}
+    <div class="lg:hidden fixed right-5 z-[60] transition-[bottom] duration-300"
+         :class="$store.cart.count > 0 ? 'bottom-40' : 'bottom-20'">
         <button type="button" @click="sheetOpen = true" aria-label="{{ __('Filters') }}"
                 class="relative flex items-center justify-center w-12 h-12 rounded-full bg-maroon-700 text-cream shadow-2xl shadow-maroon-900/40 active:scale-95 transition">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">

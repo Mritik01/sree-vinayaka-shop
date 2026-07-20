@@ -31,12 +31,51 @@
         <div class="space-y-5" x-data="{ tab: 'overview' }">
             {{-- profile header --}}
             <div class="bg-white rounded-2xl border border-gold-200/60 p-6 animate-fade-up">
-                <div class="flex items-center gap-4">
-                    <div class="w-16 h-16 shrink-0 rounded-full bg-maroon-700 text-cream flex items-center justify-center font-display font-bold text-2xl">
-                        {{ strtoupper(substr($customer->name, 0, 1)) }}
+                <div class="flex items-center gap-4"
+                     x-data="{ editing: false, draft: {{ Illuminate\Support\Js::from($customer->name) }}, saving: false, error: '', current: {{ Illuminate\Support\Js::from($customer->name) }},
+                        async save() {
+                            const trimmed = this.draft.trim();
+                            if (!trimmed) { this.error = 'Name cannot be empty.'; return; }
+                            this.saving = true; this.error = '';
+                            try {
+                                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                                const res = await fetch('{{ route('admin.customers.update-name', $customer) }}', {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                                    body: JSON.stringify({ name: trimmed }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (data.ok) { this.current = data.name; this.editing = false; }
+                                else { this.error = data.message || 'Could not save the name.'; }
+                            } catch (e) { this.error = 'Network error, please try again.'; }
+                            finally { this.saving = false; }
+                        }
+                     }">
+                    <div class="w-16 h-16 shrink-0 rounded-full bg-maroon-700 text-cream flex items-center justify-center font-display font-bold text-2xl" x-text="current.charAt(0).toUpperCase()">
                     </div>
                     <div class="min-w-0 flex-1">
-                        <p class="font-display text-xl text-maroon-800 truncate">{{ $customer->name }}</p>
+                        <template x-if="!editing">
+                            <div class="flex items-center gap-2">
+                                <p class="font-display text-xl text-maroon-800 truncate" x-text="current"></p>
+                                <button type="button" @click="editing = true; draft = current; error = ''" class="text-gold-500 hover:text-gold-600 text-sm shrink-0 transition" title="Edit name">✏️</button>
+                            </div>
+                        </template>
+                        <template x-if="editing">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <input type="text" x-model="draft" maxlength="100" autofocus
+                                           @keydown.enter="save()" @keydown.escape="editing = false"
+                                           class="w-48 rounded-lg border border-gold-300/70 px-2.5 py-1.5 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                    <button type="button" @click="save()" :disabled="saving || !draft.trim()"
+                                            class="shrink-0 text-xs font-semibold text-white bg-maroon-700 hover:bg-maroon-800 disabled:opacity-50 rounded-full px-3 py-1.5 transition">
+                                        <span x-show="!saving">Save</span>
+                                        <span x-show="saving" x-cloak>Saving…</span>
+                                    </button>
+                                    <button type="button" @click="editing = false" class="shrink-0 text-xs text-maroon-400 hover:text-maroon-600 transition">Cancel</button>
+                                </div>
+                                <p x-show="error" x-cloak x-text="error" class="text-xs text-red-600 font-medium mt-1.5"></p>
+                            </div>
+                        </template>
                         <p class="text-maroon-500 text-sm">📞 <a href="tel:+91{{ preg_replace('/\D/', '', $customer->phone) }}" class="hover:text-gold-600">{{ $customer->phone }}</a></p>
                         <p class="text-maroon-400 text-xs mt-0.5">Customer since {{ $customer->created_at->format('d M Y') }}</p>
                     </div>
@@ -153,7 +192,7 @@
                                 @foreach ($orders as $order)
                                     <tr class="border-b border-gold-50 last:border-0 hover:bg-cream/50 transition cursor-pointer" onclick="window.location='{{ route('admin.orders.show', $order) }}'">
                                         <td class="px-5 py-3 text-maroon-800 font-medium">{{ $order->orderNumber() }}</td>
-                                        <td class="px-5 py-3 text-maroon-500">{{ $order->items->count() }}</td>
+                                        <td class="px-5 py-3 text-maroon-500">{{ $order->items->whereNull('removed_at')->count() }}</td>
                                         <td class="px-5 py-3 text-maroon-800 font-medium">₹{{ number_format($order->total) }}</td>
                                         <td class="px-5 py-3"><x-admin.status-badge :status="$order->status" /></td>
                                         <td class="px-5 py-3 text-maroon-400">{{ $order->created_at->format('d M Y, h:i A') }}</td>

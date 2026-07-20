@@ -32,7 +32,7 @@
         @endfor
     </div>
 
-    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-10">
+    <div class="relative max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div class="text-center md:text-left transition-all duration-700 ease-out"
                  :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'">
@@ -67,8 +67,13 @@
                     @endforeach
                 </div>
 
-                <a href="https://wa.me/918920937331?text={{ rawurlencode(__('Hi! I would like to plan a gift box order with Makhanbhog Sweets.')) }}"
-                   target="_blank" rel="noopener" class="btn-gold mt-8">{{ __('Plan Your Order') }}</a>
+                @if ($businessPhone)
+                    <a href="https://wa.me/91{{ $businessPhone['digits'] }}?text={{ rawurlencode(__('Hi! I would like to plan a gift box order with Makhanbhog Sweets.')) }}"
+                       target="_blank" rel="noopener" class="btn-gold mt-8">{{ __('Plan Your Order') }}</a>
+                @else
+                    {{-- no contact number configured — fall back to browsing instead of a dead WhatsApp link --}}
+                    <a href="/#bestsellers" class="btn-gold mt-8">{{ __('Browse Sweets') }}</a>
+                @endif
             </div>
 
             {{-- animated gift centerpiece --}}

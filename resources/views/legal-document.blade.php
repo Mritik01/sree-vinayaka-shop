@@ -18,11 +18,13 @@
             @include('partials.legal-document-content')
         </div>
 
-        <p class="text-xs text-maroon-400 text-center mt-6">
-            {{ __('Questions about this policy? Reach us at') }}
-            <a href="tel:+918920937331" class="text-maroon-600 hover:text-gold-600 underline">+91 89209 37331</a>
-            {{ __('or') }}
-            <a href="https://wa.me/918920937331" target="_blank" rel="noopener" class="text-maroon-600 hover:text-gold-600 underline">WhatsApp</a>.
-        </p>
+        @if ($businessPhone)
+            <p class="text-xs text-maroon-400 text-center mt-6">
+                {{ __('Questions about this policy? Reach us at') }}
+                <a href="{{ $businessPhone['tel'] }}" class="text-maroon-600 hover:text-gold-600 underline">{{ $businessPhone['display'] }}</a>
+                {{ __('or') }}
+                <a href="{{ $businessPhone['whatsapp'] }}" target="_blank" rel="noopener" class="text-maroon-600 hover:text-gold-600 underline">WhatsApp</a>.
+            </p>
+        @endif
     </section>
 @endsection

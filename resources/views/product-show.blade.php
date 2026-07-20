@@ -172,7 +172,7 @@
                 <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6" x-data="favoritesList({{ Auth::check() ? 'true' : 'false' }}, @json($favoritedIds))">
                     @foreach ($related as $index => $item)
                         <div class="animate-rise-in" style="animation-delay: {{ 0.1 * $index }}s">
-                            @include('partials.product-card', ['product' => $item])
+                            @include('partials.product-card-mini', ['product' => $item, 'fixedWidth' => false])
                         </div>
                     @endforeach
                 </div>

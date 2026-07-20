@@ -76,7 +76,7 @@
                                 <a href="{{ route('admin.orders.show', $order) }}" class="text-maroon-800 font-medium hover:text-gold-600">{{ $order->orderNumber() }}</a>
                             </td>
                             <td class="px-5 py-3 text-maroon-600">{{ $order->customer_name }}</td>
-                            <td class="px-5 py-3 text-maroon-500">{{ $order->items->count() }}</td>
+                            <td class="px-5 py-3 text-maroon-500">{{ $order->items->whereNull('removed_at')->count() }}</td>
                             <td class="px-5 py-3 text-maroon-800 font-medium">₹{{ number_format($order->total) }}</td>
                             <td class="px-5 py-3">
                                 <x-admin.status-badge :status="$order->status" />

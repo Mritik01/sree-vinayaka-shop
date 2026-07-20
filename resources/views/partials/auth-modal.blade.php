@@ -65,29 +65,32 @@
                 <template x-if="step === 'phone'">
                     <div>
                         <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2">Makhanbhog Sweets</p>
-                        <h3 class="font-display text-2xl font-bold text-cream leading-snug">Welcome</h3>
-                        <p class="text-gold-100/80 text-sm mt-2">Sign in or create your account in seconds — no password needed.</p>
+                        <h3 class="font-display text-2xl font-bold text-cream leading-snug">{{ __('Welcome') }}</h3>
+                        <p class="text-gold-100/80 text-sm mt-2">{{ __('Sign in or create your account in seconds — no password needed.') }}</p>
                     </div>
                 </template>
                 <template x-if="step === 'otp'">
                     <div>
-                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2">Almost There</p>
-                        <h3 class="font-display text-2xl font-bold text-cream leading-snug">Verify Your Number</h3>
-                        <p class="text-gold-100/80 text-sm mt-2">We've sent a 6-digit code to your phone.</p>
+                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2">{{ __('Almost There') }}</p>
+                        <h3 class="font-display text-2xl font-bold text-cream leading-snug">{{ __('Verify Your Number') }}</h3>
+                        <p class="text-gold-100/80 text-sm mt-2">{{ __("We've sent a 6-digit code to your phone.") }}</p>
                     </div>
                 </template>
                 <template x-if="step === 'name'">
                     <div>
-                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2">One Last Step</p>
-                        <h3 class="font-display text-2xl font-bold text-cream leading-snug">Nice to Meet You!</h3>
-                        <p class="text-gold-100/80 text-sm mt-2">Tell us your name and you're in.</p>
+                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2">{{ __('One Last Step') }}</p>
+                        <h3 class="font-display text-2xl font-bold text-cream leading-snug">{{ __('Nice to Meet You!') }}</h3>
+                        <p class="text-gold-100/80 text-sm mt-2">{{ __("Tell us your name and you're in.") }}</p>
                     </div>
                 </template>
                 <template x-if="step === 'success'">
                     <div>
-                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2" x-text="isNewUser ? 'You\'re In!' : 'Welcome Back'"></p>
-                        <h3 class="font-display text-2xl font-bold text-cream leading-snug" x-text="isNewUser ? 'Welcome to the Family' : 'Great to See You Again'"></h3>
-                        <p class="text-gold-100/80 text-sm mt-2" x-text="isNewUser ? 'Your account is ready to go.' : 'Your cart and favourites are right where you left them.'"></p>
+                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2"
+                           x-text="isNewUser ? @json(__(\"You're In!\")) : @json(__('Welcome Back'))"></p>
+                        <h3 class="font-display text-2xl font-bold text-cream leading-snug"
+                            x-text="isNewUser ? @json(__('Welcome to the Family')) : @json(__('Great to See You Again'))"></h3>
+                        <p class="text-gold-100/80 text-sm mt-2"
+                           x-text="isNewUser ? @json(__('Your account is ready to go.')) : @json(__('Your cart and favourites are right where you left them.'))"></p>
                     </div>
                 </template>
             </div>

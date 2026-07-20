@@ -111,12 +111,48 @@ class DashboardController extends Controller
         return response()->json(['ok' => true, 'value' => $settings->reward_enabled]);
     }
 
+    public function toggleCodEnabled(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $newValue = !$settings->cod_enabled;
+
+        if (!$newValue && !$settings->razorpay_enabled) {
+            return response()->json(['ok' => false, 'message' => 'At least one payment method must stay enabled.'], 422);
+        }
+
+        $settings->update(['cod_enabled' => $newValue]);
+
+        return response()->json(['ok' => true, 'value' => $settings->cod_enabled]);
+    }
+
+    public function toggleRazorpayEnabled(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $newValue = !$settings->razorpay_enabled;
+
+        if (!$newValue && !$settings->cod_enabled) {
+            return response()->json(['ok' => false, 'message' => 'At least one payment method must stay enabled.'], 422);
+        }
+
+        $settings->update(['razorpay_enabled' => $newValue]);
+
+        return response()->json(['ok' => true, 'value' => $settings->razorpay_enabled]);
+    }
+
     public function togglePromoPopup(Request $request)
     {
         $settings = ShopSetting::current();
         $settings->update(['promo_popup_enabled' => !$settings->promo_popup_enabled]);
 
         return response()->json(['ok' => true, 'value' => $settings->promo_popup_enabled]);
+    }
+
+    public function toggleCategoryRow(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $settings->update(['show_category_row' => !$settings->show_category_row]);
+
+        return response()->json(['ok' => true, 'value' => $settings->show_category_row]);
     }
 
     public function updateRewardSettings(Request $request)
@@ -137,6 +173,7 @@ class DashboardController extends Controller
         $data = $request->validate([
             'min_order_amount' => 'nullable|integer|min:0',
             'max_order_amount' => 'nullable|integer|min:0',
+            'max_orders_per_hour' => 'required|integer|min:1|max:100',
         ]);
 
         if ($data['min_order_amount'] !== null && $data['max_order_amount'] !== null && $data['max_order_amount'] < $data['min_order_amount']) {
@@ -157,6 +194,26 @@ class DashboardController extends Controller
         ShopSetting::current()->update($data);
 
         return back()->with('status', 'Delivery time estimate updated.');
+    }
+
+    public function updateBusinessInfoSettings(Request $request)
+    {
+        // accept +91-prefixed/spaced/dashed input and reduce it to bare digits before validating,
+        // so pasting a formatted number doesn't hard-fail — stored as bare 10 digits everywhere,
+        // same convention as customer/rider phone numbers elsewhere in this app. An empty submitted
+        // value must become null (not '') so `nullable` actually clears the field instead of
+        // failing the regex — Laravel's `nullable` only skips other rules for a true null.
+        $request->merge(['business_mobile_number' => $request->filled('business_mobile_number')
+            ? substr(preg_replace('/\D/', '', $request->input('business_mobile_number')), -10)
+            : null]);
+
+        $data = $request->validate([
+            'business_mobile_number' => ['nullable', 'regex:/^[6-9]\d{9}$/'],
+        ]);
+
+        ShopSetting::current()->update($data);
+
+        return back()->with('status', 'Business info updated.');
     }
 
     public function updateDeliveryFeeSettings(Request $request)

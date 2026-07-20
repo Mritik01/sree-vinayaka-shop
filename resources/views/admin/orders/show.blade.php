@@ -16,11 +16,12 @@
             'admin' => __('— by the shop'),
             'system' => __('— auto-cancelled after 90 min (no COD restriction applied)'),
         ];
+        $removalReasons = \App\Models\OrderItem::REMOVAL_REASONS;
     @endphp
 
     <a href="{{ route('admin.orders.index') }}" class="text-sm text-maroon-500 hover:text-maroon-700 transition">← {{ __('Back to Orders') }}</a>
 
-    <div class="max-w-6xl mx-auto space-y-5 mt-4" x-data='adminOrderShowPage(@json($orderForJs), {{ $order->id }}, @json($cancelledReasons))'>
+    <div class="space-y-5 mt-4" x-data='adminOrderShowPage(@json($orderForJs), {{ $order->id }}, @json($cancelledReasons))'>
         @if ($order->is_gift_order)
             <div class="rounded-xl bg-gradient-to-r from-pink-500 via-gold-500 to-pink-500 text-white px-5 py-3.5 flex items-center gap-2.5 shadow-md">
                 <span class="text-xl">🎁</span>
@@ -47,6 +48,9 @@
                     @if ($isUnpaidOnline)
                         <p class="font-display font-bold text-red-700">{{ __('Payment Not Confirmed') }}</p>
                         <p class="text-xs text-red-600 mt-0.5">{{ __('Razorpay has not confirmed this payment yet — do not dispatch until it clears.') }}</p>
+                    @elseif ($isPaidOnline && $order->hasPostPaymentBalance())
+                        <p class="font-display font-bold text-pista-600">{{ __('Partially Paid') }}</p>
+                        <p class="text-xs text-pista-600/80 mt-0.5">{{ __('Rider will collect') }} ₹{{ number_format($order->balanceDueOnDelivery()) }} {{ __('for items added after payment.') }}</p>
                     @elseif ($isPaidOnline)
                         <p class="font-display font-bold text-pista-600">{{ __('Paid Online') }}</p>
                         <p class="text-xs text-pista-600/80 mt-0.5">{{ __('No cash to collect — already paid via Razorpay.') }}</p>
@@ -85,6 +89,16 @@
                     </div>
                 @endif
 
+                @if ($order->unrefundedGapFromRemovedItems() > 0)
+                    <div class="rounded-xl bg-red-50 border border-red-200 px-4 py-3 mb-4">
+                        <p class="text-sm text-red-700">
+                            {{ __('Already paid') }} <span class="font-semibold">₹{{ number_format($order->amount_paid) }}</span>
+                            — {{ __('the order total is now') }} <span class="font-semibold">₹{{ number_format($order->total) }}</span>
+                            {{ __('after removing unavailable item(s). Consider refunding the') }} ₹{{ number_format($order->unrefundedGapFromRemovedItems()) }} {{ __('difference below.') }}
+                        </p>
+                    </div>
+                @endif
+
                 @if ($order->isRefundable())
                     <form method="POST" action="{{ route('admin.orders.refund', $order) }}"
                           onsubmit="return confirm('Refund ₹' + document.getElementById('refund-amount-{{ $order->id }}').value + ' for order {{ $order->orderNumber() }} via Razorpay? This cannot be undone.');"
@@ -113,13 +127,13 @@
                     <p class="text-sm text-maroon-500 mt-1">
                         {{ __('Placed') }} {{ $order->created_at->format('d M Y, h:i A') }}
                     </p>
-                    <a href="{{ route('admin.support.show', $order) }}"
+                    <button type="button" @click="window.dispatchEvent(new CustomEvent('open-support-widget', { detail: { orderId: {{ $order->id }}, summary: { customer_name: {{ Illuminate\Support\Js::from($order->customer_name) }}, order_number: {{ Illuminate\Support\Js::from($order->orderNumber()) }} } } }))"
                        class="inline-flex items-center gap-1.5 mt-3 text-xs font-semibold text-maroon-700 border border-gold-300/70 hover:border-gold-400 hover:bg-cream rounded-lg px-3 py-2 transition">
                         💬 {{ __('Support Chat') }}
                         @if (($supportUnread = $order->supportMessages()->where('sender', 'customer')->whereNull('read_at')->count()) > 0)
                             <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold grid place-items-center">{{ $supportUnread > 9 ? '9+' : $supportUnread }}</span>
                         @endif
-                    </a>
+                    </button>
                 </div>
                 <div class="text-right">
                     <span class="inline-block text-xs font-semibold px-2.5 py-1 rounded-full border" :class="statusBadgeClasses()" x-text="statusLabel()"></span>
@@ -172,15 +186,24 @@
                             {{ __('Items') }}
                             <span class="text-xs font-normal text-maroon-400 ml-1" x-text="`(${confirmedItemsCount()}/${totalItemsCount()} ${confirmedItemsCount() === totalItemsCount() ? '✓' : 'confirmed'})`"></span>
                         </p>
-                        <button type="button" @click="confirmAllItems()" :disabled="allItemsConfirmed()"
-                                class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition disabled:opacity-40 disabled:cursor-default"
-                                :class="allItemsConfirmed() ? 'border-pista-400/60 text-pista-600 bg-pista-100' : 'border-pista-500 text-pista-600 hover:bg-pista-100'">
-                            <span x-show="!allItemsConfirmed()">✓ {{ __('Confirm All') }}</span>
-                            <span x-show="allItemsConfirmed()" x-cloak>✓ {{ __('All Confirmed') }}</span>
-                        </button>
+                        <div class="flex items-center gap-2">
+                            {{-- available until the order leaves the shop — same gate itemsLocked()
+                                 already uses for the packing checklist below --}}
+                            <button type="button" x-show="!itemsLocked()"
+                                    @click="window.dispatchEvent(new CustomEvent('open-add-product-modal', { detail: { orderId: {{ $order->id }}, isPaidOnline: {{ $isPaidOnline ? 'true' : 'false' }} } }))"
+                                    class="text-xs font-semibold px-3 py-1.5 rounded-lg border-2 border-gold-500 text-gold-700 bg-gold-50 hover:bg-gold-100 transition">
+                                ➕ {{ __('Add Product') }}
+                            </button>
+                            <button type="button" @click="confirmAllItems()" :disabled="allItemsConfirmed() || itemsLocked()"
+                                    class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition disabled:opacity-40 disabled:cursor-default"
+                                    :class="allItemsConfirmed() ? 'border-pista-400/60 text-pista-600 bg-pista-100' : 'border-pista-500 text-pista-600 hover:bg-pista-100'">
+                                <span x-show="!allItemsConfirmed()">✓ {{ __('Confirm All') }}</span>
+                                <span x-show="allItemsConfirmed()" x-cloak>✓ {{ __('All Confirmed') }}</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="divide-y divide-gold-50">
-                        @foreach ($order->items as $item)
+                        @foreach ($order->items->whereNull('removed_at') as $item)
                             <div class="flex items-center gap-3.5 px-5 py-3.5 {{ $item->is_gift ? 'bg-gradient-to-r from-pink-50 to-gold-50' : '' }}">
                                 <div class="w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-cream border border-gold-100">
                                     @if ($item->product)
@@ -206,20 +229,46 @@
                                         @endif
                                         × {{ $item->quantity }}
                                     </p>
+                                    @if ($item->isAdminAdded())
+                                        {{-- audit trail for a product an admin added to this already-placed order —
+                                             see Admin\OrderController::addItems() --}}
+                                        <p class="text-[10px] font-semibold text-gold-600 mt-1">
+                                            ➕ {{ __('Added by') }} {{ $item->addedByAdmin->name ?? __('an admin') }} · {{ $item->added_at->format('d M, h:i A') }}
+                                        </p>
+                                    @endif
                                 </div>
                                 <p class="text-sm font-semibold text-maroon-800 shrink-0">{{ $item->is_gift ? __('FREE') : '₹'.number_format($item->line_total) }}</p>
 
-                                {{-- packing-verification button — green outline "Confirm" until clicked,
-                                     then a solid green checkmark --}}
-                                <button type="button" @click="toggleItemConfirmed({{ $item->id }})"
-                                        aria-label="{{ __('Toggle packed/confirmed') }}"
-                                        class="shrink-0 rounded-lg transition font-semibold"
-                                        :class="isItemConfirmed({{ $item->id }})
-                                            ? 'w-9 h-9 grid place-items-center bg-pista-500 text-white text-base shadow-sm hover:bg-pista-600'
-                                            : 'text-xs px-3 py-2 border-2 border-pista-500 text-pista-600 hover:bg-pista-100'">
-                                    <span x-show="isItemConfirmed({{ $item->id }})" x-cloak>✓</span>
-                                    <span x-show="!isItemConfirmed({{ $item->id }})">{{ __('Confirm') }}</span>
-                                </button>
+                                <div class="flex items-center gap-2 shrink-0">
+                                    {{-- packing-verification button — green outline "Confirm" until clicked,
+                                         then a solid green checkmark --}}
+                                    <button type="button" @click="toggleItemConfirmed({{ $item->id }})" :disabled="itemsLocked()"
+                                            aria-label="{{ __('Toggle packed/confirmed') }}"
+                                            class="shrink-0 rounded-lg transition font-semibold disabled:opacity-50 disabled:cursor-default"
+                                            :class="isItemConfirmed({{ $item->id }})
+                                                ? 'w-9 h-9 grid place-items-center bg-pista-500 text-white text-base shadow-sm hover:bg-pista-600'
+                                                : 'text-xs px-3 py-2 border-2 border-pista-500 text-pista-600 hover:bg-pista-100'">
+                                        <span x-show="isItemConfirmed({{ $item->id }})" x-cloak>✓</span>
+                                        <span x-show="!isItemConfirmed({{ $item->id }})">{{ __('Confirm') }}</span>
+                                    </button>
+
+                                    {{-- unavailable-stock escape hatch — hidden the instant this item is
+                                         packed (see the removal gate in Admin\OrderController::removeItem) --}}
+                                    <button type="button" x-show="!isItemConfirmed({{ $item->id }})" x-cloak
+                                            @click="window.dispatchEvent(new CustomEvent('open-remove-item-modal', {
+                                                detail: {
+                                                    orderId: {{ $order->id }},
+                                                    itemId: {{ $item->id }},
+                                                    itemName: {{ Illuminate\Support\Js::from($item->product_name) }},
+                                                    itemImage: {{ Illuminate\Support\Js::from($item->product ? asset($item->product->image) : null) }},
+                                                    itemMeta: {{ Illuminate\Support\Js::from(($item->portionLabel() ? $item->portionLabel().' · ' : '').'× '.$item->quantity) }},
+                                                }
+                                            }))"
+                                            aria-label="{{ __('Remove item — unavailable') }}"
+                                            class="shrink-0 w-9 h-9 rounded-lg grid place-items-center text-red-400 hover:text-red-600 hover:bg-red-50 border-2 border-transparent hover:border-red-200 transition">
+                                        🗑️
+                                    </button>
+                                </div>
                             </div>
                         @endforeach
                     </div>
@@ -236,10 +285,86 @@
                     </div>
                 </div>
 
+                {{-- audit trail for anything removed via the escape hatch above — never hidden,
+                     so there's always a record of who removed what and why --}}
+                @php $removedItems = $order->items->whereNotNull('removed_at'); @endphp
+                @if ($removedItems->isNotEmpty())
+                    <div class="bg-white rounded-2xl border border-red-200/70 shadow-sm overflow-hidden animate-fade-up" style="animation-delay: 120ms">
+                        <div class="px-5 py-4 border-b border-red-100 bg-red-50/50">
+                            <p class="font-display text-red-700">🗑️ {{ __('Removed Items') }} <span class="text-xs font-normal text-red-400 ml-1">({{ __('audit trail') }})</span></p>
+                        </div>
+                        <div class="divide-y divide-red-50">
+                            @foreach ($removedItems as $item)
+                                <div class="flex items-center gap-3.5 px-5 py-3.5 opacity-70">
+                                    <div class="w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-cream border border-gold-100 grayscale">
+                                        @if ($item->product)
+                                            <img src="{{ asset($item->product->image) }}" alt="{{ $item->product_name }}" class="w-full h-full object-cover">
+                                        @else
+                                            <div class="w-full h-full grid place-items-center text-lg">🍬</div>
+                                        @endif
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm font-medium text-maroon-600 line-through truncate">{{ $item->product_name }} × {{ $item->quantity }}</p>
+                                        <p class="text-xs text-red-500 mt-0.5">
+                                            {{ __('Reason') }}: {{ $item->removalReasonLabel() }}@if ($item->removal_reason_note) — {{ $item->removal_reason_note }}@endif
+                                        </p>
+                                        <p class="text-[11px] text-maroon-400 mt-0.5">
+                                            {{ __('Removed by') }} {{ $item->removedByAdmin->name ?? __('an admin') }} · {{ $item->removed_at->format('d M, h:i A') }}
+                                        </p>
+                                    </div>
+                                    <span class="shrink-0 text-[11px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full bg-red-100 text-red-600">{{ __('Removed') }}</span>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
                 @if ($order->customer_note)
                     <div class="bg-gold-50 rounded-2xl border border-gold-300/60 shadow-sm p-5 animate-fade-up" style="animation-delay: 140ms">
                         <p class="font-display text-maroon-800 mb-2">📝 {{ __('Customer Note') }}</p>
                         <p class="text-sm text-maroon-700 whitespace-pre-line">{{ $order->customer_note }}</p>
+
+                        @if ($order->note_status === 'pending')
+                            {{-- plain form POST + redirect, same pattern as the Remove Item /
+                                 Assign Rider / Refund forms elsewhere on this page — two submit
+                                 buttons with different `status` values, no JS needed --}}
+                            <form method="POST" action="{{ route('admin.orders.note-decision', $order) }}" class="mt-3 space-y-2">
+                                @csrf
+                                @method('PATCH')
+                                <textarea name="message" rows="2" maxlength="500" placeholder="{{ __('Optional message to the customer…') }}"
+                                          class="w-full rounded-lg border border-gold-300/70 bg-white px-3 py-2 text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition resize-none"></textarea>
+                                <div class="flex items-center gap-2">
+                                    <button type="submit" name="status" value="accepted"
+                                            class="text-xs font-semibold px-4 py-2 rounded-full bg-pista-600 hover:bg-pista-700 text-white transition">
+                                        ✓ {{ __('Accept') }}
+                                    </button>
+                                    <button type="submit" name="status" value="denied"
+                                            class="text-xs font-semibold px-4 py-2 rounded-full border border-red-300 text-red-700 hover:bg-red-50 transition">
+                                        ✕ {{ __('Deny') }}
+                                    </button>
+                                </div>
+                            </form>
+                        @elseif ($order->note_status === 'accepted')
+                            <div class="mt-3 flex items-start gap-2 bg-pista-50 border border-pista-300/60 rounded-xl px-3.5 py-2.5">
+                                <span class="text-lg shrink-0">✅</span>
+                                <div>
+                                    <p class="text-sm font-semibold text-pista-700">{{ __('Accepted') }}</p>
+                                    @if ($order->note_decision_message)
+                                        <p class="text-xs text-maroon-600 mt-0.5">{{ $order->note_decision_message }}</p>
+                                    @endif
+                                </div>
+                            </div>
+                        @elseif ($order->note_status === 'denied')
+                            <div class="mt-3 flex items-start gap-2 bg-red-50 border border-red-300/60 rounded-xl px-3.5 py-2.5">
+                                <span class="text-lg shrink-0">✕</span>
+                                <div>
+                                    <p class="text-sm font-semibold text-red-700">{{ __('Denied') }}</p>
+                                    @if ($order->note_decision_message)
+                                        <p class="text-xs text-maroon-600 mt-0.5">{{ $order->note_decision_message }}</p>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 @endif
 
@@ -388,6 +513,264 @@
                         </form>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- shared "remove unavailable item" modal — one element serving every row's 🗑️ button
+         above rather than one per row, opened via the open-remove-item-modal window event. The
+         modal itself (item preview + explicit reason + Remove/Cancel) is the confirmation
+         dialog — a plain form POST (@method('DELETE')), same full-page-redirect pattern as the
+         Refund/Cancel Order forms elsewhere on this page. --}}
+    <div x-data='removeItemModal(@json($removalReasons))' x-show="open" x-cloak class="fixed inset-0 z-[90] flex items-center justify-center p-4">
+        <div x-show="open" class="absolute inset-0 bg-maroon-900/60 backdrop-blur-sm"
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+             @click="open = false"></div>
+
+        <div x-show="open" class="relative bg-cream rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95 translate-y-4" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
+            <div class="relative px-6 py-5 bg-gradient-to-r from-red-500 to-red-700 overflow-hidden">
+                <div class="absolute inset-0 opacity-25" style="background-image: radial-gradient(circle, white 1.5px, transparent 1.5px); background-size: 16px 16px;"></div>
+                <p class="relative font-display font-bold text-lg text-white">🗑️ {{ __('Remove Item') }}</p>
+                <p class="relative text-white/80 text-xs mt-0.5">{{ __("This can't be undone — the customer will be notified immediately.") }}</p>
+            </div>
+
+            <div class="p-6">
+                <div class="flex items-center gap-3 mb-5 pb-4 border-b border-gold-200/60">
+                    <div class="w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-white border border-gold-100">
+                        <template x-if="itemImage">
+                            <img :src="itemImage" class="w-full h-full object-cover">
+                        </template>
+                        <template x-if="!itemImage">
+                            <div class="w-full h-full grid place-items-center text-lg">🍬</div>
+                        </template>
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-maroon-800 truncate" x-text="itemName"></p>
+                        <p class="text-xs text-maroon-400" x-text="itemMeta"></p>
+                    </div>
+                </div>
+
+                <form method="POST" :action="removeUrl()" class="space-y-4">
+                    @csrf
+                    @method('DELETE')
+                    <div>
+                        <label class="block text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">{{ __('Reason') }}</label>
+                        <select name="reason" x-model="reason" required
+                                class="w-full rounded-lg border border-gold-300/70 bg-white px-3 py-2.5 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                            <option value="" disabled>{{ __('Select a reason…') }}</option>
+                            <template x-for="(label, value) in reasons" :key="value">
+                                <option :value="value" x-text="label"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <div x-show="reason === 'custom'" x-cloak>
+                        <label class="block text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">{{ __('Details') }}</label>
+                        <textarea name="note" x-model="note" maxlength="255" rows="2" placeholder="{{ __('Describe the reason…') }}"
+                                  class="w-full rounded-lg border border-gold-300/70 bg-white px-3 py-2.5 text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition resize-none"></textarea>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <button type="submit" :disabled="!reason || (reason === 'custom' && !note.trim())"
+                                class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl py-2.5 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                            🗑️ {{ __('Remove Item') }}
+                        </button>
+                        <button type="button" @click="open = false"
+                                class="px-5 bg-white border border-gold-300/70 hover:bg-gold-50 text-maroon-600 font-semibold rounded-xl py-2.5 transition text-sm">
+                            {{ __('Cancel') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {{-- "Add Product" modal — opened via the open-add-product-modal window event (the ➕ button
+         above). Fetch/JSON, not a form POST (see addProductModal() in admin.js) — success reloads
+         the page so the server-rendered item list/totals/audit chip all pick up the change. --}}
+    <div x-data="addProductModal()" x-show="open" x-cloak class="fixed inset-0 z-[90] flex items-center justify-center p-4">
+        <div x-show="open" class="absolute inset-0 bg-maroon-900/60 backdrop-blur-sm"
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+             @click="close()"></div>
+
+        <div x-show="open" class="relative bg-cream rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col"
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95 translate-y-4" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
+
+            <div class="relative px-6 py-5 bg-gradient-to-r from-gold-500 to-gold-600 overflow-hidden shrink-0">
+                <div class="absolute inset-0 opacity-25" style="background-image: radial-gradient(circle, white 1.5px, transparent 1.5px); background-size: 16px 16px;"></div>
+                <p class="relative font-display font-bold text-lg text-maroon-900">➕ {{ __('Add Product to Order') }}</p>
+                <p class="relative text-maroon-900/70 text-xs mt-0.5">{{ __('The customer will be notified and totals recalculated automatically.') }}</p>
+            </div>
+
+            <div class="p-6 overflow-y-auto">
+                <p x-show="error" x-cloak class="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4" x-text="error"></p>
+
+                {{-- ── review / confirm step ─────────────────────────────── --}}
+                <template x-if="confirming">
+                    <div>
+                        <p class="text-sm font-semibold text-maroon-700 mb-3">{{ __('Confirm the following item(s) will be added:') }}</p>
+                        <div class="space-y-2 mb-4">
+                            <template x-for="line in lines" :key="line.key">
+                                <div class="flex items-center gap-3 bg-white rounded-xl px-3.5 py-2.5 border border-gold-100">
+                                    <div class="w-10 h-10 shrink-0 rounded-lg overflow-hidden bg-cream border border-gold-100">
+                                        <img :src="line.image" class="w-full h-full object-cover">
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm font-medium text-maroon-800 truncate">
+                                            <span x-text="line.name"></span>
+                                            <template x-if="line.label"><span class="text-maroon-400" x-text="'(' + line.label + ')'"></span></template>
+                                        </p>
+                                        <p class="text-xs text-maroon-500" x-text="'× ' + line.quantity"></p>
+                                    </div>
+                                    <span class="text-sm font-semibold text-maroon-800 shrink-0" x-text="'₹' + lineTotal(line).toLocaleString('en-IN')"></span>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="flex justify-between text-sm font-semibold text-maroon-800 border-t border-gold-200 pt-3 mb-4">
+                            <span>{{ __('Added subtotal') }}</span>
+                            <span x-text="'₹' + stagedTotal().toLocaleString('en-IN')"></span>
+                        </div>
+                        <p x-show="isPaidOnline" x-cloak class="text-xs text-pista-700 bg-pista-50 border border-pista-200 rounded-lg px-3 py-2 mb-4">
+                            💳 {{ __('This order was paid online — the extra amount will be collected in cash on delivery.') }}
+                        </p>
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="submit()" :disabled="submitting"
+                                    class="flex-1 bg-pista-600 hover:bg-pista-700 text-white font-semibold rounded-xl py-2.5 transition text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                <span x-show="!submitting">✓ {{ __('Confirm — Add to Order') }}</span>
+                                <span x-show="submitting" x-cloak>{{ __('Adding…') }}</span>
+                            </button>
+                            <button type="button" @click="backToEdit()" :disabled="submitting"
+                                    class="px-5 bg-white border border-gold-300/70 hover:bg-gold-50 text-maroon-600 font-semibold rounded-xl py-2.5 transition text-sm">
+                                {{ __('Back') }}
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                {{-- ── configure a picked product's variant + quantity ───────── --}}
+                <template x-if="!confirming && selectedProduct">
+                    <div>
+                        <div class="flex items-center gap-3 mb-4 pb-4 border-b border-gold-200/60">
+                            <div class="w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-white border border-gold-100">
+                                <img :src="selectedProduct.image" class="w-full h-full object-cover">
+                            </div>
+                            <p class="text-sm font-semibold text-maroon-800" x-text="selectedProduct.name"></p>
+                        </div>
+
+                        <div x-show="selectedProduct.portions.length > 1" x-cloak class="mb-4">
+                            <label class="block text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">{{ __('Variant') }}</label>
+                            <select x-model.number="selectedPortion"
+                                    class="w-full rounded-lg border border-gold-300/70 bg-white px-3 py-2.5 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                <template x-for="variant in selectedProduct.portions" :key="variant.portion">
+                                    <option :value="variant.portion" x-text="(variant.label || '{{ __('Standard') }}') + ' — ₹' + variant.price.toLocaleString('en-IN')"></option>
+                                </template>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">{{ __('Quantity') }}</label>
+                            <div class="flex items-center gap-3">
+                                <button type="button" @click="selectedQuantity = Math.max(1, selectedQuantity - 1)"
+                                        class="w-9 h-9 rounded-lg border-2 border-gold-300 text-maroon-700 font-bold hover:bg-gold-50 transition">−</button>
+                                <input type="number" x-model.number="selectedQuantity" min="1" max="99"
+                                       class="w-16 text-center rounded-lg border border-gold-300/70 bg-white px-2 py-2 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                <button type="button" @click="selectedQuantity = Math.min(99, selectedQuantity + 1)"
+                                        class="w-9 h-9 rounded-lg border-2 border-gold-300 text-maroon-700 font-bold hover:bg-gold-50 transition">+</button>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between text-sm font-semibold text-maroon-800 bg-gold-50 rounded-lg px-3 py-2.5 mb-4">
+                            <span>{{ __('Price') }} <span class="font-normal text-maroon-500" x-text="'(₹' + selectedUnitPrice().toLocaleString('en-IN') + ' × ' + selectedQuantity + ')'"></span></span>
+                            <span x-text="'₹' + selectedLineTotal().toLocaleString('en-IN')"></span>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <button type="button" @click="stageSelected()"
+                                    class="flex-1 bg-gold-500 hover:bg-gold-600 text-maroon-900 font-semibold rounded-xl py-2.5 transition text-sm">
+                                ➕ {{ __('Add to List') }}
+                            </button>
+                            <button type="button" @click="cancelPick()"
+                                    class="px-5 bg-white border border-gold-300/70 hover:bg-gold-50 text-maroon-600 font-semibold rounded-xl py-2.5 transition text-sm">
+                                {{ __('Back') }}
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                {{-- ── search + staged list ──────────────────────────────── --}}
+                <template x-if="!confirming && !selectedProduct">
+                    <div>
+                        <label class="block text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">{{ __('Search Products') }}</label>
+                        <input type="search" x-model="query" @input.debounce.250ms="search()" placeholder="{{ __('Search by product name…') }}"
+                               class="w-full rounded-lg border border-gold-300/70 bg-white px-3 py-2.5 text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+
+                        <div x-show="searching" x-cloak class="text-xs text-maroon-400 mt-2">{{ __('Searching…') }}</div>
+
+                        <div x-show="results.length > 0" x-cloak class="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
+                            <template x-for="product in results" :key="product.id">
+                                <button type="button" @click="pickProduct(product)"
+                                        class="w-full flex items-center gap-3 bg-white hover:bg-gold-50 rounded-xl px-3 py-2 border border-gold-100 transition text-left">
+                                    <div class="w-9 h-9 shrink-0 rounded-lg overflow-hidden bg-cream border border-gold-100">
+                                        <img :src="product.image" class="w-full h-full object-cover">
+                                    </div>
+                                    <div class="min-w-0 flex-1">
+                                        <p class="text-sm font-medium text-maroon-800 truncate" x-text="product.name"></p>
+                                        <p class="text-xs text-maroon-400" x-text="product.category"></p>
+                                    </div>
+                                    <span class="text-xs font-semibold text-gold-700 shrink-0" x-text="'from ₹' + Math.min(...product.portions.map(p => p.price)).toLocaleString('en-IN')"></span>
+                                </button>
+                            </template>
+                        </div>
+                        <p x-show="!searching && query.trim().length >= 2 && results.length === 0" x-cloak class="text-xs text-maroon-400 mt-2">
+                            {{ __('No products found.') }}
+                        </p>
+
+                        <template x-if="lines.length > 0">
+                            <div class="mt-5 pt-4 border-t border-gold-200/60">
+                                <p class="text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-2">{{ __('Staged to Add') }}</p>
+                                <div class="space-y-1.5">
+                                    <template x-for="line in lines" :key="line.key">
+                                        <div class="flex items-center gap-3 bg-white rounded-xl px-3 py-2 border border-gold-100">
+                                            <div class="w-9 h-9 shrink-0 rounded-lg overflow-hidden bg-cream border border-gold-100">
+                                                <img :src="line.image" class="w-full h-full object-cover">
+                                            </div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="text-sm font-medium text-maroon-800 truncate">
+                                                    <span x-text="line.name"></span>
+                                                    <template x-if="line.label"><span class="text-maroon-400" x-text="'(' + line.label + ')'"></span></template>
+                                                    <span class="text-maroon-400" x-text="'× ' + line.quantity"></span>
+                                                </p>
+                                            </div>
+                                            <span class="text-sm font-semibold text-maroon-800 shrink-0" x-text="'₹' + lineTotal(line).toLocaleString('en-IN')"></span>
+                                            <button type="button" @click="removeStaged(line.key)" aria-label="{{ __('Remove from list') }}"
+                                                    class="shrink-0 text-red-400 hover:text-red-600 transition">✕</button>
+                                        </div>
+                                    </template>
+                                </div>
+                                <div class="flex justify-between text-sm font-semibold text-maroon-800 mt-3">
+                                    <span>{{ __('Subtotal') }}</span>
+                                    <span x-text="'₹' + stagedTotal().toLocaleString('en-IN')"></span>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="flex items-center gap-3 mt-5">
+                            <button type="button" @click="startConfirm()" :disabled="lines.length === 0"
+                                    class="flex-1 bg-pista-600 hover:bg-pista-700 text-white font-semibold rounded-xl py-2.5 transition text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                                {{ __('Review & Add') }} <span x-show="lines.length > 0" x-text="'(' + lines.length + ')'"></span>
+                            </button>
+                            <button type="button" @click="close()"
+                                    class="px-5 bg-white border border-gold-300/70 hover:bg-gold-50 text-maroon-600 font-semibold rounded-xl py-2.5 transition text-sm">
+                                {{ __('Cancel') }}
+                            </button>
+                        </div>
+                    </div>
+                </template>
             </div>
         </div>
     </div>

@@ -3,11 +3,12 @@
 @section('title', 'Makhanbhog Sweets — No. 1 Sweet Shop in Thuthibari')
 
 @section('content')
-    {{-- reference-matching top: categories → hero banner → feature strip → best sellers --}}
+    {{-- reference-matching top: featured categories → categories → hero banner → category-tabbed shop → feature strip --}}
+    @include('partials.featured-categories')
     @include('partials.category-row')
     @include('partials.hero-slider')
+    @include('partials.category-shop')
     @include('partials.feature-strip')
-    @include('partials.best-sellers')
 
     {{-- existing sections kept below the new top (per user decision) --}}
     @include('partials.festival-special')

@@ -19,8 +19,12 @@ class ShopSetting extends Model
         'reward_gift_label',
         'min_order_amount',
         'max_order_amount',
+        'max_orders_per_hour',
         'promo_popup_enabled',
         'delivery_time_estimate_minutes',
+        'show_category_row',
+        'cod_enabled',
+        'razorpay_enabled',
         'delivery_fee_strategy',
         'delivery_free_min_order',
         'delivery_fee_below_minimum',
@@ -35,6 +39,7 @@ class ShopSetting extends Model
         'high_demand_fee_amount',
         'high_demand_message',
         'high_demand_stop_message',
+        'business_mobile_number',
     ];
 
     protected $casts = [
@@ -45,9 +50,13 @@ class ShopSetting extends Model
         'delivery_radius_km' => 'float',
         'reward_enabled' => 'boolean',
         'promo_popup_enabled' => 'boolean',
+        'show_category_row' => 'boolean',
+        'cod_enabled' => 'boolean',
+        'razorpay_enabled' => 'boolean',
         'reward_orders_required' => 'integer',
         'min_order_amount' => 'integer',
         'max_order_amount' => 'integer',
+        'max_orders_per_hour' => 'integer',
         'delivery_time_estimate_minutes' => 'integer',
         'delivery_free_min_order' => 'integer',
         'delivery_fee_below_minimum' => 'integer',
@@ -81,6 +90,31 @@ class ShopSetting extends Model
         $settings->update(['restrict_delivery_area' => !$settings->restrict_delivery_area]);
 
         return $settings->restrict_delivery_area;
+    }
+
+    // stored as bare 10 digits (no +91, no spaces) — these three format it consistently for every
+    // call site instead of each view/controller reformatting it its own way
+    public function businessPhoneDisplay(): ?string
+    {
+        return $this->business_mobile_number
+            ? '+91 '.substr($this->business_mobile_number, 0, 5).' '.substr($this->business_mobile_number, 5)
+            : null;
+    }
+
+    public function businessPhoneTelHref(): ?string
+    {
+        return $this->business_mobile_number ? 'tel:+91'.$this->business_mobile_number : null;
+    }
+
+    public function businessWhatsappHref(?string $text = null): ?string
+    {
+        if (!$this->business_mobile_number) {
+            return null;
+        }
+
+        $url = 'https://wa.me/91'.$this->business_mobile_number;
+
+        return $text ? $url.'?text='.rawurlencode($text) : $url;
     }
 
     public function rewardGiftProduct(): BelongsTo

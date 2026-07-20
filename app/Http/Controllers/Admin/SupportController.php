@@ -100,4 +100,23 @@ class SupportController extends Controller
 
         return response()->json(['ok' => true, 'message' => $message->forJs()]);
     }
+
+    // wipes an entire conversation — for clearing test/spam threads out of the inbox. The
+    // order itself is untouched, only its chat history; any uploaded photos are removed from
+    // disk too so they don't linger as orphaned files under public/images/support-chat.
+    public function destroy(Order $order)
+    {
+        $order->supportMessages()->whereNotNull('image_path')->pluck('image_path')->each(function ($path) {
+            if (file_exists(public_path($path))) {
+                @unlink(public_path($path));
+            }
+        });
+        $order->supportMessages()->delete();
+
+        if (request()->wantsJson()) {
+            return response()->json(['ok' => true]);
+        }
+
+        return redirect()->route('admin.support.index');
+    }
 }

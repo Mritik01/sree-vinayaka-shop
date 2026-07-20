@@ -153,6 +153,23 @@
                 </div>
             @endif
 
+            @if ($allTags->isNotEmpty())
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-maroon-700 mb-1.5">Product Tags</label>
+                    <p class="text-xs text-maroon-400 mb-2">Drives the homepage's Featured Categories shortcut row — a product can carry more than one tag. Manage the tag list under Product Tags.</p>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach ($allTags as $tag)
+                            <label class="flex items-center gap-2 text-sm text-maroon-700 border border-gold-300/60 rounded-lg px-3 py-2 cursor-pointer hover:border-gold-500 transition">
+                                <input type="checkbox" name="tags[]" value="{{ $tag->id }}"
+                                       @checked(in_array($tag->id, old('tags', isset($product) ? $product->tags->pluck('id')->all() : [])))
+                                       class="w-4 h-4 rounded border-gold-300 text-gold-500 focus:ring-gold-400">
+                                {{ $tag->name }}
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-maroon-700 mb-1.5">Product Type</label>
                 <select name="type" x-model="type" required class="w-full md:w-64 rounded-lg border border-gold-300/70 px-3.5 py-2.5 text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
@@ -278,14 +295,17 @@
         </div>
     </div>
 
-    {{-- live preview — mirrors partials/product-card.blade.php so the admin sees exactly
-         what the customer will see, updating as the form is filled in --}}
+    {{-- live preview — mirrors partials/product-card-mini.blade.php (the one canonical card
+         style used everywhere on the storefront now) so the admin sees exactly what the
+         customer will see, updating as the form is filled in. The heart button and category/
+         tag/description fields shown on the OLD full card are intentionally absent here — the
+         mini card never renders them, and a rating row is skipped entirely since a new product
+         has no reviews yet. --}}
     <div class="lg:sticky lg:top-6">
         <p class="text-xs font-semibold uppercase tracking-wide text-maroon-400 mb-2">👀 Live Preview</p>
-        <div class="h-full flex flex-col bg-white rounded-2xl shadow-md overflow-hidden border border-gold-200/60">
-            <div x-ref="previewImageBox" class="relative aspect-[4/3] overflow-hidden select-none"
+        <div class="w-full max-w-[220px] bg-white rounded-2xl border border-gold-200/60 shadow-sm p-3 flex flex-col">
+            <div x-ref="previewImageBox" class="relative rounded-xl overflow-hidden aspect-square select-none bg-cream/60"
                  :class="adjustingImage ? 'ring-4 ring-inset ring-gold-400 cursor-move' : (photoPreview ? 'cursor-pointer' : '')"
-                 :style="`background: linear-gradient(160deg, ${color}18, ${color}4d)`"
                  @dblclick="toggleAdjusting()"
                  @mousedown="startDrag($event)"
                  @mousemove.window="onDrag($event)"
@@ -295,59 +315,52 @@
                          class="absolute inset-0 w-full h-full object-cover pointer-events-none">
                 </template>
                 <template x-if="!photoPreview">
-                    <div class="absolute inset-0 flex items-center justify-center text-6xl opacity-30">🍬</div>
+                    <div class="absolute inset-0 flex items-center justify-center text-5xl opacity-30">🍬</div>
                 </template>
                 <span x-show="discountBadge()" x-cloak x-text="discountBadge()"
-                      class="absolute top-3 left-3 text-xs font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-red-600 text-white shadow-sm"></span>
-                <div class="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/85 flex items-center justify-center shadow-sm">
-                    <svg class="w-5 h-5 text-maroon-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                      class="absolute top-1.5 left-1.5 bg-maroon-700 text-cream text-[10px] font-bold px-1.5 py-0.5 rounded-md shadow"></span>
+                {{-- decorative only — there's no persisted product id yet for a real heart-toggle --}}
+                <div class="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-white/85 flex items-center justify-center shadow-sm">
+                    <svg class="w-3.5 h-3.5 text-maroon-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
                     </svg>
                 </div>
 
                 <div x-show="photoPreview && !adjustingImage" x-cloak
-                     class="absolute inset-x-0 bottom-0 bg-maroon-900/60 text-cream text-[11px] text-center py-1.5 pointer-events-none">
+                     class="absolute inset-x-0 bottom-0 bg-maroon-900/60 text-cream text-[10px] text-center py-1 pointer-events-none">
                     Double-click to reposition
                 </div>
                 <div x-show="adjustingImage" x-cloak @mousedown.stop @dblclick.stop
-                     class="absolute inset-x-0 bottom-0 bg-maroon-900/80 flex items-center justify-between px-3 py-1.5">
-                    <span class="text-cream text-[11px]">Drag the photo, then double-click to finish</span>
+                     class="absolute inset-x-0 bottom-0 bg-maroon-900/80 flex items-center justify-between px-2 py-1">
+                    <span class="text-cream text-[10px]">Drag, then double-click</span>
                     <div class="flex items-center gap-2">
-                        <button type="button" @click.stop="resetImagePosition()" class="text-[11px] font-semibold text-gold-300 hover:text-gold-200 transition">Reset</button>
-                        <button type="button" @click.stop="adjustingImage = false" class="text-[11px] font-semibold text-cream bg-white/15 hover:bg-white/25 rounded-full px-2.5 py-1 transition">Done</button>
+                        <button type="button" @click.stop="resetImagePosition()" class="text-[10px] font-semibold text-gold-300 hover:text-gold-200 transition">Reset</button>
+                        <button type="button" @click.stop="adjustingImage = false" class="text-[10px] font-semibold text-cream bg-white/15 hover:bg-white/25 rounded-full px-2 py-0.5 transition">Done</button>
                     </div>
                 </div>
             </div>
 
-            <div class="p-5 flex flex-col flex-1">
-                <p class="text-[11px] font-semibold tracking-widest uppercase text-gold-600" x-text="category"></p>
-                <h3 class="font-display font-bold text-lg text-maroon-800 mt-0.5" x-text="name || 'Product Name'"></h3>
+            <p class="mt-2.5 text-sm font-semibold text-maroon-800 leading-snug line-clamp-2" x-text="name || 'Product Name'"></p>
 
-                <div class="flex flex-wrap gap-2 mt-2.5">
-                    <span class="text-xs font-semibold px-2.5 py-1 rounded-md border border-gold-300/60 text-maroon-600"
-                          x-text="type === 'loose' ? (portions.length ? portionLabel(defaultPortionGrams()) : 'Select portions') : (weight || 'Weight')"></span>
-                    <span x-show="tag" class="text-xs font-semibold px-2.5 py-1 rounded-md" :style="`background-color: ${color}; color: ${onColorFor(color)}`" x-text="tag"></span>
-                </div>
+            <p class="text-xs text-maroon-400 mt-0.5"
+               x-text="type === 'loose' ? (portions.length ? portionLabel(defaultPortionGrams()) : 'Select portions') : (weight || 'Weight')"></p>
 
-                <p class="text-sm text-maroon-500/90 mt-3 leading-relaxed line-clamp-3" x-text="description || 'Product description will appear here.'"></p>
-
-                <div class="flex items-center justify-between mt-4 pt-1 mt-auto">
-                    <p class="flex items-baseline gap-1.5">
-                        <span x-show="discountEnabled && discountValue" x-cloak class="text-sm text-maroon-300 line-through" x-text="'₹' + (previewOriginalPrice() || 0)"></span>
-                        <span class="font-display font-bold text-lg" :style="`color: ${color}`">
-                            <span x-show="type === 'loose'">From </span>₹<span x-text="previewPrice() || 0"></span>
-                        </span>
-                    </p>
-                    <div class="flex items-center gap-2 pointer-events-none">
-                        <div class="w-10 h-10 rounded-xl border-2 flex items-center justify-center shrink-0" :style="`border-color: ${color}; color: ${color}`">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.836l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 1.994-4.693 2.602-7.152.232-.94-.437-1.85-1.402-1.85H5.106M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
-                            </svg>
-                        </div>
-                        <div class="text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm" :style="`background-color: ${color}; color: ${onColorFor(color)}`">Order Now</div>
-                    </div>
+            <div class="flex items-center justify-between gap-2 mt-2 pt-1 mt-auto">
+                <p class="flex items-baseline gap-1 flex-wrap min-w-0">
+                    <template x-if="discountEnabled && discountValue">
+                        <span class="text-[11px] text-maroon-300 line-through">₹<span x-text="previewOriginalPrice() || 0"></span></span>
+                    </template>
+                    <span class="font-display font-bold text-base text-maroon-800">
+                        <span x-show="type === 'loose'">From </span>₹<span x-text="previewPrice() || 0"></span>
+                    </span>
+                </p>
+                <div class="w-8 h-8 rounded-full bg-maroon-800 text-cream flex items-center justify-center shrink-0 shadow pointer-events-none">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
                 </div>
             </div>
         </div>
+        <p class="text-[11px] text-maroon-400 mt-2 text-center">No rating shown yet — a new product has no reviews.</p>
     </div>
 </div>

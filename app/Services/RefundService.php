@@ -43,7 +43,9 @@ class RefundService
 
         $order->forceFill([
             'refunded_amount' => $refundedTotal,
-            'refund_status' => $refundedTotal >= $order->total ? 'full' : 'partial',
+            // compared against amount_paid (what was truly captured), not the possibly-since-
+            // shrunk `total` — see Order::refundableAmount()
+            'refund_status' => $refundedTotal >= ($order->amount_paid ?? $order->total) ? 'full' : 'partial',
             'razorpay_refund_id' => $refund->id,
             'refunded_at' => now(),
         ])->save();

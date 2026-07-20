@@ -33,6 +33,7 @@
     @endphp
     <script>
         window.__mbIsLoggedIn = @json(Auth::check());
+        window.__mbUserName = @json(Auth::check() ? Auth::user()->name : null);
         window.__mbShopStatus = @json($shopStatus);
         window.__mbCartItems = @json($cartDrawerItems);
         window.__mbLegalDocs = {
@@ -52,17 +53,44 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16x16.png') }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
 
+    {{-- PWA installability — customer-facing pages only, deliberately not added to admin/rider
+         layouts (see partials/install-prompt-banner.blade.php + window.installPrompt() in app.js) --}}
+    <link rel="manifest" href="{{ asset('manifest.json') }}">
+    <meta name="theme-color" content="#7a1622">
+
+    {{-- loaded non-render-blocking (media="print" swapped to "all" on load) — the stylesheet
+         itself was previously blocking first paint on the round-trip to fonts.googleapis.com,
+         which is costly on slow/high-latency connections. Text renders in the sans-serif
+         fallback already set in tailwind.config.js and swaps to Poppins/Baloo 2 once this loads
+         — the same fallback-then-swap behavior font-display=swap already produces for the font
+         files themselves, just applied one layer earlier. <noscript> covers JS-disabled visits. --}}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Baloo+2:wght@600;700;800&display=swap"
+          media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Baloo+2:wght@600;700;800&display=swap"></noscript>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 {{-- pb-32 (not pb-16) — the bottom nav alone is only 4rem tall, but the floating "View Cart"
      pill rests higher still (bottom-20 + its own height), so content needs clearance for both
-     or the page's last few pixels (e.g. the footer's copyright line) end up hidden under it --}}
+     or the page's last few pixels (e.g. the footer's copyright line) end up hidden under it.
+     lg:pb-0 here on purpose — the desktop View Cart bar needs the same clearance, but adding it
+     as body padding left a bare cream gap floating below the (dark) footer, which looked broken.
+     The clearance is added to the footer's own bottom bar instead (see footer.blade.php), so it
+     extends the footer's dark background rather than showing as empty page beneath it. --}}
 <body class="antialiased pb-32 lg:pb-0">
     @include('partials.impersonation-banner')
+    {{-- fixed (not in-flow) so these two conditionally-shown, appear-a-beat-later banners never
+         push the navbar/page content down when they pop in — that push-down was a real,
+         measured Cumulative Layout Shift hit. They float above everything instead; stacked here
+         (rather than each independently fixed) so if both happen to show at once they queue
+         vertically instead of overlapping each other. --}}
+    <div class="fixed top-0 inset-x-0 z-[60] flex flex-col">
+        @include('partials.location-prompt-banner')
+        @include('partials.install-prompt-banner')
+    </div>
     <div x-data="{ authOpen: false }" @open-auth-modal.window="authOpen = true">
         @include('partials.navbar')
         @include('partials.auth-modal')

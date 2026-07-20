@@ -188,6 +188,17 @@ class CustomerController extends Controller
         return back()->with('status', 'COD restriction cleared for '.$user->name.'.');
     }
 
+    public function updateName(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'name' => 'required|string|max:100',
+        ]);
+
+        $user->forceFill(['name' => trim($data['name'])])->save();
+
+        return response()->json(['ok' => true, 'name' => $user->name]);
+    }
+
     public function notify(Request $request, User $user)
     {
         $data = $request->validate([

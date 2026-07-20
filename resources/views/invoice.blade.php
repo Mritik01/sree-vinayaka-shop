@@ -34,7 +34,9 @@
                 <p class="shop-name">Makhanbhog Sweets</p>
                 <p class="shop-meta">
                     Main Market Road, Thuthibari<br>
-                    Phone: +91 89209 37331<br>
+                    @if ($businessPhone)
+                        Phone: {{ $businessPhone['display'] }}<br>
+                    @endif
                     Thuthibari's favourite sweet shop since generations
                 </p>
             </td>
@@ -66,7 +68,9 @@
             </tr>
         </thead>
         <tbody>
-            @foreach ($order->items as $item)
+            {{-- removed (unavailable) items never appear on the invoice — subtotal/total are
+                 already recalculated to exclude them, see Order::recalculateTotals() --}}
+            @foreach ($order->items->whereNull('removed_at') as $item)
                 <tr class="{{ $item->is_gift ? 'gift' : '' }}">
                     <td>{{ $item->product_name }}{{ $item->portionLabel() ? ' ('.$item->portionLabel().')' : '' }}{{ $item->is_gift ? ' (Free Gift)' : '' }}</td>
                     <td class="num">{{ $item->quantity }}</td>
@@ -85,7 +89,7 @@
         @if ($order->discount_amount > 0)
             <tr>
                 <td class="label">Coupon Discount{{ $order->coupon ? ' ('.$order->coupon->code.')' : '' }}</td>
-                <td class="value">− Rs. {{ number_format($order->discount_amount) }}</td>
+                <td class="value">- Rs. {{ number_format($order->discount_amount) }}</td>
             </tr>
         @endif
         @foreach ($order->fees as $fee)
@@ -98,14 +102,35 @@
             <td>Total</td>
             <td class="value">Rs. {{ number_format($order->total) }}</td>
         </tr>
+        @php
+            // was previously hardcoded to "Cash on Delivery" regardless of how the order was
+            // actually paid — fixed to read the real payment_method, and to surface the
+            // "collect the difference on delivery" balance for an order that was paid online
+            // before an admin added further items (see Order::balanceDueOnDelivery())
+            $isPaidOnline = $order->payment_method === 'razorpay' && $order->payment_status === 'paid';
+        @endphp
         <tr>
             <td class="label" style="padding-top: 10px;">Payment Method</td>
-            <td class="value" style="padding-top: 10px;">Cash on Delivery</td>
+            <td class="value" style="padding-top: 10px;">
+                @if ($isPaidOnline && $order->hasPostPaymentBalance())
+                    Paid Online (Rs. {{ number_format($order->amount_paid) }}) - Balance on Delivery: Rs. {{ number_format($order->balanceDueOnDelivery()) }}
+                @elseif ($isPaidOnline)
+                    Paid Online
+                @elseif ($order->payment_method === 'razorpay')
+                    Paid Online ({{ ucfirst($order->payment_status) }})
+                @else
+                    Cash on Delivery
+                @endif
+            </td>
         </tr>
     </table>
 
     <div class="footer-note">
-        Thank you for ordering from Makhanbhog Sweets! For any questions about this order, call us at +91 89209 37331.<br>
+        @if ($businessPhone)
+            Thank you for ordering from Makhanbhog Sweets! For any questions about this order, call us at {{ $businessPhone['display'] }}.<br>
+        @else
+            Thank you for ordering from Makhanbhog Sweets!<br>
+        @endif
         This is a system-generated invoice and does not require a signature.
     </div>
 </body>

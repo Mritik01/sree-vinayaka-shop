@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\Concerns\PaginatesAdminLists;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\ProductTag;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -37,11 +38,45 @@ class ProductController extends Controller
         return $request->ajax() ? view('admin.products._results', $data) : view('admin.products.index', $data);
     }
 
+    // live JSON typeahead for the order-detail "Add Product" modal. Returns each match with its
+    // buyable variants (portionPriceList) so the modal can offer a portion dropdown + live price;
+    // the actual price is always re-derived server-side in Admin\OrderController::addItems().
+    public function search(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+
+        if (mb_strlen($q) < 2) {
+            return response()->json(['products' => []]);
+        }
+
+        $like = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($q)).'%';
+
+        $products = Product::where(function ($query) use ($like) {
+                $query->whereRaw('LOWER(name) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(search_tags_flat) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(category) LIKE ?', [$like]);
+            })
+            ->orderBy('sort_order')
+            ->limit(10)
+            ->get()
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'image' => asset($p->image),
+                'category' => $p->category,
+                'is_loose' => $p->isLoose(),
+                'portions' => $p->portionPriceList(),
+            ]);
+
+        return response()->json(['products' => $products]);
+    }
+
     public function create()
     {
         return view('admin.products.create', [
             'categories' => self::CATEGORIES,
             'allCategories' => Category::where('is_active', true)->orderBy('sort_order')->get(),
+            'allTags' => ProductTag::orderBy('name')->get(),
         ]);
     }
 
@@ -53,6 +88,7 @@ class ProductController extends Controller
 
         $product = Product::create($data);
         $product->categories()->sync($request->input('categories', []));
+        $product->tags()->sync($request->input('tags', []));
 
         return redirect()->route('admin.products.index')->with('status', 'Product added.');
     }
@@ -63,6 +99,7 @@ class ProductController extends Controller
             'product' => $product,
             'categories' => self::CATEGORIES,
             'allCategories' => Category::where('is_active', true)->orderBy('sort_order')->get(),
+            'allTags' => ProductTag::orderBy('name')->get(),
         ]);
     }
 
@@ -76,6 +113,7 @@ class ProductController extends Controller
 
         $product->update($data);
         $product->categories()->sync($request->input('categories', []));
+        $product->tags()->sync($request->input('tags', []));
 
         return redirect()->route('admin.products.index')->with('status', 'Product updated.');
     }
@@ -127,6 +165,8 @@ class ProductController extends Controller
             'sort_order' => 'required|integer|min:0',
             'categories' => 'nullable|array',
             'categories.*' => 'exists:categories,id',
+            'tags' => 'nullable|array',
+            'tags.*' => 'exists:product_tags,id',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp,gif|max:4096',
             // CSS object-position, e.g. "50% 30%" — set by dragging the photo in the live
             // preview; regex keeps it to plain percentages since it's echoed into an inline style
@@ -153,7 +193,7 @@ class ProductController extends Controller
             $data['discount_type'] = null;
             $data['discount_value'] = null;
         }
-        unset($data['discount_enabled'], $data['categories']);
+        unset($data['discount_enabled'], $data['categories'], $data['tags']);
 
         return $data;
     }

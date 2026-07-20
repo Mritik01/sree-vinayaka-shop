@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LegalDocumentVersion extends Model
 {
-    public const TYPES = ['terms', 'privacy'];
+    public const TYPES = ['terms', 'privacy', 'refund', 'shipping'];
 
     protected $fillable = [
         'type',

@@ -14,7 +14,7 @@
     <div class="pointer-events-none absolute top-1/4 -left-16 w-80 h-80 rounded-full bg-gold-400/10 blur-3xl"></div>
     <div class="pointer-events-none absolute bottom-0 -right-16 w-96 h-96 rounded-full bg-gold-500/10 blur-3xl"></div>
 
-    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 py-16">
+    <div class="relative max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12 py-16">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
             <div class="relative transition-all duration-700 ease-out mb-6 md:mb-0"
                  :class="shown ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-6'">
@@ -46,10 +46,12 @@
                             <span class="bg-white/10 text-cream/70 border border-cream/20 text-xs font-semibold px-3 py-1 rounded-md">{{ __('Closed Now') }}</span>
                         @endif
                     </p>
-                    <p class="flex items-center justify-center md:justify-start gap-3">📞 <a href="tel:+918920937331" class="hover:text-gold-300 transition">+91 89209 37331</a></p>
+                    @if ($businessPhone)
+                        <p class="flex items-center justify-center md:justify-start gap-3">📞 <a href="{{ $businessPhone['tel'] }}" class="hover:text-gold-300 transition">{{ $businessPhone['display'] }}</a></p>
+                    @endif
                 </div>
 
-                <a href="https://maps.google.com/?q=Thuthibari" target="_blank" rel="noopener" class="btn-gold mt-8">{{ __('Get Directions') }}</a>
+                <a href="https://www.google.com/maps/place/Makhanbhog+sweets/@27.4242366,83.6925724,928m/data=!3m2!1e3!4b1!4m6!3m5!1s0x39942351305d449b:0x37dd7b4b5f25945c!8m2!3d27.4242366!4d83.6925724!16s%2Fg%2F11sb3rl_yn?entry=ttu&amp;g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn-gold mt-8">{{ __('Get Directions') }}</a>
             </div>
         </div>
     </div>

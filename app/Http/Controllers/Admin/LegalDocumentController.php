@@ -12,7 +12,15 @@ class LegalDocumentController extends Controller
     private const TITLES = [
         'terms' => 'Terms & Conditions',
         'privacy' => 'Privacy Policy',
+        'refund' => 'Refund & Cancellation Policy',
+        'shipping' => 'Shipping & Delivery Policy',
     ];
+
+    // only terms/privacy feed the re-consent gate (see layouts/app.blade.php's $needsReconsent
+    // and the dedicated terms_version/privacy_version columns on user_consents) — publishing a
+    // new refund/shipping version never prompts anyone, so the update() success message below
+    // must not claim otherwise for those types
+    private const RECONSENT_TYPES = ['terms', 'privacy'];
 
     public function index()
     {
@@ -57,8 +65,12 @@ class LegalDocumentController extends Controller
             'created_by' => Auth::guard('admin')->id(),
         ]);
 
-        return redirect()->route('admin.legal.edit', $type)
-            ->with('status', self::TITLES[$type]." updated — now version {$nextVersion}. Customers who already agreed will be prompted to accept the new version.");
+        $status = self::TITLES[$type]." updated — now version {$nextVersion}.";
+        if (in_array($type, self::RECONSENT_TYPES, true)) {
+            $status .= ' Customers who already agreed will be prompted to accept the new version.';
+        }
+
+        return redirect()->route('admin.legal.edit', $type)->with('status', $status);
     }
 
     // legal documents need real document structure (headings, lists, quotes) — a wider

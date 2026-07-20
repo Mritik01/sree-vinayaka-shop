@@ -5,7 +5,7 @@
      same markup the admin live-preview and the real /terms, /privacy pages use. --}}
 <div x-data="legalDocumentModal()" x-show="open" x-cloak
      @keydown.escape.window="open && close()"
-     class="fixed inset-0 z-[130] flex items-center justify-center p-0 sm:p-4">
+     class="fixed inset-0 z-[145] flex items-center justify-center p-0 sm:p-4">
     <div class="absolute inset-0 bg-maroon-900/50 backdrop-blur-sm"
          x-transition:enter="transition-opacity duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
          x-transition:leave="transition-opacity duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"

@@ -207,13 +207,15 @@
 
                     <div class="mt-4">
                         <p class="text-sm text-maroon-500 mb-2">{{ __('Payment') }}</p>
-                        <div class="grid grid-cols-2 gap-2 sm:gap-2.5">
-                            <button type="button" @click="paymentMethod = 'cod'"
+                        {{-- admin-configurable (Configuration → Payment Methods); a lone remaining
+                             method spans the full row instead of leaving an empty half-width gap --}}
+                        <div class="grid gap-2 sm:gap-2.5" :class="($store.shop.codEnabled && $store.shop.razorpayEnabled) ? 'grid-cols-2' : 'grid-cols-1'">
+                            <button type="button" x-show="$store.shop.codEnabled" @click="paymentMethod = 'cod'"
                                     class="rounded-lg border px-2.5 sm:px-3 py-2.5 text-xs sm:text-sm font-medium text-center transition leading-snug"
                                     :class="paymentMethod === 'cod' ? 'border-gold-500 ring-2 ring-gold-300 bg-gold-50/40 text-maroon-800' : 'border-gold-200/60 text-maroon-500 hover:border-gold-400'">
                                 {{ __('Cash on Delivery') }}
                             </button>
-                            <button type="button" @click="paymentMethod = 'razorpay'"
+                            <button type="button" x-show="$store.shop.razorpayEnabled" @click="paymentMethod = 'razorpay'"
                                     class="rounded-lg border px-2.5 sm:px-3 py-2.5 text-xs sm:text-sm font-medium text-center transition leading-snug"
                                     :class="paymentMethod === 'razorpay' ? 'border-gold-500 ring-2 ring-gold-300 bg-gold-50/40 text-maroon-800' : 'border-gold-200/60 text-maroon-500 hover:border-gold-400'">
                                 {{ __('Pay Online') }}

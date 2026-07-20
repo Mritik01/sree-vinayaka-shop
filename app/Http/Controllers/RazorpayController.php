@@ -55,6 +55,8 @@ class RazorpayController extends Controller
             'razorpay_payment_id' => $data['razorpay_payment_id'],
             'razorpay_signature' => $data['razorpay_signature'],
             'paid_at' => now(),
+            // frozen here, deliberately never touched again — see Order::refundableAmount()
+            'amount_paid' => $order->total,
         ])->save();
 
         ActivityLogger::log('payment_captured', "Order {$order->orderNumber()} — ₹".number_format($order->total));
@@ -100,6 +102,7 @@ class RazorpayController extends Controller
                 'payment_status' => 'paid',
                 'razorpay_payment_id' => $payment['id'] ?? $order->razorpay_payment_id,
                 'paid_at' => now(),
+                'amount_paid' => $order->total,
             ])->save();
 
             ActivityLogger::log('payment_captured', "Order {$order->orderNumber()} — ₹".number_format($order->total));

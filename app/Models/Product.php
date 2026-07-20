@@ -96,6 +96,14 @@ class Product extends Model
         return $this->belongsToMany(Category::class);
     }
 
+    // powers the admin-curated Featured Categories shortcut row (a featured category maps to
+    // one or more tags; a product can carry several) — independent of the `categories()`
+    // taxonomy above, see app/Models/FeaturedCategory.php
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(ProductTag::class, 'product_tag');
+    }
+
     public function reviews(): HasMany
     {
         return $this->hasMany(Review::class)->latest();
@@ -188,6 +196,30 @@ class Product extends Model
     public static function portionLabel(int $grams): string
     {
         return $grams >= 1000 ? rtrim(rtrim(number_format($grams / 1000, 2), '0'), '.').'kg' : $grams.'g';
+    }
+
+    // every buyable variant of this product as {portion, label, price} — a loose product
+    // expands to each of its configured portions; a piece product is a single portion-0 row.
+    // Powers the admin "add product to order" picker (variant dropdown + live price) and lets
+    // the server re-derive prices via priceForPortion() rather than trusting a client value.
+    public function portionPriceList(): array
+    {
+        if (!$this->isLoose()) {
+            return [[
+                'portion' => 0,
+                'label' => null,
+                'price' => $this->priceForPortion(null),
+            ]];
+        }
+
+        $options = $this->portions ?: [self::PORTION_OPTIONS[0]];
+        sort($options);
+
+        return array_map(fn ($grams) => [
+            'portion' => (int) $grams,
+            'label' => self::portionLabel((int) $grams),
+            'price' => $this->priceForPortion((int) $grams),
+        ], $options);
     }
 
     // shared shape for cart/checkout/drawer payloads — consolidates what used to be

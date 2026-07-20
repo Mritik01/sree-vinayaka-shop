@@ -20,18 +20,25 @@
                 <p class="font-display font-bold text-lg">Makhanbhog <span class="text-gold-400">Sweets</span></p>
                 <p class="text-cream/50 text-xs mt-0.5">{{ __('Admin Panel') }}</p>
             </div>
-            <nav class="flex-1 px-3 py-5 space-y-1 text-sm">
+            <nav class="flex-1 px-3 py-5 text-sm">
                 @php
+                    // Dashboard lives outside $navItems entirely and is rendered as its own row
+                    // below — it's never part of the reorderable/draggable list, so it can't be
+                    // dragged out of first place no matter what an admin does to the rest.
+                    $dashboardItem = ['route' => 'admin.dashboard', 'label' => __('Dashboard'), 'icon' => '📊'];
+
                     $navItems = [
-                        ['route' => 'admin.dashboard', 'label' => __('Dashboard'), 'icon' => '📊'],
                         ['route' => 'admin.orders.index', 'label' => __('Orders'), 'icon' => '🧾'],
                         ['route' => 'admin.support.index', 'label' => __('Support Chat'), 'icon' => '💬', 'badge' => 'supportUnread'],
                         ['route' => 'admin.transactions.index', 'label' => __('Transactions'), 'icon' => '💳'],
                         ['route' => 'admin.customers.index', 'label' => __('Customers'), 'icon' => '👥'],
                         ['route' => 'admin.visitors.index', 'label' => __('Visitors'), 'icon' => '🌐'],
                         ['route' => 'admin.leads.index', 'label' => __('Shadi/Function Leads'), 'icon' => '💍'],
+                        ['route' => 'admin.newsletter.index', 'label' => __('Newsletter'), 'icon' => '💌'],
                         ['route' => 'admin.categories.index', 'label' => __('Categories'), 'icon' => '🗂️'],
                         ['route' => 'admin.products.index', 'label' => __('Products'), 'icon' => '🍬'],
+                        ['route' => 'admin.product-tags.index', 'label' => __('Product Tags'), 'icon' => '🔖'],
+                        ['route' => 'admin.featured-categories.index', 'label' => __('Featured Categories'), 'icon' => '🧩'],
                         ['route' => 'admin.bestsellers.index', 'label' => __('Bestsellers'), 'icon' => '⭐'],
                         ['route' => 'admin.festival-special.index', 'label' => __('Festival Special'), 'icon' => '🎉'],
                         ['route' => 'admin.announcement.edit', 'label' => __('Announcement'), 'icon' => '📢'],
@@ -47,19 +54,67 @@
                         $navItems[] = ['route' => 'admin.admins.index', 'label' => __('Admin Accounts'), 'icon' => '🛡️'];
                         $navItems[] = ['route' => 'admin.impersonation-log.index', 'label' => __('Impersonation Log'), 'icon' => '🕵️'];
                     }
+
+                    // resolved to plain data (href/active) here, server-side, so the JS layer
+                    // driving the drag-and-drop never has to know Laravel's own routing rules
+                    $navItemsForJs = collect($navItems)->map(fn ($item) => [
+                        'route' => $item['route'],
+                        'label' => $item['label'],
+                        'icon' => $item['icon'],
+                        'badge' => $item['badge'] ?? null,
+                        'href' => route($item['route']),
+                        'active' => request()->routeIs($item['route'].'*'),
+                    ])->values();
                 @endphp
-                @foreach ($navItems as $item)
-                    <a href="{{ route($item['route']) }}"
-                       class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg transition {{ request()->routeIs($item['route'].'*') ? 'bg-gold-500 text-maroon-900 font-semibold' : 'text-cream/80 hover:bg-cream/10 hover:text-cream' }}">
-                        <span>{{ $item['icon'] }}</span>
-                        <span>{{ $item['label'] }}</span>
-                        @if (!empty($item['badge']))
-                            <span x-show="{{ $item['badge'] }} > 0" x-cloak
-                                  class="ml-auto min-w-[20px] h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
-                                  x-text="{{ $item['badge'] }} > 9 ? '9+' : {{ $item['badge'] }}"></span>
-                        @endif
-                    </a>
-                @endforeach
+
+                {{-- Dashboard — fixed, always first, deliberately excluded from the draggable
+                     list above so its position can never change --}}
+                <a href="{{ route($dashboardItem['route']) }}"
+                   class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg transition {{ request()->routeIs($dashboardItem['route'].'*') ? 'bg-gold-500 text-maroon-900 font-semibold' : 'text-cream/80 hover:bg-cream/10 hover:text-cream' }}">
+                    <span>{{ $dashboardItem['icon'] }}</span>
+                    <span>{{ $dashboardItem['label'] }}</span>
+                </a>
+
+                <div class="h-px bg-cream/10 my-2"></div>
+
+                <div x-data='adminNavMenu(@json($navItemsForJs))' class="space-y-1">
+                    <template x-for="(item, index) in items" :key="item.route">
+                        {{-- draggable is only switched on while the mousedown started on the ⠿
+                             handle below (and switched back off on release) — otherwise the
+                             whole row would be draggable and clicking anywhere would risk being
+                             read as a drag gesture instead of a normal navigation click. Uses
+                             x-effect + setAttribute (not :draggable) because Alpine treats
+                             `draggable` as a boolean attribute and REMOVES it when false rather
+                             than writing the literal "false" — and a bare <a href> is natively
+                             draggable by the browser by default, so merely omitting the
+                             attribute doesn't actually turn dragging off. --}}
+                        <a :href="item.href" x-data="{ canDrag: false }"
+                           x-effect="$el.setAttribute('draggable', canDrag ? 'true' : 'false')"
+                           @dragstart="dragStart(index, $event)"
+                           @dragover="dragOver(index, $event)"
+                           @dragleave="dragLeave(index)"
+                           @drop="drop(index)"
+                           @dragend="dragEnd(); canDrag = false"
+                           @mouseup.window="canDrag = false"
+                           class="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg transition"
+                           :class="[
+                               item.active ? 'bg-gold-500 text-maroon-900 font-semibold' : 'text-cream/80 hover:bg-cream/10 hover:text-cream',
+                               overIndex === index && dragIndex !== index ? 'ring-2 ring-gold-400/70' : '',
+                               dragIndex === index ? 'opacity-40' : '',
+                           ]">
+                            <span x-text="item.icon"></span>
+                            <span x-text="item.label" class="flex-1"></span>
+                            <template x-if="item.badge === 'supportUnread'">
+                                <span x-show="supportUnread > 0" x-cloak
+                                      class="min-w-[20px] h-5 px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center"
+                                      x-text="supportUnread > 9 ? '9+' : supportUnread"></span>
+                            </template>
+                            <span @mousedown="canDrag = true"
+                                  class="text-cream/30 hover:text-cream/60 text-xs select-none cursor-grab active:cursor-grabbing px-1 -mr-1"
+                                  title="{{ __('Drag to reorder') }}">⠿</span>
+                        </a>
+                    </template>
+                </div>
             </nav>
             <div class="px-3.5 pb-3 flex items-center gap-1 text-xs font-bold">
                 <span class="text-cream/40 mr-1">🌐</span>
@@ -83,8 +138,33 @@
         </aside>
 
         <div class="flex-1 min-w-0 h-screen overflow-y-auto" x-data="{ scrolledDown: false }" @scroll="scrolledDown = $event.target.scrollTop > 240">
+            @php
+                // auto-derived "back" link for any nested page (create/edit/show) — strips the
+                // last route-name segment and looks for a matching .index, e.g.
+                // admin.categories.edit -> admin.categories.index. No per-page wiring needed;
+                // pages with no matching index (e.g. the single-row admin.announcement.edit
+                // settings screen) simply get no back button.
+                $currentRouteName = \Illuminate\Support\Facades\Route::currentRouteName();
+                $backRoute = null;
+                if ($currentRouteName && preg_match('/\.(create|edit|show)$/', $currentRouteName)) {
+                    $candidate = preg_replace('/\.(create|edit|show)$/', '.index', $currentRouteName);
+                    if (\Illuminate\Support\Facades\Route::has($candidate)) {
+                        $backRoute = $candidate;
+                    }
+                }
+            @endphp
             <header class="sticky top-0 z-30 bg-white border-b border-gold-200/60 px-8 py-4 flex items-center justify-between">
-                <h1 class="font-display text-xl text-maroon-800">@yield('page-title', __('Dashboard'))</h1>
+                <div class="flex items-center gap-3 min-w-0">
+                    @if ($backRoute)
+                        <a href="{{ route($backRoute) }}" aria-label="{{ __('Back') }}"
+                           class="w-9 h-9 rounded-full border border-gold-200/70 flex items-center justify-center text-maroon-700 hover:bg-cream hover:border-gold-300 transition shrink-0">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+                            </svg>
+                        </a>
+                    @endif
+                    <h1 class="font-display text-xl text-maroon-800 truncate">@yield('page-title', __('Dashboard'))</h1>
+                </div>
 
                 <div class="flex items-center gap-1">
                 {{-- persistent notification center (order cancellations, etc.) — stays until marked read --}}
@@ -251,11 +331,16 @@
                 {{-- a customer wrote in — ping + slide-in card opening the widget's thread view
                      directly (not a page navigation, so whatever the admin was doing stays put) --}}
                 <template x-for="toast in supportToasts" :key="toast._key">
-                    <button type="button"
-                            @click="window.dispatchEvent(new CustomEvent('open-support-widget', { detail: { orderId: toast.order_id, summary: toast } })); supportToasts = supportToasts.filter((t) => t._key !== toast._key)"
-                            class="block w-full text-left bg-white border-2 border-gold-400 rounded-xl shadow-xl p-4 hover:bg-cream/60 transition"
-                            x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-6" x-transition:enter-end="opacity-100 translate-x-0"
-                            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+                    {{-- a <div> here, not a <button> — this wraps the close-✕ button below, and
+                         nesting <button> inside <button> is invalid HTML: the browser silently
+                         closes the outer button early, which was breaking the ✕'s click target
+                         and layout. role/tabindex/@keydown keep it keyboard-accessible instead. --}}
+                    <div role="button" tabindex="0"
+                         @click="window.dispatchEvent(new CustomEvent('open-support-widget', { detail: { orderId: toast.order_id, summary: toast } })); supportToasts = supportToasts.filter((t) => t._key !== toast._key)"
+                         @keydown.enter="window.dispatchEvent(new CustomEvent('open-support-widget', { detail: { orderId: toast.order_id, summary: toast } })); supportToasts = supportToasts.filter((t) => t._key !== toast._key)"
+                         class="block w-full text-left bg-white border-2 border-gold-400 rounded-xl shadow-xl p-4 hover:bg-cream/60 transition cursor-pointer"
+                         x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-6" x-transition:enter-end="opacity-100 translate-x-0"
+                         x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
                         <div class="flex items-start gap-3">
                             <span class="text-xl shrink-0">💬</span>
                             <div class="min-w-0 flex-1">
@@ -266,10 +351,10 @@
                                 <p class="text-xs text-maroon-600 mt-0.5 truncate" x-text="toast.snippet"></p>
                                 <p class="text-xs font-semibold text-gold-600 mt-1.5">{{ __('Reply') }} →</p>
                             </div>
-                            <button type="button" @click.prevent.stop="supportToasts = supportToasts.filter((t) => t._key !== toast._key)"
+                            <button type="button" @click.stop="supportToasts = supportToasts.filter((t) => t._key !== toast._key)"
                                     class="shrink-0 text-maroon-300 hover:text-maroon-600 transition text-lg leading-none">✕</button>
                         </div>
-                    </button>
+                    </div>
                 </template>
 
                 {{-- auto-cancel warnings: orders the shop failed to deliver within 90 min, self-cancelled --}}

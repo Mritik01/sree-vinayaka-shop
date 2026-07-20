@@ -2,6 +2,35 @@ import './bootstrap';
 import Alpine from 'alpinejs';
 import confetti from 'canvas-confetti';
 
+// landing here after App\Http\Middleware\Authenticate::redirectTo() sent a guest to the
+// homepage with ?login=1&redirect=... (there's no dedicated login page — auth is a modal on
+// any page) — auto-open that modal, and remember where to send them after a successful login
+// instead of just reloading the homepage they landed on. The redirect target is only ever
+// trusted if it resolves to this same origin, so a crafted ?redirect=https://evil.example
+// link can't be used to bounce a logged-in user off-site.
+window.__mbLoginRedirect = null;
+{
+    const loginParams = new URLSearchParams(window.location.search);
+    const redirectParam = loginParams.get('redirect');
+    if (redirectParam) {
+        try {
+            const target = new URL(redirectParam, window.location.origin);
+            if (target.origin === window.location.origin) {
+                window.__mbLoginRedirect = target.pathname + target.search + target.hash;
+            }
+        } catch (e) {
+            // malformed value — ignore, falls back to a plain reload after login
+        }
+    }
+    if (loginParams.has('login')) {
+        loginParams.delete('login');
+        loginParams.delete('redirect');
+        const cleanQuery = loginParams.toString();
+        window.history.replaceState(null, '', window.location.pathname + (cleanQuery ? '?' + cleanQuery : '') + window.location.hash);
+        document.addEventListener('alpine:initialized', () => window.dispatchEvent(new CustomEvent('open-auth-modal')));
+    }
+}
+
 window.heroSlider = function (slideCount) {
     return {
         active: 0,
@@ -26,6 +55,41 @@ window.heroSlider = function (slideCount) {
         },
         goTo(i) {
             this.active = i;
+        },
+    };
+};
+
+// Festival Special — auto-scrolls the product row on a timer (same setInterval shape as
+// heroSlider above), advancing by one viewport-width "page" of cards at a time and looping
+// back to the start with a smooth scroll once it reaches the end. Pauses on hover/touch so it
+// doesn't fight a customer who's actively browsing.
+window.festivalSpecialCarousel = function () {
+    return {
+        shown: false,
+        paused: false,
+        autoplayMs: 3200,
+        timer: null,
+
+        init() {
+            const io = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting) {
+                    this.shown = true;
+                    this.startAutoplay();
+                    io.disconnect();
+                }
+            }, { threshold: 0.1 });
+            io.observe(this.$el);
+        },
+        startAutoplay() {
+            this.timer = setInterval(() => {
+                if (this.paused) return;
+                const track = this.$refs.track;
+                if (!track) return;
+                const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+                track.scrollTo(atEnd
+                    ? { left: 0, behavior: 'smooth' }
+                    : { left: track.scrollLeft + track.clientWidth * 0.7, behavior: 'smooth' });
+            }, this.autoplayMs);
         },
     };
 };
@@ -340,7 +404,15 @@ window.authModal = function () {
         celebrate(isNew) {
             this.step = 'success';
             if (isNew) this.fireConfetti();
-            setTimeout(() => window.location.reload(), isNew ? 1700 : 1000);
+            // if they were bounced here from an auth-required page (see window.__mbLoginRedirect
+            // above), continue on to it instead of just reloading whatever page the modal was on
+            setTimeout(() => {
+                if (window.__mbLoginRedirect) {
+                    window.location.href = window.__mbLoginRedirect;
+                } else {
+                    window.location.reload();
+                }
+            }, isNew ? 1700 : 1000);
         },
         fireConfetti() {
             const colors = ['#d4a940', '#c8962e', '#8a1c2b', '#6b1420', '#fdf6e3'];
@@ -461,15 +533,17 @@ window.deliverTo = function (addresses, isLoggedIn, labels = {}) {
     };
 };
 
-// circular category row on the homepage (partials/category-row.blade.php) — scroll-by-arrow
-// buttons that only appear when the row actually overflows
-window.categoryRow = function () {
+// shared "scroll arrows only when the row actually overflows" behavior for any horizontally
+// scrollable row that exposes its scroller via x-ref="track" — used by categoryRow() below and
+// categoryShop()'s tab strip. `step` is how many px each arrow click scrolls.
+function scrollArrows(step = 280) {
     return {
         canLeft: false,
         canRight: false,
+        measured: false,
 
         init() {
-            this.$nextTick(() => this.update());
+            this.$nextTick(() => { this.update(); this.measured = true; });
             window.addEventListener('resize', () => this.update());
         },
         update() {
@@ -479,7 +553,54 @@ window.categoryRow = function () {
             this.canRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
         },
         scrollBy(direction) {
-            this.$refs.track?.scrollBy({ left: direction * 280, behavior: 'smooth' });
+            this.$refs.track?.scrollBy({ left: direction * step, behavior: 'smooth' });
+        },
+        // true once we've measured and know the row's content is narrower than its container
+        // (nothing to scroll either direction) — lets a handful of items center instead of
+        // sitting stranded on the left with a big empty gap on wide desktop screens. Stays
+        // false until that first measurement, so a row that's actually going to overflow never
+        // flashes centered first.
+        fits() {
+            return this.measured && !this.canLeft && !this.canRight;
+        },
+    };
+}
+
+// circular category row on the homepage (partials/category-row.blade.php)
+window.categoryRow = function () {
+    return scrollArrows(280);
+};
+
+// admin-curated "Featured Categories" shortcut row (partials/featured-categories.blade.php)
+window.featuredCategoryRow = function () {
+    return scrollArrows(240);
+};
+
+// category-tabbed shop section (partials/category-shop.blade.php) — a "Top Picks" tab plus one
+// per category, each with a pre-rendered product grid swapped via activeTab (no fetch; every
+// grid is already in the DOM, see the home route's $categoryTabs). The tab strip reuses the same
+// overflow-arrow behavior as categoryRow() above.
+window.categoryShop = function (isLoggedIn, initialFavorites) {
+    return {
+        ...scrollArrows(220),
+        activeTab: 'top-picks',
+        isLoggedIn,
+        favorites: initialFavorites || [],
+        isFavorited(id) {
+            return this.favorites.includes(id);
+        },
+        async toggleFavorite(id) {
+            if (!this.isLoggedIn) {
+                window.dispatchEvent(new CustomEvent('open-auth-modal'));
+                return;
+            }
+            const wasFavorited = this.isFavorited(id);
+            this.favorites = wasFavorited ? this.favorites.filter((f) => f !== id) : [...this.favorites, id];
+            try {
+                await persistFavoriteToggle(id);
+            } catch (e) {
+                this.favorites = wasFavorited ? [...this.favorites, id] : this.favorites.filter((f) => f !== id);
+            }
         },
     };
 };
@@ -644,17 +765,24 @@ window.productSlider = function (isLoggedIn, initialFavorites, bucketCounts) {
 // /products listing page — client-side filtering/sorting over server-rendered cards.
 // Cards are hidden with x-show and reordered via the CSS `order` property, so no DOM
 // is rebuilt and the Blade product-card partial stays the single source of card markup.
-window.productListing = function (isLoggedIn, initialFavorites, products, priceBuckets, activeCategoryId) {
+window.productListing = function (isLoggedIn, initialFavorites, products, priceBuckets, activeCategoryName, activeTagIds) {
     return {
         isLoggedIn,
         favorites: initialFavorites || [],
         products: products || [],
         priceBuckets: priceBuckets || [],
-        // categoryId is a separate filter dimension from the checkbox-driven `categories`
-        // (old plain-text field) above — it's set only via ?category=slug (the mobile category
-        // panel / a shared link), resolved server-side into an id by the /products route
+        // arriving via ?category=slug (the mobile category panel / a shared link) seeds the same
+        // `categories` array the sidebar checkboxes use, rather than a separate id-based filter
+        // dimension — two parallel AND'd category filters used to zero out the results the moment
+        // a shopper touched any other category checkbox, since a product can't match both at once.
+        // initialCategoryName remembers which entry that was, purely so the "Filtered by: X ✕"
+        // chip knows what to remove when dismissed.
+        // tagIds is the Featured Categories equivalent (?featured_category=slug) — a SET of tag
+        // ids since one Featured Category can map to several tags; a product matches if it
+        // carries ANY of them (OR, not AND).
         // q pre-seeds from ?q= so the header search's Enter/see-all lands here already filtered
-        filters: { categories: [], prices: [], q: new URLSearchParams(window.location.search).get('q') || '', categoryId: activeCategoryId || null },
+        initialCategoryName: activeCategoryName || null,
+        filters: { categories: activeCategoryName ? [activeCategoryName] : [], prices: [], q: new URLSearchParams(window.location.search).get('q') || '', tagIds: activeTagIds || [] },
         sort: 'recommended',
         // the mobile bottom nav's "Categories" tab used to link here with ?open_filters=1 to
         // auto-open this sheet; it now opens the image-tile category panel instead (see
@@ -662,7 +790,7 @@ window.productListing = function (isLoggedIn, initialFavorites, products, priceB
         sheetOpen: new URLSearchParams(window.location.search).has('open_filters'),
 
         matches(p) {
-            if (this.filters.categoryId && !(p.category_ids || []).includes(this.filters.categoryId)) return false;
+            if (this.filters.tagIds.length && !(p.tag_ids || []).some((id) => this.filters.tagIds.includes(id))) return false;
             if (this.filters.categories.length && !this.filters.categories.includes(p.category)) return false;
             if (this.filters.prices.length) {
                 const inAny = this.filters.prices.some((i) => {
@@ -705,22 +833,29 @@ window.productListing = function (isLoggedIn, initialFavorites, products, priceB
             return this.products.filter((p) => p.category === cat).length;
         },
         activeCount() {
-            return this.filters.categories.length + this.filters.prices.length + (this.filters.q.trim() ? 1 : 0) + (this.filters.categoryId ? 1 : 0);
+            return this.filters.categories.length + this.filters.prices.length + (this.filters.q.trim() ? 1 : 0);
         },
         clearAll() {
-            this.filters = { categories: [], prices: [], q: '', categoryId: null };
-            this.stripCategoryFromUrl();
+            this.filters = { categories: [], prices: [], q: '', tagIds: [] };
+            this.stripParamFromUrl('category');
+            this.stripParamFromUrl('featured_category');
         },
-        // the dedicated "Filtered by: X ✕" chip — leaves the checkbox filters (categories/
-        // prices/search) untouched, only clears the one set via ?category=slug
+        // the dedicated "Filtered by: X ✕" chip — leaves the other checkbox filters (prices/
+        // search/other categories) untouched, only unchecks the one seeded via ?category=slug
         clearCategoryFilter() {
-            this.filters.categoryId = null;
-            this.stripCategoryFromUrl();
+            this.filters.categories = this.filters.categories.filter((c) => c !== this.initialCategoryName);
+            this.stripParamFromUrl('category');
         },
-        stripCategoryFromUrl() {
+        // same idea as clearCategoryFilter() above, for the Featured Categories (?featured_
+        // category=slug) chip
+        clearTagFilter() {
+            this.filters.tagIds = [];
+            this.stripParamFromUrl('featured_category');
+        },
+        stripParamFromUrl(param) {
             const url = new URL(window.location.href);
-            if (!url.searchParams.has('category')) return;
-            url.searchParams.delete('category');
+            if (!url.searchParams.has(param)) return;
+            url.searchParams.delete(param);
             window.history.replaceState(null, '', url.pathname + (url.search ? url.search : ''));
         },
         isFavorited(id) {
@@ -1096,7 +1231,9 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
 
         customerName: defaultName || '',
         customerPhone: defaultPhone || '',
-        paymentMethod: 'cod',
+        // defaults to COD unless the admin has disabled it, in which case Razorpay (checked
+        // again, self-correcting, right before submission in checkout() below)
+        paymentMethod: Alpine.store('shop').codEnabled ? 'cod' : 'razorpay',
 
         checkoutError: '',
         checkingOut: false,
@@ -1319,6 +1456,10 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
         async checkout() {
             if (this.checkingOut || this.items.length === 0) return;
             if (Alpine.store('shop').highDemandMode === 'stop') return;
+            // self-correct if the admin disabled the customer's currently-selected method while
+            // they were on this page (live via pollShopStatus) — the server re-checks this too
+            if (this.paymentMethod === 'cod' && !Alpine.store('shop').codEnabled) this.paymentMethod = 'razorpay';
+            if (this.paymentMethod === 'razorpay' && !Alpine.store('shop').razorpayEnabled) this.paymentMethod = 'cod';
             if (!this.customerName.trim()) {
                 this.checkoutError = "Please enter the recipient's name.";
                 return;
@@ -1476,9 +1617,120 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
     };
 };
 
+// site-wide reminder to grant location permission, so by the time a customer reaches checkout
+// its own silent checkDeliveryArea(true) (above) already has permission and never has to ask —
+// this component's only job is getting permission granted; it doesn't gate anything itself.
+// Reused from checkoutPage(): same getCurrentPosition options and the same /delivery-check
+// endpoint, just triggered from every page instead of only the checkout page.
+window.locationPrompt = function () {
+    return {
+        supported: !!navigator.geolocation,
+        permissionState: 'unknown', // 'granted' | 'denied' | 'prompt' | 'unknown'
+        checking: false,
+        dismissed: false, // this page view only — not persisted, so it naturally reappears on the next page load if still not granted
+        confirmation: '', // brief "you're within/outside our delivery area" note after a successful check
+
+        async init() {
+            if (!this.supported) return;
+            if (!navigator.permissions?.query) {
+                // no Permissions API (older Safari) — can't pre-detect state, just let the
+                // banner show with a working button; the real state only becomes known once
+                // the customer actually clicks it
+                this.permissionState = 'prompt';
+                return;
+            }
+            try {
+                const status = await navigator.permissions.query({ name: 'geolocation' });
+                this.permissionState = status.state;
+                // reacts live if the customer flips the permission via the browser's own site
+                // settings UI while this tab stays open, without needing a page reload
+                status.onchange = () => { this.permissionState = status.state; };
+            } catch (e) {
+                this.permissionState = 'prompt';
+            }
+        },
+        async requestPermission() {
+            if (this.checking) return;
+            this.checking = true;
+            this.confirmation = '';
+            try {
+                const coords = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+                        () => reject(new Error('denied')),
+                        { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+                    );
+                });
+                this.permissionState = 'granted';
+                try {
+                    const res = await fetch(`/delivery-check?lat=${coords.latitude}&lng=${coords.longitude}`, {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const data = await res.json();
+                    if (data.ok) {
+                        this.confirmation = data.within
+                            ? "✅ You're within our delivery area."
+                            : "This location looks outside our delivery area — you can still choose a different address at checkout.";
+                    }
+                } catch (e) {
+                    // permission itself succeeded, which is this component's actual job — a
+                    // failed courtesy delivery-area check afterward isn't worth surfacing an error for
+                }
+            } catch (e) {
+                this.permissionState = 'denied';
+            } finally {
+                this.checking = false;
+            }
+        },
+    };
+};
+
+// PWA "Install App" banner — captures the browser's beforeinstallprompt event (Chrome/Edge/
+// Android; iOS Safari never fires it, so this component simply never shows there — no custom
+// "Add to Home Screen" instructions, that's out of scope) and offers it once per browser session
+// via a small in-flow banner, same pattern as locationPrompt() above. sessionStorage (not
+// localStorage) is deliberate here — it clears when the tab/browser session actually ends, so a
+// genuinely new session is offered the install again if the site still isn't installed, but
+// navigating between pages within the same session doesn't re-show it every time.
+window.installPrompt = function () {
+    return {
+        deferredEvent: null,
+        visible: false,
+
+        init() {
+            const seenKey = 'mb_install_prompt_seen';
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                this.deferredEvent = e;
+                if (!sessionStorage.getItem(seenKey)) this.visible = true;
+            });
+            // installed via the browser's own native affordance instead of this banner —
+            // hide it immediately rather than leaving a stale "Install App" button up
+            window.addEventListener('appinstalled', () => {
+                this.visible = false;
+                sessionStorage.setItem(seenKey, '1');
+            });
+        },
+        async install() {
+            if (!this.deferredEvent) return;
+            this.deferredEvent.prompt();
+            await this.deferredEvent.userChoice;
+            // don't ask again this session either way — accept or dismiss, the browser's own
+            // prompt already gave the customer the choice once
+            this.deferredEvent = null;
+            this.visible = false;
+            sessionStorage.setItem('mb_install_prompt_seen', '1');
+        },
+        dismiss() {
+            this.visible = false;
+            sessionStorage.setItem('mb_install_prompt_seen', '1');
+        },
+    };
+};
+
 // live order-tracking page — polls the order's status so admin-side updates
 // (confirmed / out for delivery / delivered) animate in without a reload
-window.orderTrackingPage = function (initialOrder, justPlaced) {
+window.orderTrackingPage = function (initialOrder, justPlaced, etaSoonTemplate, etaNowText) {
     return {
         order: initialOrder,
         now: Date.now(),
@@ -1490,6 +1742,29 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
         cancelling: false,
         cancelError: '',
         cancelReason: '',
+        // true for a few seconds right after a genuine rider assignment/reassignment — drives the
+        // "Your Delivery Partner" card's one-time entrance flourish (glow pulse, bounce) without a
+        // separate popup component; the card itself stays visible via x-show="order.rider_name"
+        // whether or not this flag is set
+        justAssignedRider: false,
+        // same idea, for the "We're Sorry" apology card — true for ~8s right after poll() sees a
+        // NEW item removal (not on every tick the card happens to already be visible for)
+        justRemovedItems: false,
+        // same idea again, for the "🎉 Your order has been updated!" card — true for ~8s right
+        // after poll() sees an admin-added item it hasn't shown yet
+        justAddedItems: false,
+        // "We're Sorry" card: starts fully open with a 10s countdown, then auto-collapses — see
+        // startSorryCollapse()/collapseSorry()/reopenSorry() below. sorryCountingDown gates the
+        // progress bar specifically — true only during that initial timed sequence, never after
+        // a manual reopen (reopenSorry() doesn't restart the countdown)
+        sorryExpanded: false,
+        sorryCountingDown: false,
+        sorryProgressReady: false,
+        // "Your order has been updated!" card — identical collapse mechanic, mirrored 1:1 (see
+        // startUpdatedCollapse()/collapseUpdated()/reopenUpdated() below)
+        updatedExpanded: false,
+        updatedCountingDown: false,
+        updatedProgressReady: false,
 
         init() {
             if (justPlaced) {
@@ -1504,6 +1779,71 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
             // switching orders never piles up background polling
             this.$el._pollTimer = setInterval(() => this.poll(), 5000);
             this.$el._clockTimer = setInterval(() => { this.now = Date.now(); }, 15000);
+
+            // once the "We're Sorry" card has actually collapsed (timeout or manual), that's
+            // persisted per removed-item-id — so a page refresh doesn't re-run the whole 10s
+            // expand-then-collapse cycle for something the customer already saw and dismissed.
+            // A genuinely NEW removal (an id not yet in that dismissed set) still opens it fresh.
+            const removedIds = this.order.items.filter((i) => i.removed).map((i) => i.id);
+            if (removedIds.length > 0) {
+                const dismissed = this.dismissedRemovalIds();
+                if (removedIds.some((id) => !dismissed.has(id))) {
+                    this.startSorryCollapse();
+                } else {
+                    this.sorryExpanded = false;
+                }
+            }
+            // identical logic for the "Your order has been updated!" card and its added-item ids
+            const addedIds = this.order.items.filter((i) => i.added).map((i) => i.id);
+            if (addedIds.length > 0) {
+                const dismissed = this.dismissedAddedIds();
+                if (addedIds.some((id) => !dismissed.has(id))) {
+                    this.startUpdatedCollapse();
+                } else {
+                    this.updatedExpanded = false;
+                }
+            }
+
+            // covers "rider marked this delivered while the customer wasn't on this page at
+            // all" — poll() below early-returns the instant status is already 'delivered', so
+            // it never gets a chance to fire its own transition-detected prompt in that case.
+            // $nextTick matters here: riderRatingPopup() is a separate, nested x-data component
+            // further down this same tree — on a fresh page load Alpine hasn't initialized it
+            // (and registered its open-rider-rating listener) yet at the point this init() runs,
+            // so dispatching synchronously would fire into a void. $nextTick defers until after
+            // Alpine finishes initializing the whole tree, poll()'s own call below doesn't need
+            // this (everything's long since initialized after the first 5s), but it's harmless
+            // there too.
+            this.$nextTick(() => this.maybePromptRating(this.order));
+            // covers "admin decided on the note while the customer wasn't on this page" — same
+            // $nextTick reasoning as maybePromptRating() above (noteDecisionPopup() is a separate,
+            // nested x-data component not yet initialized at this point in a fresh page load)
+            this.$nextTick(() => this.maybeShowNoteDecision(this.order));
+            // covers "admin added item(s) while the customer wasn't on this page" — same
+            // $nextTick reasoning (orderUpdatedPopup() is a separate, nested x-data component)
+            this.$nextTick(() => this.maybeShowOrderUpdated(this.order));
+
+            // popup lives in a separate x-data component — it can't reach into this.order
+            // directly, so it tells us via event instead of us waiting for the next 5s poll
+            window.addEventListener('rider-rating-submitted', (e) => {
+                if (e.detail.orderId === this.order.id) this.order.needs_rating = false;
+            });
+
+            // same reasoning, for productRatingPopup() — a product can appear on more than one
+            // order-item (different portions), so flip every matching one, then recompute the
+            // order-level flag the hero button's label switches on
+            window.addEventListener('product-rating-submitted', (e) => {
+                if (e.detail.orderId !== this.order.id) return;
+                for (const item of this.order.items) {
+                    if (item.product_id === e.detail.productId) {
+                        item.already_rated = true;
+                        item.existing_rating = e.detail.rating;
+                    }
+                }
+                const ids = [...new Set(this.order.items.filter((i) => i.product_id).map((i) => i.product_id))];
+                this.order.all_products_rated = ids.length > 0
+                    && ids.every((id) => this.order.items.find((i) => i.product_id === id).already_rated);
+            });
         },
 
         rank() {
@@ -1522,7 +1862,7 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
         etaText() {
             if (!this.order.eta_ends_at) return null;
             const mins = Math.ceil((this.order.eta_ends_at - this.now) / 60000);
-            return mins > 1 ? `in ~${mins} min` : 'any moment now';
+            return mins > 1 ? etaSoonTemplate.replace('␟', mins) : etaNowText;
         },
         // hides the Cancel Order section the instant the window closes, rather than waiting up
         // to 5s for the next status poll to bring back an updated can_cancel from the server
@@ -1536,6 +1876,31 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
             const mins = Math.ceil((this.order.cancel_window_ends_at - this.now) / 60000);
             return mins > 1 ? `You can cancel for ${mins} more minutes` : 'Less than a minute left to cancel';
         },
+        // dedupes by product_id — a product bought twice in one order (different portions) is
+        // only rated once, since ratings are product-scoped, not per order-item
+        ratableProducts() {
+            const seen = new Set();
+            const list = [];
+            for (const item of this.order.items) {
+                if (!item.product_id || seen.has(item.product_id)) continue;
+                seen.add(item.product_id);
+                list.push({
+                    productId: item.product_id,
+                    slug: item.product_slug,
+                    name: item.name,
+                    imageUrl: item.image_url,
+                    portionLabel: item.portion_label,
+                    rating: item.existing_rating || 0,
+                    comment: item.existing_comment || '',
+                });
+            }
+            return list;
+        },
+        openProductRatingPopup() {
+            window.dispatchEvent(new CustomEvent('open-product-rating', {
+                detail: { orderId: this.order.id, products: this.ratableProducts() },
+            }));
+        },
 
         async poll() {
             if (['delivered', 'cancelled'].includes(this.order.status)) return;
@@ -1544,16 +1909,184 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
                 if (!res.ok) return;
                 const data = await res.json().catch(() => ({}));
                 if (!data.ok) return;
-                const previous = this.order.status;
+                const previousStatus = this.order.status;
+                const previousRiderId = this.order.rider_id;
+                const previousRemovedIds = new Set(this.order.items.filter((i) => i.removed).map((i) => i.id));
+                const previousAddedIds = new Set(this.order.items.filter((i) => i.added).map((i) => i.id));
                 this.order = data.order;
                 this.now = Date.now();
-                if (data.order.status !== previous) {
-                    if (data.order.status === 'delivered') this.celebrate();
-                    else if (data.order.status !== 'cancelled') this.cheer();
+                if (data.order.status !== previousStatus) {
+                    if (data.order.status === 'delivered') {
+                        this.celebrate();
+                        this.maybePromptRating(data.order);
+                    } else if (data.order.status !== 'cancelled') this.cheer();
                 }
+                // a genuine assignment or reassignment — never fires on first load (nothing to
+                // diff against yet) or when unassigning (new id is falsy)
+                if (data.order.rider_id && data.order.rider_id !== previousRiderId) {
+                    this.justAssignedRider = true;
+                    this.celebrateRiderAssigned();
+                    setTimeout(() => { this.justAssignedRider = false; }, 6000);
+                }
+                // a genuine NEW removal since the last poll — previousRemovedIds already reflects
+                // whatever was true at the last tick (including page load), so this only fires
+                // the moment something changes, not on every tick the card happens to be visible
+                const newlyRemoved = data.order.items.some((i) => i.removed && !previousRemovedIds.has(i.id));
+                if (newlyRemoved) {
+                    this.justRemovedItems = true;
+                    setTimeout(() => { this.justRemovedItems = false; }, 8000);
+                    // nudges the notification bell to refresh immediately instead of waiting out
+                    // its own independent 15s cycle — see notificationsBell() below
+                    window.dispatchEvent(new CustomEvent('notifications-refresh'));
+                    // re-opens the "We're Sorry" card (even if the customer had already collapsed
+                    // an earlier removal) and restarts its 10s countdown for the fresh one
+                    this.startSorryCollapse();
+                }
+                // a genuine NEW admin-added item since the last poll — same shape as the removal
+                // diff above, mirrored for the celebratory "order updated" card
+                const newlyAdded = data.order.items.some((i) => i.added && !previousAddedIds.has(i.id));
+                if (newlyAdded) {
+                    this.justAddedItems = true;
+                    setTimeout(() => { this.justAddedItems = false; }, 8000);
+                    window.dispatchEvent(new CustomEvent('notifications-refresh'));
+                    // re-opens the "Your order has been updated!" card and restarts its 10s
+                    // countdown for the fresh add, same as startSorryCollapse() above
+                    this.startUpdatedCollapse();
+                }
+                // self-contained one-shot check (localStorage-gated by note_decided_at), no
+                // "previous value" snapshot needed here unlike the justX flags above
+                this.maybeShowNoteDecision(data.order);
+                // same self-contained one-shot pattern, gated by items_added_at
+                this.maybeShowOrderUpdated(data.order);
             } catch (e) {
                 // offline / server hiccup — next tick will catch up
             }
+        },
+
+        // opens the rider-rating popup once per order — the first time the customer lands on (or
+        // polls into) a delivered, unrated order. Persisted via localStorage, same pattern as the
+        // "We're Sorry" card's dismissal tracking, so it never re-interrupts a later visit; the
+        // small "Rate your delivery" pill in the delivered hero is the only prompt after that.
+        maybePromptRating(order) {
+            if (!order.needs_rating) return;
+            const key = `mb_rating_prompted_${order.id}`;
+            if (localStorage.getItem(key)) return;
+            localStorage.setItem(key, '1');
+            window.dispatchEvent(new CustomEvent('open-rider-rating', {
+                detail: { orderId: order.id, riderName: order.rider_name, riderPhoto: order.rider_photo_url },
+            }));
+        },
+
+        // fires the note-decision popup exactly once per decision. note_decided_at (an ISO
+        // timestamp, not a boolean) is the fingerprint — storing the exact value already shown
+        // means a note that gets edited and re-decided later correctly triggers the popup again,
+        // since a fresh decision always gets a fresh timestamp
+        maybeShowNoteDecision(order) {
+            if (!order.note_decided_at || order.note_status === 'pending') return;
+            const key = `mb_note_decision_seen_${order.id}`;
+            if (localStorage.getItem(key) === order.note_decided_at) return;
+            localStorage.setItem(key, order.note_decided_at);
+            window.dispatchEvent(new CustomEvent('open-note-decision', {
+                detail: { status: order.note_status, message: order.note_decision_message },
+            }));
+        },
+
+        // fires the order-updated popup exactly once per add-event. items_added_at (the latest
+        // admin-added item's timestamp) is the fingerprint, same trick as note_decided_at above —
+        // a second, later batch of added items gets a fresh timestamp and correctly re-fires.
+        maybeShowOrderUpdated(order) {
+            if (!order.items_added_at) return;
+            const key = `mb_order_updated_seen_${order.id}`;
+            if (localStorage.getItem(key) === order.items_added_at) return;
+            localStorage.setItem(key, order.items_added_at);
+            window.dispatchEvent(new CustomEvent('open-order-updated', {
+                detail: { items: order.items.filter((i) => i.added) },
+            }));
+        },
+
+        // opens the "We're Sorry" card fully and (re)starts its 10s auto-collapse countdown —
+        // called on init() when items were already removed before this page load, and again from
+        // poll() every time a fresh removal is detected
+        startSorryCollapse() {
+            clearTimeout(this.$el._sorryTimer);
+            this.sorryExpanded = true;
+            this.sorryCountingDown = true;
+            // the progress bar is a single CSS width transition (100% -> 0%) rather than a JS
+            // tick loop: reset to the un-transitioned 100% state first, then flip it a frame
+            // later so the browser actually animates the change instead of snapping straight to 0
+            this.sorryProgressReady = false;
+            requestAnimationFrame(() => requestAnimationFrame(() => { this.sorryProgressReady = true; }));
+            this.$el._sorryTimer = setTimeout(() => { this.collapseSorry(); }, 10000);
+        },
+        // collapsing (whether the 10s timeout or the manual header tap) is the moment these
+        // removed items get marked "seen" in localStorage — that's what makes a later page
+        // refresh open straight into the collapsed state instead of re-running the whole
+        // expand-then-collapse cycle for something the customer already dismissed
+        collapseSorry() {
+            clearTimeout(this.$el._sorryTimer);
+            this.sorryExpanded = false;
+            this.sorryCountingDown = false;
+            this.markRemovalsDismissed(this.order.items.filter((i) => i.removed).map((i) => i.id));
+        },
+        reopenSorry() {
+            // manual reopen doesn't restart the countdown — it stays open until the customer
+            // collapses it again themselves, or a new removal arrives
+            clearTimeout(this.$el._sorryTimer);
+            this.sorryExpanded = true;
+            this.sorryCountingDown = false;
+        },
+        sorryStorageKey() {
+            return `mb_sorry_dismissed_${this.order.id}`;
+        },
+        dismissedRemovalIds() {
+            try {
+                return new Set(JSON.parse(localStorage.getItem(this.sorryStorageKey()) || '[]'));
+            } catch (e) {
+                return new Set();
+            }
+        },
+        markRemovalsDismissed(ids) {
+            const dismissed = this.dismissedRemovalIds();
+            ids.forEach((id) => dismissed.add(id));
+            localStorage.setItem(this.sorryStorageKey(), JSON.stringify([...dismissed]));
+        },
+
+        // "Your order has been updated!" card — identical collapse mechanic to the "We're Sorry"
+        // card above (startSorryCollapse()/collapseSorry()/reopenSorry()/dismissedRemovalIds()/
+        // markRemovalsDismissed()), mirrored 1:1 for admin-added items instead of removed ones
+        startUpdatedCollapse() {
+            clearTimeout(this.$el._updatedTimer);
+            this.updatedExpanded = true;
+            this.updatedCountingDown = true;
+            this.updatedProgressReady = false;
+            requestAnimationFrame(() => requestAnimationFrame(() => { this.updatedProgressReady = true; }));
+            this.$el._updatedTimer = setTimeout(() => { this.collapseUpdated(); }, 10000);
+        },
+        collapseUpdated() {
+            clearTimeout(this.$el._updatedTimer);
+            this.updatedExpanded = false;
+            this.updatedCountingDown = false;
+            this.markAddedDismissed(this.order.items.filter((i) => i.added).map((i) => i.id));
+        },
+        reopenUpdated() {
+            clearTimeout(this.$el._updatedTimer);
+            this.updatedExpanded = true;
+            this.updatedCountingDown = false;
+        },
+        updatedStorageKey() {
+            return `mb_updated_dismissed_${this.order.id}`;
+        },
+        dismissedAddedIds() {
+            try {
+                return new Set(JSON.parse(localStorage.getItem(this.updatedStorageKey()) || '[]'));
+            } catch (e) {
+                return new Set();
+            }
+        },
+        markAddedDismissed(ids) {
+            const dismissed = this.dismissedAddedIds();
+            ids.forEach((id) => dismissed.add(id));
+            localStorage.setItem(this.updatedStorageKey(), JSON.stringify([...dismissed]));
         },
 
         celebrate() {
@@ -1564,6 +2097,9 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
         },
         cheer() {
             confetti({ particleCount: 45, spread: 65, origin: { x: 0.5, y: 0.45 }, colors: ['#d4a940', '#3d7a52', '#fdf6e3'] });
+        },
+        celebrateRiderAssigned() {
+            confetti({ particleCount: 50, spread: 70, origin: { x: 0.5, y: 0.4 }, colors: ['#d4a940', '#c8962e', '#3d7a52', '#fdf6e3'] });
         },
 
         async saveNote() {
@@ -1585,6 +2121,8 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
                 const data = await res.json().catch(() => ({}));
                 if (data.ok) {
                     this.order.customer_note = data.note;
+                    this.order.note_status = data.note_status;
+                    this.order.note_decision_message = data.note_decision_message;
                     this.noteSaved = true;
                     setTimeout(() => { this.noteSaved = false; }, 2500);
                 } else {
@@ -1624,6 +2162,251 @@ window.orderTrackingPage = function (initialOrder, justPlaced) {
             } finally {
                 this.cancelling = false;
             }
+        },
+    };
+};
+
+// rider rating popup (partials/rider-rating-popup.blade.php) — opened via the open-rider-rating
+// window event, dispatched by orderTrackingPage() the moment it sees a delivered, unrated order
+// (see maybePromptRating() above) or by the "Rate your delivery" reminder pill in the delivered
+// hero. Submission reuses the exact same star-picker interaction as the product review form
+// (reviewForm() above) — hover-scale, a quick select pulse, and a sparkle burst on 5★.
+window.riderRatingPopup = function () {
+    return {
+        open: false,
+        step: 'rate', // 'rate' | 'result'
+        orderId: null,
+        riderName: '',
+        riderPhoto: null,
+        rating: 0,
+        hoverRating: 0,
+        justRatedIndex: null,
+        showBurst: false,
+        comment: '',
+        submitting: false,
+        error: '',
+
+        init() {
+            window.addEventListener('open-rider-rating', (e) => {
+                this.orderId = e.detail.orderId;
+                this.riderName = e.detail.riderName || '';
+                this.riderPhoto = e.detail.riderPhoto || null;
+                this.step = 'rate';
+                this.rating = 0;
+                this.hoverRating = 0;
+                this.comment = '';
+                this.error = '';
+                this.open = true;
+            });
+        },
+        setRating(i) {
+            this.rating = i;
+            this.justRatedIndex = i;
+            setTimeout(() => {
+                if (this.justRatedIndex === i) this.justRatedIndex = null;
+            }, 450);
+            if (i === 5) {
+                this.showBurst = false;
+                this.$nextTick(() => { this.showBurst = true; });
+                setTimeout(() => { this.showBurst = false; }, 1100);
+            }
+        },
+        async submit() {
+            if (!this.rating || this.submitting) return;
+            this.submitting = true;
+            this.error = '';
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch(`/orders/${this.orderId}/rider-rating`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify({ rating: this.rating, comment: this.comment.trim() || null }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) {
+                    this.step = 'result';
+                    if (this.rating >= 3) this.celebrateRating();
+                    // droop animation is pure CSS (animate-droop on the emoji, see app.css) — no
+                    // JS trigger needed for the 1-2★ path
+                    // lets orderTrackingPage() hide the "Rate your delivery" pill right away instead
+                    // of waiting for its next 5s poll (which also carries the real needs_rating flag)
+                    window.dispatchEvent(new CustomEvent('rider-rating-submitted', { detail: { orderId: this.orderId } }));
+                } else {
+                    this.error = data.message || 'Could not submit your rating — please try again.';
+                }
+            } catch (e) {
+                this.error = 'Network error, please try again.';
+            } finally {
+                this.submitting = false;
+            }
+        },
+        // respects the same admin-chosen animation toggle every other delivery celebration in
+        // this app already does — 'minimal' skips confetti, the thank-you message still shows
+        celebrateRating() {
+            if (Alpine.store('shop').deliverySuccessAnimation === 'minimal') return;
+            confetti({ particleCount: 90, spread: 75, origin: { x: 0.5, y: 0.45 }, colors: ['#d4a940', '#c8962e', '#3d7a52', '#fdf6e3'] });
+        },
+        skip() {
+            this.open = false;
+        },
+        close() {
+            this.open = false;
+        },
+    };
+};
+
+// note-decision popup — opened via open-note-decision, dispatched by orderTrackingPage()'s
+// maybeShowNoteDecision() the moment an admin's accept/deny on the customer's "Note for the Shop"
+// is detected (live via poll, or on next page load if the customer wasn't watching). Single-step,
+// no input — just the reveal. Confetti-gated the same way celebrateRating()/celebrateFreeDelivery()
+// already are (unlike this same file's celebrate()/cheer(), which don't check the toggle).
+window.noteDecisionPopup = function () {
+    return {
+        open: false,
+        status: null, // 'accepted' | 'denied'
+        message: '',
+
+        init() {
+            window.addEventListener('open-note-decision', (e) => {
+                this.status = e.detail.status;
+                this.message = e.detail.message || '';
+                this.open = true;
+                if (this.status === 'accepted' && Alpine.store('shop').deliverySuccessAnimation !== 'minimal') {
+                    confetti({ particleCount: 70, spread: 70, origin: { x: 0.5, y: 0.45 }, colors: ['#d4a940', '#c8962e', '#3d7a52', '#fdf6e3'] });
+                }
+                // droop animation is pure CSS (animate-droop on the emoji) — no JS trigger needed
+                // for the denied path, same as riderRatingPopup's 1-2★ result
+            });
+        },
+        close() {
+            this.open = false;
+        },
+    };
+};
+
+// order-updated popup — opened via open-order-updated, dispatched by orderTrackingPage()'s
+// maybeShowOrderUpdated() the moment an admin adds product(s) to the customer's order (see
+// Admin\OrderController::addItems()) is detected (live via poll, or on next page load). Lists
+// every added item, same confetti gate as noteDecisionPopup() above.
+window.orderUpdatedPopup = function () {
+    return {
+        open: false,
+        items: [],
+
+        init() {
+            window.addEventListener('open-order-updated', (e) => {
+                this.items = e.detail.items || [];
+                this.open = true;
+                if (Alpine.store('shop').deliverySuccessAnimation !== 'minimal') {
+                    confetti({ particleCount: 70, spread: 70, origin: { x: 0.5, y: 0.45 }, colors: ['#d4a940', '#c8962e', '#3d7a52', '#fdf6e3'] });
+                }
+            });
+        },
+        close() {
+            this.open = false;
+        },
+    };
+};
+
+// product rating popup — opened via open-product-rating, dispatched by orderTrackingPage()'s
+// openProductRatingPopup() when the customer taps "⭐ Rate Products"/"View Your Reviews". Unlike
+// riderRatingPopup, this never auto-opens (click-triggered only) and rates a LIST of products,
+// each independently, reusing the existing product-page review endpoint unchanged — ratings are
+// product-scoped (not order-scoped), so "already rated" just means "rated this product before."
+window.productRatingPopup = function () {
+    return {
+        open: false,
+        orderId: null,
+        products: [], // [{ productId, slug, name, imageUrl, portionLabel, rating, hoverRating,
+                       //    justRatedIndex, showBurst, comment, savedComment, savingComment,
+                       //    justSaved, error }]
+        celebrated: false,
+
+        init() {
+            window.addEventListener('open-product-rating', (e) => {
+                this.orderId = e.detail.orderId;
+                this.products = e.detail.products.map((p) => ({
+                    productId: p.productId,
+                    slug: p.slug,
+                    name: p.name,
+                    imageUrl: p.imageUrl,
+                    portionLabel: p.portionLabel,
+                    rating: p.rating || 0,
+                    hoverRating: 0,
+                    justRatedIndex: null,
+                    showBurst: false,
+                    comment: p.comment || '',
+                    savedComment: p.comment || '',
+                    savingComment: false,
+                    justSaved: false,
+                    error: '',
+                }));
+                this.celebrated = false;
+                this.open = true;
+            });
+        },
+        ratedCount() {
+            return this.products.filter((p) => p.rating > 0).length;
+        },
+        allRated() {
+            return this.products.length > 0 && this.products.every((p) => p.rating > 0);
+        },
+        setRating(product, i) {
+            product.rating = i;
+            product.justRatedIndex = i;
+            setTimeout(() => {
+                if (product.justRatedIndex === i) product.justRatedIndex = null;
+            }, 450);
+            if (i === 5) {
+                product.showBurst = false;
+                this.$nextTick(() => { product.showBurst = true; });
+                setTimeout(() => { product.showBurst = false; }, 1100);
+            }
+            this.submitProduct(product);
+        },
+        saveComment(product) {
+            if (!product.rating || product.comment === product.savedComment || product.savingComment) return;
+            this.submitProduct(product);
+        },
+        async submitProduct(product) {
+            product.error = '';
+            product.savingComment = true;
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const form = new FormData();
+                form.append('rating', product.rating);
+                form.append('comment', product.comment || '');
+                // the EXISTING /product/{slug}/reviews endpoint, unmodified — same
+                // updateOrCreate(user_id, product_id) upsert the product page's own review form uses
+                const res = await fetch(`/product/${product.slug}/reviews`, {
+                    method: 'POST',
+                    headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: form,
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.ok) throw new Error(data.message || 'Something went wrong, please try again.');
+                product.savedComment = product.comment;
+                product.justSaved = true;
+                setTimeout(() => { product.justSaved = false; }, 1800);
+                // orderTrackingPage() can't reach into this popup's state — tell it via event
+                // instead of waiting for the next 5s poll, same pattern as rider-rating-submitted
+                window.dispatchEvent(new CustomEvent('product-rating-submitted', {
+                    detail: { orderId: this.orderId, productId: product.productId, rating: product.rating },
+                }));
+                if (this.allRated() && !this.celebrated) {
+                    this.celebrated = true;
+                    if (Alpine.store('shop').deliverySuccessAnimation !== 'minimal') {
+                        confetti({ particleCount: 90, spread: 75, origin: { x: 0.5, y: 0.45 }, colors: ['#d4a940', '#c8962e', '#3d7a52', '#fdf6e3'] });
+                    }
+                }
+            } catch (e) {
+                product.error = e.message || 'Network error, please try again.';
+            } finally {
+                product.savingComment = false;
+            }
+        },
+        close() {
+            this.open = false;
         },
     };
 };
@@ -1897,7 +2680,7 @@ window.supportChat = function (orderId, autoOpen = false) {
 
 // account page — sidebar tabs (Profile / Addresses / Rewards) plus a full address-book
 // CRUD reusing the same /addresses endpoints the checkout page's address picker uses
-window.accountPage = function (initialAddresses, initialReward, initialTab, initialFavorites) {
+window.accountPage = function (initialAddresses, initialReward, initialTab, initialFavorites, initialOrderId) {
     return {
         tab: initialTab || 'profile',
         addresses: initialAddresses || [],
@@ -1908,6 +2691,13 @@ window.accountPage = function (initialAddresses, initialReward, initialTab, init
         saving: false,
         formError: '',
         form: { label: '', address_line: '' },
+
+        // profile name lives in Alpine.store('user') (see app.js bottom), not local state — that
+        // way editing it here also updates the navbar dropdown instantly, with no page reload
+        editingName: false,
+        nameDraft: '',
+        savingName: false,
+        nameError: '',
 
         // My Orders — viewing a single order renders inline (fetched as HTML and mounted into
         // $refs.orderDetailPanel) instead of navigating to a separate page
@@ -1924,6 +2714,52 @@ window.accountPage = function (initialAddresses, initialReward, initialTab, init
             this.$nextTick(() => {
                 this.$el.querySelectorAll('[data-countup]').forEach((el) => this.countUp(el, parseInt(el.dataset.countup, 10) || 0));
             });
+
+            // reopens whatever order the customer was looking at — see syncOrderUrl(), which
+            // is what put ?tab=orders&order=ID in the address bar in the first place
+            if (initialOrderId) this.viewOrder(initialOrderId);
+        },
+        // every tab button calls this (instead of assigning `tab` directly) so navigating away
+        // from an open order also clears it from the address bar — otherwise a refresh from,
+        // say, the Profile tab would bounce back into the order the customer already left
+        setTab(t) {
+            this.tab = t;
+            if (this.viewingOrderId !== null) this.backToOrders();
+            else this.syncOrderUrl(null);
+        },
+
+        startEditingName() {
+            this.nameDraft = this.$store.user.name;
+            this.nameError = '';
+            this.editingName = true;
+        },
+        async saveName() {
+            const trimmed = this.nameDraft.trim();
+            if (!trimmed) {
+                this.nameError = "Name can't be empty.";
+                return;
+            }
+            this.savingName = true;
+            this.nameError = '';
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch('/account/name', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify({ name: trimmed }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) {
+                    this.$store.user.name = data.name;
+                    this.editingName = false;
+                } else {
+                    this.nameError = data.message || 'Could not save your name — please try again.';
+                }
+            } catch (e) {
+                this.nameError = 'Network error, please try again.';
+            } finally {
+                this.savingName = false;
+            }
         },
 
         isFavorited(id) {
@@ -1947,13 +2783,16 @@ window.accountPage = function (initialAddresses, initialReward, initialTab, init
             if (!root) return;
             clearInterval(root._pollTimer);
             clearInterval(root._clockTimer);
+            clearTimeout(root._sorryTimer);
             Alpine.destroyTree(root);
             panel.innerHTML = '';
         },
         async viewOrder(id) {
+            this.tab = 'orders';
             this.viewingOrderId = id;
             this.orderLoadError = '';
             this.loadingOrder = true;
+            this.syncOrderUrl(id);
             try {
                 const res = await fetch(`/orders/${id}/partial`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                 if (!res.ok) throw new Error('request failed');
@@ -1971,6 +2810,19 @@ window.accountPage = function (initialAddresses, initialReward, initialTab, init
         backToOrders() {
             this.teardownOrderPanel(this.$refs.orderDetailPanel);
             this.viewingOrderId = null;
+            this.syncOrderUrl(null);
+        },
+        // keeps the address bar (and therefore a refresh) in sync with the active tab and
+        // (if on Orders) which order is open — same copy-other-params-then-set-one pattern as
+        // admin.js's performSearch()
+        syncOrderUrl(id) {
+            const url = new URL(window.location.pathname, window.location.origin);
+            new URLSearchParams(window.location.search).forEach((value, key) => {
+                if (key !== 'order' && key !== 'tab') url.searchParams.set(key, value);
+            });
+            url.searchParams.set('tab', this.tab);
+            if (id) url.searchParams.set('order', id);
+            window.history.replaceState(null, '', url.toString());
         },
         countUp(el, end) {
             const duration = 1000;
@@ -2155,6 +3007,10 @@ window.notificationsBell = function () {
         init() {
             this.refresh();
             this.timer = setInterval(() => this.refresh(), 15000);
+            // a generic hook other components can nudge instead of waiting out this bell's own
+            // independent 15s cycle — currently only orderTrackingPage() uses it, right after
+            // detecting a fresh item removal on the order being viewed
+            window.addEventListener('notifications-refresh', () => this.refresh());
         },
         async refresh() {
             try {
@@ -2169,6 +3025,12 @@ window.notificationsBell = function () {
         },
         toggle() {
             this.open = !this.open;
+            if (this.open) {
+                this.$nextTick(() => {
+                    this.positionPanel();
+                    requestAnimationFrame(() => this.positionPanel());
+                });
+            }
             if (this.open && this.unread > 0) this.markAllRead();
         },
         async markAllRead() {
@@ -2204,8 +3066,47 @@ window.notificationsBell = function () {
                 });
             } catch (e) {}
         },
+
+        // the bell isn't the last icon in the header (avatar + hamburger follow it), so a
+        // CSS-only anchor either overflows off-screen on narrow phones (anchored tight to the
+        // bell) or lands with an awkward gap past the bell (anchored to the header's far edge).
+        // Measuring the real position here gets the best of both: right-edge-aligned with the
+        // bell whenever there's room, nudged just enough to stay on-screen when there isn't.
+        //
+        // Called once in $nextTick right after opening, then again on the following animation
+        // frame — mobile browsers can report a slightly stale button position on that very first
+        // call right after page load (web font swap, dynamic toolbar settling, etc.), so the
+        // second pass self-corrects before the enter transition finishes fading in.
+        positionPanel() {
+            const button = this.$refs.bellButton;
+            const panel = this.$refs.panel;
+            if (!button || !panel) return;
+            const buttonRect = button.getBoundingClientRect();
+            const margin = 12;
+            // clientWidth ignores any transient scrollbar/zoom quirks that innerWidth can report
+            const vw = Math.min(window.innerWidth, document.documentElement.clientWidth) || window.innerWidth;
+            const panelWidth = panel.offsetWidth || 320;
+
+            // sanity guard: a bad/zero measurement (button not yet laid out) shouldn't produce a
+            // wildly off-screen panel — fall back to flush-right-of-viewport instead
+            if (!buttonRect.right || buttonRect.right < 0) {
+                panel.style.right = `${margin}px`;
+                panel.style.top = `${(button.getBoundingClientRect().bottom || 60) + 12}px`;
+                return;
+            }
+
+            const rightEdge = Math.min(Math.max(buttonRect.right, margin + panelWidth), vw - margin);
+            panel.style.right = `${vw - rightEdge}px`;
+            panel.style.top = `${buttonRect.bottom + 12}px`;
+        },
     };
 };
+
+// single source of truth for the logged-in customer's display name, so editing it on the account
+// page (accountPage().saveName()) updates the navbar dropdown too, without a page reload
+Alpine.store('user', {
+    name: window.__mbUserName || '',
+});
 
 Alpine.store('shop', {
     accepting: (window.__mbShopStatus || {}).accepting !== false,
@@ -2230,6 +3131,8 @@ Alpine.store('shop', {
     highDemandFeeMessage: (window.__mbShopStatus || {}).highDemandFeeMessage || null,
     highDemandStopMessage: (window.__mbShopStatus || {}).highDemandStopMessage || null,
     deliveryTimeMinutes: (window.__mbShopStatus || {}).deliveryTimeMinutes || 0,
+    codEnabled: (window.__mbShopStatus || {}).codEnabled !== false,
+    razorpayEnabled: (window.__mbShopStatus || {}).razorpayEnabled !== false,
 
     deliveryFee(subtotal) {
         if (this.deliveryFeeStrategy === 'free_above_minimum') {
@@ -2340,10 +3243,18 @@ function pollShopStatus() {
             store.highDemandFeeMessage = data.high_demand_fee_message || null;
             store.highDemandStopMessage = data.high_demand_stop_message || null;
             store.deliveryTimeMinutes = data.delivery_time_estimate_minutes || 0;
+            store.codEnabled = data.cod_enabled !== false;
+            store.razorpayEnabled = data.razorpay_enabled !== false;
         })
         .catch(() => {});
 }
 setInterval(pollShopStatus, 5000);
+
+// PWA installability — bare passthrough service worker (see public/sw.js), registered only from
+// this customer-facing bundle, never admin.js/rider.js. Pairs with window.installPrompt() below.
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+}
 
 window.Alpine = Alpine;
 Alpine.start();

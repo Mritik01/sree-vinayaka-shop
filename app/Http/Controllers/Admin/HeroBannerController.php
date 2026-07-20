@@ -52,6 +52,7 @@ class HeroBannerController extends Controller
                 // are shared static assets and may be referenced elsewhere
                 if ($heroBanner->image_path && str_starts_with($heroBanner->image_path, 'images/hero/banner-')) {
                     @unlink(public_path($heroBanner->image_path));
+                    @unlink(public_path(self::mobileVariantPath($heroBanner->image_path)));
                 }
                 $data['image_path'] = $imagePath;
             }
@@ -73,11 +74,21 @@ class HeroBannerController extends Controller
     {
         if ($heroBanner->image_path && str_starts_with($heroBanner->image_path, 'images/hero/banner-')) {
             @unlink(public_path($heroBanner->image_path));
+            @unlink(public_path(self::mobileVariantPath($heroBanner->image_path)));
         }
 
         $heroBanner->delete();
 
         return redirect()->route('admin.hero-banners.index')->with('status', 'Hero banner deleted.');
+    }
+
+    // derives the companion mobile-resized variant's path from the full-size image's path —
+    // a plain filename convention (no new DB column) so hero-slider.blade.php can look it up
+    // for srcset without any schema change. Public/static so both this controller and the view
+    // agree on the exact same convention.
+    public static function mobileVariantPath(string $imagePath): string
+    {
+        return preg_replace('/\.(jpe?g|png)$/i', '-mobile.jpg', $imagePath);
     }
 
     private function validateData(Request $request): array
@@ -134,6 +145,41 @@ class HeroBannerController extends Controller
 
         file_put_contents($directory.'/'.$filename, $binary);
 
-        return 'images/hero/'.$filename;
+        $imagePath = 'images/hero/'.$filename;
+        $this->generateMobileVariant($binary, $directory.'/'.basename(self::mobileVariantPath($imagePath)));
+
+        return $imagePath;
+    }
+
+    // a smaller companion image so phones don't download the same ~1700px-wide crop desktop
+    // gets — the hero banner is this site's LCP element, and that was measured costing real
+    // seconds on slow mobile connections. Best-effort: if GD can't decode/write for any reason,
+    // the full-size image_path alone still works fine (see the file_exists guard in
+    // hero-slider.blade.php), so this never blocks the upload itself.
+    private function generateMobileVariant(string $binary, string $destPath): void
+    {
+        $targetWidth = 800;
+
+        $src = @imagecreatefromstring($binary);
+        if (!$src) {
+            return;
+        }
+
+        $width = imagesx($src);
+        $height = imagesy($src);
+
+        if ($width <= $targetWidth) {
+            imagejpeg($src, $destPath, 82);
+            imagedestroy($src);
+            return;
+        }
+
+        $targetHeight = (int) round($height * ($targetWidth / $width));
+        $dst = imagecreatetruecolor($targetWidth, $targetHeight);
+        imagecopyresampled($dst, $src, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+        imagejpeg($dst, $destPath, 82);
+
+        imagedestroy($src);
+        imagedestroy($dst);
     }
 }

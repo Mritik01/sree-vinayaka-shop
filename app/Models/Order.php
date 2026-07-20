@@ -34,6 +34,7 @@ class Order extends Model
         'subtotal',
         'discount_amount',
         'total',
+        'amount_paid',
         'status',
         'eta_minutes',
         'payment_method',
@@ -47,6 +48,10 @@ class Order extends Model
         'razorpay_refund_id',
         'refunded_at',
         'customer_note',
+        'note_status',
+        'note_decision_message',
+        'note_decided_by_admin_id',
+        'note_decided_at',
         'is_gift_order',
         'cancelled_by',
         'cancellation_reason',
@@ -66,6 +71,7 @@ class Order extends Model
         'paid_at' => 'datetime',
         'refunded_at' => 'datetime',
         'delivery_photo_uploaded_at' => 'datetime',
+        'note_decided_at' => 'datetime',
         'is_gift_order' => 'boolean',
     ];
 
@@ -84,9 +90,22 @@ class Order extends Model
         return $this->belongsTo(Coupon::class);
     }
 
+    public function noteDecidedByAdmin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'note_decided_by_admin_id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    // items() minus anything an admin has removed for unavailability — the invoice, the admin's
+    // main packing list, and the customer's bill/total all read through this, never items()
+    // directly, so a removed item can never silently reappear in a total or a printed document
+    public function activeItems(): HasMany
+    {
+        return $this->items()->whereNull('removed_at');
     }
 
     public function fees(): HasMany
@@ -102,6 +121,11 @@ class Order extends Model
     public function latestSupportMessage(): HasOne
     {
         return $this->hasOne(SupportMessage::class)->latestOfMany();
+    }
+
+    public function riderRating(): HasOne
+    {
+        return $this->hasOne(RiderRating::class);
     }
 
     public function isCustomerCancellable(): bool
@@ -121,10 +145,24 @@ class Order extends Model
         return $this->created_at->addMinutes(self::CUSTOMER_CANCEL_WINDOW_MINUTES)->valueOf();
     }
 
-    // how much of this order's total hasn't been refunded yet — the max a new refund can ask for
+    // how much of what was actually captured hasn't been refunded yet — the max a new refund can
+    // ask for. Deliberately based on amount_paid (frozen the instant Razorpay confirmed payment),
+    // not `total` — Order::recalculateTotals() can shrink `total` after an item removal, and the
+    // shop still owes the customer the full difference from what was genuinely charged.
     public function refundableAmount(): int
     {
-        return max(0, $this->total - $this->refunded_amount);
+        return max(0, ($this->amount_paid ?? $this->total) - $this->refunded_amount);
+    }
+
+    // convenience for the admin order page's "already paid ₹X, new total is ₹Y" note — 0 unless
+    // an item removal has actually left the order owing the customer money back
+    public function unrefundedGapFromRemovedItems(): int
+    {
+        if ($this->payment_method !== 'razorpay' || $this->payment_status !== 'paid' || $this->amount_paid === null) {
+            return 0;
+        }
+
+        return max(0, $this->amount_paid - $this->total - $this->refunded_amount);
     }
 
     public function isRefundable(): bool
@@ -133,6 +171,27 @@ class Order extends Model
             && $this->payment_status === 'paid'
             && $this->razorpay_payment_id
             && $this->refundableAmount() > 0;
+    }
+
+    // Cash the rider still needs to collect on delivery. One uniform formula for every case:
+    //   COD (amount_paid NULL)                     → total - 0        = the full total (unchanged)
+    //   Razorpay-paid, untouched                   → total - total    = 0 (nothing to collect)
+    //   Razorpay-paid + admin added items later    → newTotal - paid  = just the difference
+    // amount_paid stays frozen at Razorpay capture, so this never disturbs the refund stack —
+    // when total rises past amount_paid, unrefundedGapFromRemovedItems() simply returns 0.
+    public function balanceDueOnDelivery(): int
+    {
+        return max(0, $this->total - (int) ($this->amount_paid ?? 0));
+    }
+
+    // true only for an already-paid online order that now owes more because items were added
+    // after payment — gates the "collect the difference on delivery" UI without touching the
+    // ordinary paid-and-settled case (which reads balanceDueOnDelivery() === 0)
+    public function hasPostPaymentBalance(): bool
+    {
+        return $this->payment_method === 'razorpay'
+            && $this->payment_status === 'paid'
+            && $this->total > (int) ($this->amount_paid ?? 0);
     }
 
     /**
@@ -174,6 +233,29 @@ class Order extends Model
     public static function idFromOrderNumber(string $value): ?int
     {
         return preg_match('/^#?MKB-\d{4}-0*(\d+)$/i', trim($value), $m) ? (int) $m[1] : null;
+    }
+
+    /**
+     * Re-derives subtotal/discount/total from whatever items are still active, after an admin
+     * removes one for unavailability (see Admin\OrderController::removeItem()). Only the
+     * subtotal-dependent 'delivery' OrderFee row is recomputed — 'rain'/'high_demand' are flat
+     * surcharges unrelated to order value — and it's recomputed against *today's* ShopSetting
+     * rules (not whatever was true at checkout), per this feature's own spec.
+     */
+    public function recalculateTotals(): void
+    {
+        $subtotal = (int) $this->activeItems()->sum('line_total');
+        $discount = ($this->coupon_id && $this->coupon) ? $this->coupon->discountFor($subtotal) : 0;
+
+        $deliveryFee = $this->fees()->where('key', 'delivery')->first();
+        if ($deliveryFee) {
+            $deliveryFee->update(['amount' => ShopSetting::current()->deliveryFeeFor($subtotal)]);
+        }
+
+        $this->subtotal = $subtotal;
+        $this->discount_amount = $discount;
+        $this->total = max(0, $subtotal - $discount + (int) $this->fees()->sum('amount'));
+        $this->save();
     }
 
     /**

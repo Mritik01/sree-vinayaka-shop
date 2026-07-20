@@ -10,7 +10,7 @@
             'order_number' => $order->orderNumber(),
             'customer_name' => $order->customer_name,
             'customer_phone' => $order->customer_phone,
-            'items_count' => $order->items->count(),
+            'items_count' => $order->items->whereNull('removed_at')->count(),
             'coupon_code' => $order->coupon->code ?? null,
             'total' => (int) $order->total,
             'status' => $order->status,

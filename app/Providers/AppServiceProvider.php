@@ -31,11 +31,23 @@ class AppServiceProvider extends ServiceProvider
             'rainFeeEnabled' => false, 'rainFeeAmount' => 0, 'rainFeeMessage' => null,
             'highDemandMode' => 'normal', 'highDemandFeeAmount' => 0, 'highDemandFeeMessage' => null, 'highDemandStopMessage' => null,
             'deliveryTimeMinutes' => null,
+            'codEnabled' => true, 'razorpayEnabled' => true,
         ];
         $promoPopupEnabled = true;
+        // the business contact number, shared site-wide — see ShopSetting::businessPhone*() for
+        // the tel:/wa.me/display formatting. Not part of $shopStatus/pollShopStatus() on purpose:
+        // this only needs to change on the next page load, not live within an open tab, so a
+        // plain View::share (recomputed once per request) is simpler than wiring it into the 5s poll
+        $businessPhone = null;
         try {
             if (Schema::hasTable('shop_settings')) {
                 $settings = ShopSetting::current();
+                $businessPhone = $settings->business_mobile_number ? [
+                    'digits' => $settings->business_mobile_number,
+                    'display' => $settings->businessPhoneDisplay(),
+                    'tel' => $settings->businessPhoneTelHref(),
+                    'whatsapp' => $settings->businessWhatsappHref(),
+                ] : null;
                 $shopStatus = [
                     'accepting' => $settings->accepting_orders,
                     'restricted' => $settings->restrict_delivery_area,
@@ -57,6 +69,8 @@ class AppServiceProvider extends ServiceProvider
                     'highDemandFeeMessage' => $settings->high_demand_mode === 'fee' ? $settings->highDemandFeeMessage() : null,
                     'highDemandStopMessage' => $settings->high_demand_mode === 'stop' ? $settings->highDemandStopMessage() : null,
                     'deliveryTimeMinutes' => $settings->delivery_time_estimate_minutes,
+                    'codEnabled' => $settings->cod_enabled,
+                    'razorpayEnabled' => $settings->razorpay_enabled,
                 ];
                 $promoPopupEnabled = $settings->promo_popup_enabled;
             }
@@ -67,6 +81,7 @@ class AppServiceProvider extends ServiceProvider
         View::share('acceptingOrders', $shopStatus['accepting']);
         View::share('shopStatus', $shopStatus);
         View::share('promoPopupEnabled', $promoPopupEnabled);
+        View::share('businessPhone', $businessPhone);
 
         // guarded the same way as $shopStatus above — a missing table or unreachable DB
         // must never crash every page, it just means no banner shows this request

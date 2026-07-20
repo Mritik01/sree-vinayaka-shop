@@ -26,14 +26,13 @@
     }
     }
 
-    $festivalOuter = scallopFramePath(100, 16, 3.4);
-    $festivalInner = scallopFramePath(100, 16, 2.5, 4.2);
+    $festivalOuter = scallopFramePath(100, 16, 2.4);
+    $festivalInner = scallopFramePath(100, 16, 1.8, 4.2);
 @endphp
 
 @if ($festivalProducts->isNotEmpty())
-    <section class="relative py-16 sm:py-20 overflow-hidden bg-gradient-to-b from-gold-50 via-cream to-cream"
-              x-data="{ shown: false }"
-              x-init="const io = new IntersectionObserver((entries) => { if (entries[0].isIntersecting) { shown = true; io.disconnect(); } }, { threshold: 0.1 }); io.observe($el)">
+    <section class="relative mt-6 sm:mt-10 py-12 sm:py-20 overflow-hidden bg-gradient-to-b from-gold-50 via-cream to-cream"
+              x-data="festivalSpecialCarousel()">
 
         {{-- ambient glow blobs, echoing the bestsellers/shop-by-range sections above --}}
         <div class="pointer-events-none absolute inset-0 overflow-hidden">
@@ -49,7 +48,7 @@
             </svg>
             <div class="absolute inset-x-0 flex justify-around px-2 sm:px-6" style="top: 12px">
                 @for ($i = 0; $i < 26; $i++)
-                    <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full {{ $i % 3 === 2 ? 'bg-gold-400' : 'bg-maroon-600' }} {{ $i % 3 === 2 ? 'animate-bulb-glow' : 'animate-bulb-glow-maroon' }}"
+                    <span class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full {{ $i % 2 === 1 ? 'hidden sm:inline-block' : '' }} {{ $i % 3 === 2 ? 'bg-gold-400' : 'bg-maroon-600' }} {{ $i % 3 === 2 ? 'animate-bulb-glow' : 'animate-bulb-glow-maroon' }}"
                           style="animation-delay: {{ $i * 0.12 }}s"></span>
                 @endfor
             </div>
@@ -65,18 +64,22 @@
             <span class="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-maroon-600 animate-bulb-glow-maroon" style="animation-delay: 1.1s"></span>
         </div>
 
-        <div class="relative max-w-7xl mx-auto px-4 sm:px-6">
+        <div class="relative max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12">
             <p class="text-center text-gold-600 tracking-[0.3em] uppercase text-xs font-semibold mb-2">✦ {{ __('Limited Time') }} ✦</p>
             <h2 class="section-heading">{{ __('Festival Special') }}</h2>
-            <p class="text-center text-maroon-500 mt-3 mb-10 sm:mb-14 max-w-xl mx-auto">{{ __('Our festival special treats will instantly sweeten your day!') }}</p>
+            <p class="text-center text-maroon-500 mt-3 mb-8 sm:mb-14 max-w-xl mx-auto">{{ __('Our festival special treats will instantly sweeten your day!') }}</p>
 
             <p class="sm:hidden text-center text-[11px] uppercase tracking-[0.2em] text-gold-600/80 mb-6 animate-pulse">← {{ __('swipe to explore') }} →</p>
 
-            <div class="flex overflow-x-auto snap-x snap-mandatory no-scrollbar gap-5 -mx-4 px-6 pb-4
-                        sm:flex-wrap sm:justify-center sm:gap-x-8 sm:gap-y-12 sm:overflow-visible sm:mx-0 sm:px-0 sm:pb-0">
+            {{-- always a horizontally-scrolling row, never wraps to new rows as the admin adds more
+                 products — auto-advances via festivalSpecialCarousel() (see app.js), pausing on
+                 hover/touch so it doesn't fight a customer who's actively swiping through --}}
+            <div x-ref="track" @mouseenter="paused = true" @mouseleave="paused = false"
+                 @touchstart="paused = true" @touchend="paused = false"
+                 class="flex overflow-x-auto snap-x snap-mandatory no-scrollbar gap-5 -mx-4 px-4 pb-4 sm:-mx-8 sm:px-8 lg:-mx-12 lg:px-12">
                 @foreach ($festivalProducts as $product)
                     <div x-data="{ added: false }"
-                         class="group relative flex flex-col items-center text-center shrink-0 snap-center w-48 sm:w-40 lg:w-44
+                         class="group relative flex flex-col items-center text-center shrink-0 snap-center w-40 sm:w-44
                                 transition-all duration-700 ease-out"
                          :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'"
                          style="transition-delay: {{ $loop->index * 90 }}ms">
@@ -96,7 +99,7 @@
                             <span class="absolute -top-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-gold-300 border-2 border-gold-500 shadow z-10"></span>
                         </a>
 
-                        <a href="{{ route('products.show', $product) }}" class="font-display font-semibold text-maroon-800 mt-4 hover:text-gold-600 transition">{{ $product->name }}</a>
+                        <a href="{{ route('products.show', $product) }}" class="block min-h-[2.5rem] leading-snug line-clamp-2 font-display font-semibold text-maroon-800 mt-3.5 hover:text-gold-600 transition">{{ $product->name }}</a>
 
                         <span class="inline-block mt-2.5 text-[11px] font-semibold px-3 py-1 rounded-full border border-gold-300/60 text-maroon-600">{{ $product->weight }}</span>
 

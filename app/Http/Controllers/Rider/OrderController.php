@@ -21,7 +21,15 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        return view('rider.orders.index', ['orders' => $this->queueForJs()]);
+        $rider = Auth::guard('rider')->user();
+
+        return view('rider.orders.index', [
+            'orders' => $this->queueForJs(),
+            'ratingAverage' => $rider->averageRating(),
+            'ratingCount' => $rider->ratingsCount(),
+            'ratingDistribution' => $rider->ratingDistribution(),
+            'latestRatings' => $rider->ratings()->with('user:id,name')->whereNotNull('comment')->latest()->limit(6)->get(),
+        ]);
     }
 
     // polled by the deliveries list every few seconds so a freshly-assigned order (or one an
@@ -47,11 +55,15 @@ class OrderController extends Controller
             'order_number' => $order->orderNumber(),
             'customer_name' => $order->customer_name,
             'delivery_address' => $order->delivery_address,
-            'items_count' => $order->items->count(),
+            'items_count' => $order->items->whereNull('removed_at')->count(),
             'total' => (int) $order->total,
             'status' => $order->status,
             'payment_method' => strtoupper($order->payment_method ?? 'COD'),
             'payment_status' => $order->payment_status,
+            // the actual cash to collect — equals total for COD (unchanged), 0 for a settled
+            // online payment, or just the difference when an admin added items after payment
+            // cleared — see Order::balanceDueOnDelivery()
+            'balance_due' => $order->balanceDueOnDelivery(),
         ])->values()->all();
     }
 

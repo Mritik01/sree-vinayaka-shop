@@ -15,8 +15,6 @@ use Razorpay\Api\Api;
 
 class CheckoutController extends Controller
 {
-    private const MAX_ORDERS_PER_HOUR = 4;
-
     public function show(Request $request)
     {
         $user = $request->user();
@@ -210,16 +208,32 @@ class CheckoutController extends Controller
         }
 
         $recentOrders = $user->orders()->where('created_at', '>=', now()->subHour())->count();
-        if ($recentOrders >= self::MAX_ORDERS_PER_HOUR) {
+        if ($recentOrders >= $settings->max_orders_per_hour) {
             return response()->json([
                 'ok' => false,
                 'message' => "You've placed too many orders in the last hour. Please wait a bit before ordering again.",
             ], 429);
         }
 
+        // authoritative — never trust the client's submitted payment_method; the admin can
+        // disable either method from Configuration and the customer's page may not have
+        // refreshed yet
+        $paymentMethod = $data['payment_method'] ?? 'cod';
+        if ($paymentMethod === 'cod' && !$settings->cod_enabled) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Cash on Delivery is currently unavailable. Please pay online instead.',
+            ], 422);
+        }
+        if ($paymentMethod === 'razorpay' && !$settings->razorpay_enabled) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Online payment is currently unavailable. Please choose Cash on Delivery.',
+            ], 422);
+        }
+
         // a customer who didn't accept a previous COD order must pay online for this many
         // orders before COD is available to them again
-        $paymentMethod = $data['payment_method'] ?? 'cod';
         if ($paymentMethod === 'cod' && $user->cod_blocked_orders > 0) {
             return response()->json([
                 'ok' => false,

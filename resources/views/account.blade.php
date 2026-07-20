@@ -12,7 +12,7 @@
     </div>
 
     <div class="relative max-w-6xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-10 xl:px-16"
-         x-data='accountPage(@json($addresses), @json($reward), {{ json_encode($initialTab) }}, @json($favoriteProducts->pluck("id")))'>
+         x-data='accountPage(@json($addresses), @json($reward), {{ json_encode($initialTab) }}, @json($favoriteProducts->pluck("id")), @json($initialOrderId))'>
 
         <nav class="text-sm text-maroon-500 flex items-center gap-2 mb-6">
             <a href="/" class="hover:text-gold-600 transition">Home</a>
@@ -26,18 +26,17 @@
             <div class="lg:sticky lg:top-28 animate-fade-up">
                 {{-- mini profile (desktop only) --}}
                 <div class="hidden lg:flex items-center gap-3 bg-white rounded-2xl border border-gold-200/60 shadow-sm p-4 mb-3">
-                    <div class="w-11 h-11 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 grid place-items-center text-lg font-display font-bold text-maroon-900 ring-2 ring-gold-300/50 ring-offset-2 ring-offset-white shrink-0">
-                        {{ strtoupper(mb_substr(Auth::user()->name, 0, 1)) }}
+                    <div class="w-11 h-11 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 grid place-items-center text-lg font-display font-bold text-maroon-900 ring-2 ring-gold-300/50 ring-offset-2 ring-offset-white shrink-0" x-text="$store.user.name.charAt(0).toUpperCase()">
                     </div>
                     <div class="min-w-0">
-                        <p class="font-display font-semibold text-maroon-800 text-sm truncate">{{ Auth::user()->name }}</p>
+                        <p class="font-display font-semibold text-maroon-800 text-sm truncate" x-text="$store.user.name"></p>
                         <p class="text-xs text-maroon-400 truncate">{{ Auth::user()->phone }}</p>
                     </div>
                 </div>
 
                 <div class="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0 lg:bg-white lg:rounded-2xl lg:border lg:border-gold-200/60 lg:shadow-sm lg:p-3">
                     @foreach ([['profile', '👤', 'Profile'], ['orders', '🧾', 'My Orders'], ['favorites', '❤️', 'My Favorites'], ['addresses', '📍', 'Addresses'], ['rewards', '🎁', 'Rewards']] as [$key, $icon, $label])
-                        <button type="button" @click="tab = '{{ $key }}'"
+                        <button type="button" @click="setTab('{{ $key }}')"
                                 class="group shrink-0 flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-left whitespace-nowrap lg:w-full"
                                 :class="tab === '{{ $key }}'
                                     ? 'bg-gradient-to-r from-maroon-700 to-maroon-600 text-cream shadow-md'
@@ -85,12 +84,11 @@
 
                         <div class="relative px-6 sm:px-8 pb-6">
                             <div class="flex flex-col sm:flex-row sm:items-start gap-4 -mt-12">
-                                <div class="w-24 h-24 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 grid place-items-center text-4xl font-display font-bold text-maroon-900 ring-4 ring-white shadow-xl shrink-0 animate-track-pop">
-                                    {{ strtoupper(mb_substr(Auth::user()->name, 0, 1)) }}
+                                <div class="w-24 h-24 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 grid place-items-center text-4xl font-display font-bold text-maroon-900 ring-4 ring-white shadow-xl shrink-0 animate-track-pop" x-text="$store.user.name.charAt(0).toUpperCase()">
                                 </div>
                                 {{-- pushed down past the banner edge so the maroon name never sits on the maroon banner --}}
                                 <div class="min-w-0 sm:mt-14">
-                                    <p class="font-display font-bold text-2xl text-maroon-800 truncate">{{ Auth::user()->name }}</p>
+                                    <p class="font-display font-bold text-2xl text-maroon-800 truncate" x-text="$store.user.name"></p>
                                     <div class="flex items-center gap-2 flex-wrap mt-1.5">
                                         <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-maroon-600 bg-cream border border-gold-200/70 rounded-full px-3 py-1">📱 {{ Auth::user()->phone }}</span>
                                         <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-gold-700 bg-gold-100/70 border border-gold-300/60 rounded-full px-3 py-1">🗓️ Member since {{ Auth::user()->created_at->format('M Y') }}</span>
@@ -116,13 +114,13 @@
                                 <p class="text-maroon-400 text-xs mt-0.5">{{ $card['label'] }}</p>
                             </div>
                         @endforeach
-                        <button type="button" @click="tab = 'favorites'"
+                        <button type="button" @click="setTab('favorites')"
                                 class="relative overflow-hidden bg-white bg-gradient-to-br from-maroon-400/10 to-maroon-400/0 border-maroon-400/30 rounded-2xl border p-4 sm:p-5 text-left hover:-translate-y-1 hover:shadow-lg transition-all duration-300 animate-rise-in" style="animation-delay: 0.24s">
                             <span class="text-2xl">❤️</span>
                             <p class="font-display font-bold text-2xl sm:text-3xl text-maroon-800 mt-2" x-text="favorites.length"></p>
                             <p class="text-maroon-400 text-xs mt-0.5">Favourites <span class="text-gold-600">→</span></p>
                         </button>
-                        <button type="button" @click="tab = 'addresses'"
+                        <button type="button" @click="setTab('addresses')"
                                 class="relative overflow-hidden bg-white bg-gradient-to-br from-gold-400/15 to-gold-400/0 border-gold-300/60 rounded-2xl border p-4 sm:p-5 text-left hover:-translate-y-1 hover:shadow-lg transition-all duration-300 animate-rise-in" style="animation-delay: 0.32s">
                             <span class="text-2xl">📍</span>
                             <p class="font-display font-bold text-2xl sm:text-3xl text-maroon-800 mt-2" x-text="addresses.length"></p>
@@ -140,7 +138,28 @@
                         <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6 mt-6">
                             <div>
                                 <p class="text-xs font-semibold uppercase tracking-wide text-maroon-400">Full Name</p>
-                                <p class="text-maroon-800 font-medium mt-1.5">{{ Auth::user()->name }}</p>
+                                <template x-if="!editingName">
+                                    <div class="flex items-center gap-2 mt-1.5">
+                                        <p class="text-maroon-800 font-medium" x-text="$store.user.name"></p>
+                                        <button type="button" @click="startEditingName()" class="text-gold-600 hover:text-gold-700 text-xs font-semibold transition" title="Edit name">✏️</button>
+                                    </div>
+                                </template>
+                                <template x-if="editingName">
+                                    <div class="mt-1.5">
+                                        <div class="flex items-center gap-2">
+                                            <input type="text" x-model="nameDraft" maxlength="100" autofocus
+                                                   @keydown.enter="saveName()" @keydown.escape="editingName = false"
+                                                   class="w-full max-w-[180px] rounded-lg border border-gold-300/70 px-2.5 py-1.5 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                            <button type="button" @click="saveName()" :disabled="savingName || !nameDraft.trim()"
+                                                    class="shrink-0 text-xs font-semibold text-white bg-maroon-700 hover:bg-maroon-800 disabled:opacity-50 rounded-full px-3 py-1.5 transition">
+                                                <span x-show="!savingName">Save</span>
+                                                <span x-show="savingName" x-cloak>Saving…</span>
+                                            </button>
+                                            <button type="button" @click="editingName = false" class="shrink-0 text-xs text-maroon-400 hover:text-maroon-600 transition">Cancel</button>
+                                        </div>
+                                        <p x-show="nameError" x-cloak x-text="nameError" class="text-xs text-red-600 font-medium mt-1.5"></p>
+                                    </div>
+                                </template>
                             </div>
                             <div>
                                 <p class="text-xs font-semibold uppercase tracking-wide text-maroon-400">Mobile Number</p>
@@ -158,7 +177,7 @@
                                 <template x-if="!addresses.find((a) => a.is_default)">
                                     <p class="text-maroon-400 mt-1.5">No address saved yet</p>
                                 </template>
-                                <button type="button" @click="tab = 'addresses'" class="text-xs font-semibold text-gold-600 hover:text-gold-700 mt-2 inline-flex items-center gap-1 transition">
+                                <button type="button" @click="setTab('addresses')" class="text-xs font-semibold text-gold-600 hover:text-gold-700 mt-2 inline-flex items-center gap-1 transition">
                                     Manage addresses <span>→</span>
                                 </button>
                             </div>
@@ -167,7 +186,7 @@
 
                     {{-- reward teaser strip --}}
                     <template x-if="reward.configured">
-                        <button type="button" @click="tab = 'rewards'"
+                        <button type="button" @click="setTab('rewards')"
                                 class="w-full mt-5 rounded-2xl overflow-hidden text-left relative group animate-rise-in" style="animation-delay: 0.48s"
                                 :class="reward.available > 0 ? 'bg-gradient-to-r from-pink-500 via-gold-500 to-pink-500' : 'bg-gradient-to-r from-maroon-800 to-maroon-600'">
                             <div class="absolute inset-0 opacity-15" style="background-image: radial-gradient(circle, white 1.5px, transparent 1.5px); background-size: 16px 16px;"></div>
@@ -244,7 +263,7 @@
                                             </div>
 
                                             <div class="px-5 py-4 space-y-2">
-                                                @foreach ($order->items as $item)
+                                                @foreach ($order->items->whereNull('removed_at') as $item)
                                                     <div class="flex items-center justify-between text-sm">
                                                         <span class="text-maroon-700">
                                                             {{ $item->product_name }} <span class="text-maroon-400">× {{ $item->quantity }}</span>
@@ -262,7 +281,7 @@
                                                     @if ($order->discount_amount > 0)
                                                         Subtotal ₹{{ number_format($order->subtotal) }} − ₹{{ number_format($order->discount_amount) }} coupon
                                                     @else
-                                                        {{ $order->items->sum('quantity') }} item(s)
+                                                        {{ $order->items->whereNull('removed_at')->sum('quantity') }} item(s)
                                                     @endif
                                                 </span>
                                                 <span class="font-display font-semibold text-lg text-maroon-800">₹{{ number_format($order->total) }}</span>
@@ -319,7 +338,7 @@
                         <div x-show="favorites.length > 0" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                             @foreach ($favoriteProducts as $product)
                                 <div x-show="isFavorited({{ $product->id }})" x-transition.opacity.duration.300ms>
-                                    @include('partials.product-card', ['product' => $product])
+                                    @include('partials.product-card-mini', ['product' => $product, 'fixedWidth' => false])
                                 </div>
                             @endforeach
                         </div>

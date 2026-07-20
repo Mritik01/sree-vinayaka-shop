@@ -17,6 +17,16 @@ class LegalController extends Controller
         return $this->show('privacy');
     }
 
+    public function refund()
+    {
+        return $this->show('refund');
+    }
+
+    public function shipping()
+    {
+        return $this->show('shipping');
+    }
+
     private function show(string $type)
     {
         $document = LegalDocumentVersion::current($type);

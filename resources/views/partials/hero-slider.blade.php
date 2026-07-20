@@ -3,12 +3,16 @@
      reuses the existing heroSlider() Alpine autoplay/arrows/dots. --}}
 @if ($heroBanners->isNotEmpty())
     <section id="home" class="bg-ivory">
-        <div class="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 pt-4 sm:pt-6"
+        <div class="max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12 pt-4 sm:pt-6"
              x-data="heroSlider({{ $heroBanners->count() }})">
             <div @mouseenter="paused = true" @mouseleave="paused = false"
                  class="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-maroon-900 h-[240px] sm:h-[300px] lg:h-[360px] xl:h-[420px] shadow-md">
 
                 @foreach ($heroBanners as $i => $banner)
+                    {{-- first slide renders visible server-side (no inline display:none) so its
+                         image — the page's LCP element — can paint before Alpine has hydrated,
+                         instead of waiting on JS to reveal it; matches heroSlider()'s active:0
+                         initial state so there's no mismatch once Alpine mounts --}}
                     <div x-show="active === {{ $i }}"
                          x-transition:enter="transition ease-out duration-700"
                          x-transition:enter-start="opacity-0"
@@ -17,9 +21,25 @@
                          x-transition:leave-start="opacity-100"
                          x-transition:leave-end="opacity-0"
                          class="absolute inset-0"
-                         style="display: none;">
+                         @if ($i > 0) style="display: none;" @endif>
 
+                        @php
+                            // a smaller companion image (see HeroBannerController::generateMobileVariant)
+                            // so phones don't download the same desktop-width crop — file_exists guards
+                            // banners uploaded before this existed, so it degrades to plain $src cleanly
+                            $mobilePath = \App\Http\Controllers\Admin\HeroBannerController::mobileVariantPath($banner->image_path);
+                            $hasMobileVariant = file_exists(public_path($mobilePath));
+                            if ($hasMobileVariant) {
+                                $fullSize = @getimagesize(public_path($banner->image_path));
+                                $mobileSize = @getimagesize(public_path($mobilePath));
+                            }
+                        @endphp
                         <img src="{{ asset($banner->image_path) }}" alt="{{ $banner->title }}"
+                             @if ($hasMobileVariant && $fullSize && $mobileSize)
+                                 srcset="{{ asset($mobilePath) }} {{ $mobileSize[0] }}w, {{ asset($banner->image_path) }} {{ $fullSize[0] }}w"
+                                 sizes="100vw"
+                             @endif
+                             @if ($i === 0) fetchpriority="high" @else loading="lazy" @endif
                              class="absolute inset-0 w-full h-full object-cover animate-kenburns">
 
                         {{-- warm maroon scrim keeps any uploaded photo legible behind the text --}}
