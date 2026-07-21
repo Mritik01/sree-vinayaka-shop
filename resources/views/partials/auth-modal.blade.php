@@ -38,26 +38,26 @@
 
         {{-- left: image panel (hidden on mobile to keep the modal compact) — crossfades per step --}}
         <div class="hidden md:block relative overflow-hidden">
-            <img src="{{ asset('images/hero/hero-4.jpg') }}" alt="Shree Vinayak Family Shop — freshly stocked every morning"
+            <img src="{{ asset('images/hero/banner-exnIbaGlUE-modal.jpg') }}" alt="Shopping the fresh aisles at Shree Vinayak Family Shop"
                  x-show="step === 'phone'"
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-                 class="absolute inset-0 w-full h-full object-cover [object-position:62%_12%]">
-            <img src="{{ asset('images/hero/hero-5.jpg') }}" alt="Customer at Shree Vinayak Family Shop"
+                 class="absolute inset-0 w-full h-full object-cover">
+            <img src="{{ asset('images/hero/banner-sAegtFjyqV-modal.jpg') }}" alt="Fresh grocery delivery at your doorstep"
                  x-show="step === 'otp'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-                 class="absolute inset-0 w-full h-full object-cover [object-position:78%_18%]">
-            <img src="{{ asset('images/hero/hero-3.jpg') }}" alt="Shree Vinayak Family Shop gift box"
+                 class="absolute inset-0 w-full h-full object-cover">
+            <img src="{{ asset('images/hero/banner-yUpBQHJTcf-modal.jpg') }}" alt="Friendly checkout at Shree Vinayak Family Shop"
                  x-show="step === 'name'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                  class="absolute inset-0 w-full h-full object-cover">
-            <img src="{{ asset('images/hero/hero-2.jpg') }}" alt="Shree Vinayak Family Shop, ready to celebrate"
+            <img src="{{ asset('images/hero/banner-tdvBY0SAU3-modal.jpg') }}" alt="Grocery order delivered fresh to your door"
                  x-show="step === 'success'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-                 class="absolute inset-0 w-full h-full object-cover">
+                 class="absolute inset-0 w-full h-full object-cover [object-position:50%_20%]">
 
             <div class="absolute inset-0 bg-gradient-to-t from-maroon-900/85 via-maroon-900/20 to-maroon-900/10"></div>
 
