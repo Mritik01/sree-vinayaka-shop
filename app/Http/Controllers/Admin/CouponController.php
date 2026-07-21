@@ -14,7 +14,7 @@ class CouponController extends Controller
 
     public function index(Request $request)
     {
-        $query = Coupon::withCount(['redeemers' => fn ($q) => $q->wherePivotNotNull('redeemed_at')])
+        $query = Coupon::withCount(['redeemers' => fn ($q) => $q->whereNotNull('coupon_redemptions.redeemed_at')])
             ->with('assignedUsers:id,name')->latest();
 
         $search = trim((string) $request->get('q', ''));
