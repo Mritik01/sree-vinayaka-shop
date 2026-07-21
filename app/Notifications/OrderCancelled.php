@@ -5,13 +5,19 @@ namespace App\Notifications;
 use App\Models\Admin;
 use App\Models\Order;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class OrderCancelled extends Notification
+// queueable so sending this never blocks the request that triggered it — see AdminMessage.php.
+// This is the one notification with a real mail send (to every admin with an email set), so
+// it's the biggest beneficiary: today it blocks the cancelling request on N synchronous SMTP
+// round-trips (customer cancel, admin cancel, and the 5s auto-cancel sweep all trigger this).
+class OrderCancelled extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, SerializesModels;
 
     public function __construct(public Order $order)
     {

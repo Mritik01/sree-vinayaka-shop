@@ -27,7 +27,7 @@
 
             {{-- photo --}}
             <div class="relative">
-                <img src="{{ asset('images/promo/wedding-promo.jpg') }}" alt="Newlywed couple presenting a Makhanbhog Sweets gift box" class="w-full h-40 sm:h-48 object-cover object-[center_30%]">
+                <img src="{{ asset('images/promo/wedding-promo.jpg') }}" alt="Newlywed couple presenting a Shree Vinayak Family Shop gift box" class="w-full h-40 sm:h-48 object-cover object-[center_30%]">
                 <div class="absolute inset-0 bg-gradient-to-t from-maroon-900/30 to-transparent"></div>
 
                 <button @click="dismiss()" aria-label="Close"
@@ -50,7 +50,7 @@
                 <template x-if="step === 'form'">
                     <div>
                         <p class="text-maroon-500 text-sm mt-2">
-                            Apna naam aur mobile number daalein — hum OTP se verify karke best mithai package suggest karenge.
+                            Apna naam aur mobile number daalein — hum OTP se verify karke best package suggest karenge.
                         </p>
 
                         <form @submit.prevent="sendOtp()" class="mt-6 space-y-3">

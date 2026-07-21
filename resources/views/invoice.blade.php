@@ -28,16 +28,30 @@
     </style>
 </head>
 <body>
+    @php
+        // dompdf has enable_remote=false (config/dompdf.php) so it can't fetch asset() URLs, and
+        // its SVG support is unreliable — base64-embed the logo directly, raster only. No custom
+        // logo uploaded, or an SVG one, falls back to the existing text-only header unchanged.
+        $invoiceLogoDataUri = null;
+        $logoPath = \App\Models\ShopSetting::current()->business_logo_path;
+        if ($logoPath && preg_match('/\.(png|jpe?g)$/i', $logoPath, $m) && file_exists(public_path($logoPath))) {
+            $mime = strtolower($m[1]) === 'png' ? 'image/png' : 'image/jpeg';
+            $invoiceLogoDataUri = 'data:'.$mime.';base64,'.base64_encode(file_get_contents(public_path($logoPath)));
+        }
+    @endphp
     <table class="header-table">
         <tr>
             <td style="width: 60%; vertical-align: top;">
-                <p class="shop-name">Makhanbhog Sweets</p>
+                @if ($invoiceLogoDataUri)
+                    <img src="{{ $invoiceLogoDataUri }}" alt="Shree Vinayak Family Shop" style="height: 44px; margin-bottom: 6px;">
+                @endif
+                <p class="shop-name">Shree Vinayak Family Shop</p>
                 <p class="shop-meta">
-                    Main Market Road, Thuthibari<br>
+                    Roadways Bus Stand, Nichlaul Road, Siswa Bazar, Maharajganj, UP 273163<br>
                     @if ($businessPhone)
                         Phone: {{ $businessPhone['display'] }}<br>
                     @endif
-                    Thuthibari's favourite sweet shop since generations
+                    Siswa Bazar's favourite grocery store since generations
                 </p>
             </td>
             <td style="width: 40%; vertical-align: top;">
@@ -127,9 +141,9 @@
 
     <div class="footer-note">
         @if ($businessPhone)
-            Thank you for ordering from Makhanbhog Sweets! For any questions about this order, call us at {{ $businessPhone['display'] }}.<br>
+            Thank you for ordering from Shree Vinayak Family Shop! For any questions about this order, call us at {{ $businessPhone['display'] }}.<br>
         @else
-            Thank you for ordering from Makhanbhog Sweets!<br>
+            Thank you for ordering from Shree Vinayak Family Shop!<br>
         @endif
         This is a system-generated invoice and does not require a signature.
     </div>

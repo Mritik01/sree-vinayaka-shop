@@ -9,6 +9,8 @@ use App\Http\Controllers\Admin\BestsellerController as AdminBestsellerController
 use App\Http\Controllers\Admin\CategoryController as AdminCategoryController;
 use App\Http\Controllers\Admin\CouponController as AdminCouponController;
 use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
+use App\Http\Controllers\Admin\CustomizationController as AdminCustomizationController;
+use App\Http\Controllers\Admin\IncomeController as AdminIncomeController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\FeaturedCategoryController as AdminFeaturedCategoryController;
 use App\Http\Controllers\Admin\FestivalSpecialController as AdminFestivalSpecialController;
@@ -229,6 +231,10 @@ Route::post('/auth/complete-signup', [PhoneAuthController::class, 'completeSignu
 Route::post('/logout', [PhoneAuthController::class, 'logout'])
     ->name('logout');
 
+// the "Account Temporarily Restricted" screen itself — must come before the /account route
+// below and must NOT carry the not-blocked middleware (see AccountController::blocked())
+Route::get('/account/blocked', [AccountController::class, 'blocked'])->name('account.blocked');
+
 Route::get('/account', function () {
     if (!Auth::check()) {
         return redirect('/');
@@ -257,7 +263,7 @@ Route::get('/account', function () {
         // finds nothing rather than leaking whether that id exists
         'initialOrderId' => request()->filled('order') ? $user->orders()->whereKey(request('order'))->value('id') : null,
     ]);
-})->name('account');
+})->middleware('not-blocked')->name('account');
 
 // the standalone orders list is retired in favor of the account page's "My Orders" tab —
 // kept as a redirect so old bookmarks/links still land somewhere sensible
@@ -317,7 +323,7 @@ Route::get('/product/{product:slug}', function (Product $product) {
         ->orderBy('sort_order')
         ->get();
 
-    if ($related->count() < 4) {
+    if ($related->count() < 10) {
         $related = $related->concat(
             Product::where('id', '!=', $product->id)
                 ->whereNotIn('id', $related->pluck('id'))
@@ -335,7 +341,7 @@ Route::get('/product/{product:slug}', function (Product $product) {
 
     return view('product-show', [
         'product' => $product,
-        'related' => $related->take(4),
+        'related' => $related->take(10),
         'isFavorited' => in_array($product->id, $favoritedIds),
         'favoritedIds' => $favoritedIds,
         'reviews' => $reviews,
@@ -350,11 +356,11 @@ Route::post('/product/{product:slug}/reviews', [ReviewController::class, 'store'
     ->name('reviews.store');
 
 Route::post('/cart/{product:id}/add', [CartController::class, 'add'])
-    ->middleware('auth')
+    ->middleware(['auth', 'not-blocked'])
     ->name('cart.add');
 
 Route::patch('/cart/{product:id}', [CartController::class, 'updateQuantity'])
-    ->middleware('auth')
+    ->middleware(['auth', 'not-blocked'])
     ->name('cart.update');
 
 Route::delete('/cart/{product:id}', [CartController::class, 'remove'])
@@ -362,7 +368,7 @@ Route::delete('/cart/{product:id}', [CartController::class, 'remove'])
     ->name('cart.remove');
 
 Route::post('/coupon/apply', [CouponController::class, 'apply'])
-    ->middleware('auth')
+    ->middleware(['auth', 'not-blocked'])
     ->name('coupon.apply');
 
 Route::delete('/coupon/remove', [CouponController::class, 'remove'])
@@ -396,15 +402,15 @@ Route::get('/cart', function () {
 })->name('cart.index');
 
 Route::get('/checkout', [CheckoutController::class, 'show'])
-    ->middleware('auth')
+    ->middleware(['auth', 'not-blocked'])
     ->name('checkout.show');
 
 Route::post('/checkout', [CheckoutController::class, 'store'])
-    ->middleware('auth')
+    ->middleware(['auth', 'not-blocked'])
     ->name('checkout.store');
 
 Route::post('/checkout/razorpay/verify', [RazorpayController::class, 'verify'])
-    ->middleware('auth')
+    ->middleware(['auth', 'not-blocked'])
     ->name('checkout.razorpay.verify');
 
 // hit by Razorpay's servers directly, never by the browser — no session/CSRF, verified by signature instead
@@ -436,8 +442,28 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/settings/high-demand', [AdminDashboardController::class, 'updateHighDemandSettings'])->name('settings.high-demand');
         Route::patch('/settings/business-info', [AdminDashboardController::class, 'updateBusinessInfoSettings'])->name('settings.business-info');
 
+        // Application Customization (branding/theme) and Income are Super-Admin-only surfaces —
+        // gated by admin.super on top of admin.auth, same as Manage Admins. See EnsureSuperAdmin.
+        Route::middleware('admin.super')->group(function () {
+            Route::get('/customization', [AdminCustomizationController::class, 'index'])->name('customization.index');
+            Route::post('/customization/logo', [AdminCustomizationController::class, 'updateLogo'])->name('customization.logo.update');
+            Route::delete('/customization/logo', [AdminCustomizationController::class, 'destroyLogo'])->name('customization.logo.destroy');
+            Route::patch('/customization/theme', [AdminCustomizationController::class, 'updateTheme'])->name('customization.theme');
+
+            Route::prefix('income')->name('income.')->group(function () {
+                Route::get('/', [AdminIncomeController::class, 'index'])->name('index');
+                Route::get('/history', [AdminIncomeController::class, 'history'])->name('history');
+                Route::post('/reset-month', [AdminIncomeController::class, 'resetMonth'])->name('reset-month');
+                Route::get('/export/csv', [AdminIncomeController::class, 'exportCsv'])->name('export.csv');
+                Route::get('/export/pdf', [AdminIncomeController::class, 'exportPdf'])->name('export.pdf');
+            });
+        });
+
         Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
         Route::get('/orders/poll', [AdminOrderController::class, 'poll'])->name('orders.poll');
+        // must precede /orders/{order} — otherwise "export" would be swallowed by the
+        // route-model-binding parameter and 404 trying to resolve an order with that id
+        Route::get('/orders/export', [AdminOrderController::class, 'exportExcel'])->name('orders.export');
         Route::get('/orders/{order}', [AdminOrderController::class, 'show'])->name('orders.show');
         Route::get('/orders/{order}/status', [AdminOrderController::class, 'status'])->name('orders.status.poll');
         Route::patch('/orders/{order}/status', [AdminOrderController::class, 'updateStatus'])->name('orders.status');
@@ -458,6 +484,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/products/{product}/edit', [AdminProductController::class, 'edit'])->name('products.edit');
         Route::put('/products/{product}', [AdminProductController::class, 'update'])->name('products.update');
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy'])->name('products.destroy');
+        Route::patch('/products/{product}/toggle', [AdminProductController::class, 'toggle'])->name('products.toggle');
 
         Route::get('/categories', [AdminCategoryController::class, 'index'])->name('categories.index');
         Route::get('/categories/create', [AdminCategoryController::class, 'create'])->name('categories.create');
@@ -538,6 +565,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/customers', [AdminCustomerController::class, 'index'])->name('customers.index');
         Route::get('/customers/{user}', [AdminCustomerController::class, 'show'])->name('customers.show');
         Route::patch('/customers/{user}/clear-cod-restriction', [AdminCustomerController::class, 'clearCodRestriction'])->name('customers.clear-cod-restriction');
+        Route::patch('/customers/{user}/block', [AdminCustomerController::class, 'block'])->name('customers.block');
+        Route::patch('/customers/{user}/unblock', [AdminCustomerController::class, 'unblock'])->name('customers.unblock');
         Route::patch('/customers/{user}/name', [AdminCustomerController::class, 'updateName'])->name('customers.update-name');
         Route::post('/customers/notify-all', [AdminCustomerController::class, 'notifyAll'])->name('customers.notify-all');
         Route::post('/customers/{user}/notify', [AdminCustomerController::class, 'notify'])->name('customers.notify');
@@ -578,6 +607,7 @@ Route::prefix('rider')->name('rider.')->group(function () {
         Route::get('/orders/poll', [RiderOrderController::class, 'poll'])->name('orders.poll');
         Route::get('/orders/{order}', [RiderOrderController::class, 'show'])->name('orders.show');
         Route::patch('/orders/{order}/status', [RiderOrderController::class, 'updateStatus'])->name('orders.status');
+        Route::patch('/orders/{order}/payment-received', [RiderOrderController::class, 'markPaymentReceived'])->name('orders.payment-received');
         Route::post('/orders/{order}/photo', [RiderOrderController::class, 'uploadPhoto'])->name('orders.photo');
     });
 });

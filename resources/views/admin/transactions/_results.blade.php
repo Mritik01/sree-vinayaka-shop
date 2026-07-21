@@ -20,7 +20,9 @@
                 @php
                     $isCod = $order->payment_method !== 'razorpay';
                     $statusBadge = $isCod
-                        ? ['bg-gold-100 text-gold-600 border-gold-300/60', __('Cash on Delivery')]
+                        ? ($order->payment_status === 'paid'
+                            ? ['bg-pista-100 text-pista-600 border-pista-400/40', __('Paid (COD)')]
+                            : ['bg-gold-100 text-gold-600 border-gold-300/60', __('Cash on Delivery')])
                         : match ($order->payment_status) {
                             'paid' => ['bg-pista-100 text-pista-600 border-pista-400/40', __('Paid')],
                             'failed' => ['bg-red-50 text-red-600 border-red-200', __('Failed')],

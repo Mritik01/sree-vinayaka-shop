@@ -14,12 +14,19 @@ use App\Notifications\OrderCancelled;
 use App\Notifications\OrderItemsAdded;
 use App\Notifications\RiderAssigned;
 use App\Services\OrderAutoCancelService;
+use App\Services\PlatformIncomeService;
 use App\Services\RefundService;
 use App\Services\RewardService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class OrderController extends Controller
 {
@@ -29,10 +36,53 @@ class OrderController extends Controller
     // theirs gets cancelled (i.e. they didn't accept/take delivery of it) — see checkout.store()
     private const COD_BLOCK_STRIKES = 2;
 
-    public function index(Request $request)
+    // Quick Filters — "Last N Days/Months" are rolling windows ending today (today counts as
+    // day/month 1), while bare "This/Last Week|Month|Year" are calendar-aligned periods. Kept as
+    // its own method (rather than inline in applyOrderFilters) so exportExcel's filename can ask
+    // "what date range does this request actually resolve to" without duplicating the match.
+    private function resolveDateRange(Request $request): ?array
     {
-        $query = Order::with(['items', 'coupon'])->latest();
+        $quick = (string) $request->get('quick_filter', '');
+        $now = now();
 
+        if ($quick === 'custom') {
+            $from = $request->filled('from') ? Carbon::parse($request->from)->startOfDay() : null;
+            $to = $request->filled('to') ? Carbon::parse($request->to)->endOfDay() : null;
+
+            if ($from && $to) {
+                return [$from, $to];
+            }
+            if ($from) {
+                return [$from, $now->copy()->endOfDay()];
+            }
+            if ($to) {
+                return [Carbon::createFromTimestamp(0), $to];
+            }
+
+            return null;
+        }
+
+        return match ($quick) {
+            'today' => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+            'yesterday' => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
+            'last_2_days' => [$now->copy()->subDays(1)->startOfDay(), $now->copy()->endOfDay()],
+            'last_7_days' => [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()],
+            'last_week' => [$now->copy()->subWeek()->startOfWeek(), $now->copy()->subWeek()->endOfWeek()],
+            'this_week' => [$now->copy()->startOfWeek(), $now->copy()->endOfDay()],
+            'this_month' => [$now->copy()->startOfMonth(), $now->copy()->endOfDay()],
+            'last_month' => [$now->copy()->subMonthNoOverflow()->startOfMonth(), $now->copy()->subMonthNoOverflow()->endOfMonth()],
+            'last_3_months' => [$now->copy()->subMonths(3)->startOfDay(), $now->copy()->endOfDay()],
+            'last_6_months' => [$now->copy()->subMonths(6)->startOfDay(), $now->copy()->endOfDay()],
+            'this_year' => [$now->copy()->startOfYear(), $now->copy()->endOfDay()],
+            default => null,
+        };
+    }
+
+    // single filter-building path shared by index() (both the page load and its AJAX refresh),
+    // the stats aggregate, and exportExcel() — guarantees the export can never drift from what's
+    // actually on screen, since both read through this exact same method
+    private function applyOrderFilters(Builder $query, Request $request): Builder
+    {
         if ($request->filled('status') && in_array($request->status, Order::STATUSES)) {
             $query->where('status', $request->status);
         }
@@ -58,7 +108,70 @@ class OrderController extends Controller
             });
         }
 
-        $orders = $query->paginate($this->perPage($request))->withQueryString();
+        if ($range = $this->resolveDateRange($request)) {
+            $query->whereBetween('created_at', $range);
+        }
+
+        if ($request->filled('payment_status') && in_array($request->payment_status, ['pending', 'paid', 'failed'])) {
+            $query->where('payment_status', $request->payment_status);
+        }
+
+        if ($request->filled('payment_method') && in_array($request->payment_method, ['cod', 'razorpay'])) {
+            $query->where('payment_method', $request->payment_method);
+        }
+
+        if ($request->filled('rider_id')) {
+            $query->where('rider_id', (int) $request->rider_id);
+        }
+
+        if ($request->filled('amount_min')) {
+            $query->where('total', '>=', (int) $request->amount_min);
+        }
+        if ($request->filled('amount_max')) {
+            $query->where('total', '<=', (int) $request->amount_max);
+        }
+
+        return $query;
+    }
+
+    // one aggregate query (conditional SUMs) instead of 8 separate count()/sum() round-trips —
+    // runs against the exact same filtered set the table/export show, just before pagination
+    private function computeStats(Builder $query): array
+    {
+        $row = $query->selectRaw("
+            COUNT(*) as total_orders,
+            COALESCE(SUM(CASE WHEN status IN ('confirmed', 'out_for_delivery', 'delivered') THEN total ELSE 0 END), 0) as total_sales,
+            SUM(CASE WHEN status IN ('confirmed', 'out_for_delivery', 'delivered') THEN 1 ELSE 0 END) as sales_order_count,
+            SUM(CASE WHEN status = 'delivered' THEN 1 ELSE 0 END) as delivered_orders,
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_orders,
+            SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_orders,
+            SUM(CASE WHEN payment_method = 'cod' THEN 1 ELSE 0 END) as cod_orders,
+            SUM(CASE WHEN payment_method = 'razorpay' THEN 1 ELSE 0 END) as online_orders
+        ")->first();
+
+        $totalSales = (int) $row->total_sales;
+        $salesOrderCount = (int) $row->sales_order_count;
+
+        return [
+            'total_orders' => (int) $row->total_orders,
+            'total_sales' => $totalSales,
+            'delivered_orders' => (int) $row->delivered_orders,
+            'pending_orders' => (int) $row->pending_orders,
+            'cancelled_orders' => (int) $row->cancelled_orders,
+            'cod_orders' => (int) $row->cod_orders,
+            'online_orders' => (int) $row->online_orders,
+            'avg_order_value' => $salesOrderCount > 0 ? (int) round($totalSales / $salesOrderCount) : 0,
+        ];
+    }
+
+    public function index(Request $request)
+    {
+        $stats = $this->computeStats($this->applyOrderFilters(Order::query(), $request));
+
+        $orders = $this->applyOrderFilters(Order::with(['items', 'coupon']), $request)
+            ->latest()
+            ->paginate($this->perPage($request))
+            ->withQueryString();
 
         // live keystroke search — the table is Alpine-array-driven (for the real-time new-order
         // insert feature), so instead of an HTML swap we just hand back fresh row data as JSON
@@ -67,14 +180,122 @@ class OrderController extends Controller
                 'orders' => collect($orders->items())->map(fn ($order) => $this->orderRowForJs($order))->values(),
                 'total' => $orders->total(),
                 'per_page' => $orders->perPage(),
+                'stats' => $stats,
             ]);
         }
 
         return view('admin.orders.index', [
             'orders' => $orders,
             'statusFilter' => $request->status,
-            'search' => $search,
+            'search' => $request->get('q', ''),
+            'stats' => $stats,
+            'riders' => Rider::orderBy('name')->get(['id', 'name']),
+            'filters' => [
+                'quick_filter' => $request->get('quick_filter', ''),
+                'from' => $request->get('from', ''),
+                'to' => $request->get('to', ''),
+                'payment_status' => $request->get('payment_status', ''),
+                'payment_method' => $request->get('payment_method', ''),
+                'rider_id' => $request->get('rider_id', ''),
+                'amount_min' => $request->get('amount_min', ''),
+                'amount_max' => $request->get('amount_max', ''),
+            ],
         ]);
+    }
+
+    // mirrors index()'s exact filter set (see applyOrderFilters) — "export only the currently
+    // filtered data" is guaranteed by construction, not by keeping two filter implementations
+    // in sync by hand. Streamed + chunked so a large date range doesn't load every matching
+    // order into memory at once.
+    public function exportExcel(Request $request)
+    {
+        [$fromDate, $toDate] = $this->resolveDateRange($request)
+            ?? $this->exportFallbackDateBounds($request);
+
+        $filename = 'Orders_'.$fromDate->format('d-m-Y').'_to_'.$toDate->format('d-m-Y').'.xlsx';
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Orders');
+
+        $headers = [
+            'Order ID', 'Customer Name', 'Mobile Number', 'Order Date & Time', 'Order Status',
+            'Payment Status', 'Payment Method', 'Total Amount', 'Delivery Charge', 'Discount',
+            'Delivery Partner', 'Delivery Date', 'Number of Products',
+        ];
+        $sheet->fromArray($headers, null, 'A1');
+        $sheet->getStyle('A1:M1')->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1:M1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('7A1622');
+        $sheet->getRowDimension(1)->setRowHeight(20);
+
+        $dateFormat = 'dd-mm-yyyy hh:mm AM/PM';
+        $currencyFormat = '₹#,##0';
+
+        $rowNum = 2;
+        $query = $this->applyOrderFilters(
+            Order::with(['items:id,order_id,removed_at', 'rider:id,name', 'fees:id,order_id,key,amount']),
+            $request
+        )->latest();
+
+        $query->chunk(500, function ($orders) use ($sheet, &$rowNum) {
+            foreach ($orders as $order) {
+                $deliveryCharge = (int) ($order->fees->firstWhere('key', 'delivery')->amount ?? 0);
+
+                $sheet->setCellValue("A{$rowNum}", $order->orderNumber());
+                $sheet->setCellValue("B{$rowNum}", $order->customer_name);
+                $sheet->setCellValueExplicit("C{$rowNum}", $order->customer_phone, DataType::TYPE_STRING);
+                $sheet->setCellValue("D{$rowNum}", ExcelDate::PHPToExcel($order->created_at));
+                $sheet->setCellValue("E{$rowNum}", ucfirst(str_replace('_', ' ', $order->status)));
+                $sheet->setCellValue("F{$rowNum}", ucfirst($order->payment_status ?? 'pending'));
+                $sheet->setCellValue("G{$rowNum}", strtoupper($order->payment_method ?? 'cod'));
+                $sheet->setCellValue("H{$rowNum}", (int) $order->total);
+                $sheet->setCellValue("I{$rowNum}", $deliveryCharge);
+                $sheet->setCellValue("J{$rowNum}", (int) $order->discount_amount);
+                $sheet->setCellValue("K{$rowNum}", $order->rider->name ?? '—');
+                if ($order->delivered_at) {
+                    $sheet->setCellValue("L{$rowNum}", ExcelDate::PHPToExcel($order->delivered_at));
+                } else {
+                    $sheet->setCellValue("L{$rowNum}", '—');
+                }
+                $sheet->setCellValue("M{$rowNum}", $order->items->whereNull('removed_at')->count());
+
+                $rowNum++;
+            }
+        });
+
+        $lastRow = $rowNum - 1;
+        if ($lastRow >= 2) {
+            $sheet->getStyle("D2:D{$lastRow}")->getNumberFormat()->setFormatCode($dateFormat);
+            $sheet->getStyle("L2:L{$lastRow}")->getNumberFormat()->setFormatCode($dateFormat);
+            $sheet->getStyle("H2:J{$lastRow}")->getNumberFormat()->setFormatCode($currencyFormat);
+        }
+
+        foreach (range('A', 'M') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    // when no quick/custom date filter is active, the filename still needs a meaningful range —
+    // labelled with the earliest/latest order actually in the filtered set, falling back to
+    // "today" for both ends if the filter matches nothing at all
+    private function exportFallbackDateBounds(Request $request): array
+    {
+        $bounds = $this->applyOrderFilters(Order::query(), $request)
+            ->selectRaw('MIN(created_at) as min_at, MAX(created_at) as max_at')
+            ->first();
+
+        return [
+            $bounds->min_at ? Carbon::parse($bounds->min_at) : now(),
+            $bounds->max_at ? Carbon::parse($bounds->max_at) : now(),
+        ];
     }
 
     private function orderRowForJs(Order $order): array
@@ -557,6 +778,11 @@ class OrderController extends Controller
         // advance the customer's reward-stamp progress the moment an order first lands as delivered
         if (!$wasDelivered && $order->status === 'delivered' && $order->user) {
             RewardService::recordDelivery($order->user);
+        }
+
+        // platform income (₹15 fixed + 50% of the delivery charge) — see PlatformIncomeService
+        if (!$wasDelivered && $order->status === 'delivered') {
+            PlatformIncomeService::recordForDelivery($order);
         }
 
         if ($request->wantsJson()) {

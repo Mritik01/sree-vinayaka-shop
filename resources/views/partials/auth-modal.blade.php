@@ -38,22 +38,22 @@
 
         {{-- left: image panel (hidden on mobile to keep the modal compact) — crossfades per step --}}
         <div class="hidden md:block relative overflow-hidden">
-            <img src="{{ asset('images/hero/hero-4.jpg') }}" alt="Makhanbhog Sweets — freshly made every morning"
+            <img src="{{ asset('images/hero/hero-4.jpg') }}" alt="Shree Vinayak Family Shop — freshly stocked every morning"
                  x-show="step === 'phone'"
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                  class="absolute inset-0 w-full h-full object-cover [object-position:62%_12%]">
-            <img src="{{ asset('images/hero/hero-5.jpg') }}" alt="Customer at Makhanbhog Sweets"
+            <img src="{{ asset('images/hero/hero-5.jpg') }}" alt="Customer at Shree Vinayak Family Shop"
                  x-show="step === 'otp'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                  class="absolute inset-0 w-full h-full object-cover [object-position:78%_18%]">
-            <img src="{{ asset('images/hero/hero-3.jpg') }}" alt="Makhanbhog Sweets gift box"
+            <img src="{{ asset('images/hero/hero-3.jpg') }}" alt="Shree Vinayak Family Shop gift box"
                  x-show="step === 'name'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                  class="absolute inset-0 w-full h-full object-cover">
-            <img src="{{ asset('images/hero/hero-2.jpg') }}" alt="Makhanbhog Sweets, ready to celebrate"
+            <img src="{{ asset('images/hero/hero-2.jpg') }}" alt="Shree Vinayak Family Shop, ready to celebrate"
                  x-show="step === 'success'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
@@ -64,7 +64,8 @@
             <div class="relative z-10 h-full flex flex-col justify-end p-8">
                 <template x-if="step === 'phone'">
                     <div>
-                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2">Makhanbhog Sweets</p>
+                        <img src="{{ $businessLogo }}" alt="Shree Vinayak Family Shop" class="w-10 h-10 rounded-full bg-white/90 p-1 shadow-md mb-3 object-contain">
+                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2">Shree Vinayak Family Shop</p>
                         <h3 class="font-display text-2xl font-bold text-cream leading-snug">{{ __('Welcome') }}</h3>
                         <p class="text-gold-100/80 text-sm mt-2">{{ __('Sign in or create your account in seconds — no password needed.') }}</p>
                     </div>

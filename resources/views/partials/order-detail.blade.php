@@ -19,7 +19,7 @@
          x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0 -translate-y-3 scale-95" x-transition:enter-end="opacity-100 translate-y-0 scale-100"
          :class="justRemovedItems ? 'animate-track-breathe' : ''"
          class="relative rounded-3xl shadow-lg overflow-hidden mb-5 bg-gradient-to-br from-gold-100 via-cream to-gold-50 border-2 border-gold-300/70">
-        <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle, #8a1c2b 1.5px, transparent 1.5px); background-size: 18px 18px;"></div>
+        <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle, #0f3d22 1.5px, transparent 1.5px); background-size: 18px 18px;"></div>
 
         {{-- header — always visible, toggles the detail region below --}}
         <button type="button" @click="sorryExpanded ? collapseSorry() : reopenSorry()"
@@ -202,10 +202,10 @@
                         <span class="absolute -top-1 left-4 w-2.5 h-2.5 rounded-full bg-white/80 animate-track-steam"></span>
                         <span class="absolute -top-2 left-1/2 w-3 h-3 rounded-full bg-white/80 animate-track-steam" style="animation-delay: 0.6s"></span>
                         <span class="absolute -top-1 right-4 w-2 h-2 rounded-full bg-white/80 animate-track-steam" style="animation-delay: 1.1s"></span>
-                        <span class="relative text-6xl drop-shadow">👨‍🍳</span>
+                        <span class="relative text-6xl drop-shadow">📦</span>
                     </div>
-                    <p class="relative font-display font-bold text-2xl text-white mt-4">{{ __('Preparing Your Sweets!') }}</p>
-                    <p class="relative text-white/90 mt-1.5 font-medium">{{ __("The shop confirmed your order — it's being made fresh.") }}</p>
+                    <p class="relative font-display font-bold text-2xl text-white mt-4">{{ __('Packing Your Order!') }}</p>
+                    <p class="relative text-white/90 mt-1.5 font-medium">{{ __("The shop confirmed your order — it's being packed for you.") }}</p>
                     <p x-show="etaText()" class="relative inline-block bg-white/25 backdrop-blur-sm text-white text-sm font-semibold px-4 py-1.5 rounded-full mt-4">
                         🕐 {{ __('Arriving') }} <span x-text="etaText()"></span>
                     </p>
@@ -221,7 +221,7 @@
                         <span class="block h-1 w-36 mx-auto mt-2 rounded-full text-white/70 animate-track-road"></span>
                     </div>
                     <p class="relative font-display font-bold text-2xl text-white mt-4">{{ __('Out for Delivery!') }}</p>
-                    <p class="relative text-white/90 mt-1.5 font-medium">{{ __('Your mithai is on its way to you.') }} 💵 {{ __('Keep') }} ₹{{ number_format($order->balanceDueOnDelivery()) }} {{ __('ready.') }}</p>
+                    <p class="relative text-white/90 mt-1.5 font-medium">{{ __('Your order is on its way to you.') }} 💵 {{ __('Keep') }} ₹{{ number_format($order->balanceDueOnDelivery()) }} {{ __('ready.') }}</p>
                     <p x-show="etaText()" class="relative inline-block bg-white/25 backdrop-blur-sm text-white text-sm font-semibold px-4 py-1.5 rounded-full mt-4">
                         🕐 {{ __('Arriving') }} <span x-text="etaText()"></span>
                     </p>
@@ -231,10 +231,10 @@
                 <div x-show="order.status === 'delivered'" x-cloak
                      x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
                      class="relative bg-gradient-to-br from-maroon-600 to-maroon-800 px-6 py-10 text-center overflow-hidden">
-                    <div class="absolute inset-0 opacity-15" style="background-image: radial-gradient(circle, #e9c873 1.5px, transparent 1.5px); background-size: 18px 18px;"></div>
+                    <div class="absolute inset-0 opacity-15" style="background-image: radial-gradient(circle, #fcd34d 1.5px, transparent 1.5px); background-size: 18px 18px;"></div>
                     <span class="relative inline-block text-6xl drop-shadow animate-track-pop">🎉</span>
                     <p class="relative font-display font-bold text-2xl text-gold-300 mt-4">{{ __('Delivered — Enjoy!') }}</p>
-                    <p class="relative text-cream/90 mt-1.5 font-medium">{{ __('Hope every bite tastes like home. Thank you for ordering from Makhanbhog!') }}</p>
+                    <p class="relative text-cream/90 mt-1.5 font-medium">{{ __('Hope every bite tastes like home. Thank you for ordering from Shree Vinayak!') }}</p>
                     <div class="relative flex items-center justify-center gap-3 mt-5 flex-wrap">
                         {{-- primary CTA — only shows when this order has at least one ratable
                              product (non-removed, still pointing at a live product). Label swaps
@@ -290,7 +290,7 @@
                         : (order.cancelled_by === "system"
                             ? @json($systemCancelledMessage)
                             : @json($adminCancelledMessage))'></p>
-                    <a href="/#bestsellers" class="relative btn-gold inline-block mt-5 text-sm px-6 py-2.5">{{ __('Browse Sweets') }}</a>
+                    <a href="/#bestsellers" class="relative btn-gold inline-block mt-5 text-sm px-6 py-2.5">{{ __('Browse Store') }}</a>
                 </div>
             </div>
 
@@ -300,7 +300,7 @@
                     @php
                         $steps = [
                             1 => ['icon' => '🧾', 'label' => __('Placed')],
-                            2 => ['icon' => '👨‍🍳', 'label' => __('Preparing')],
+                            2 => ['icon' => '📦', 'label' => __('Packing')],
                             3 => ['icon' => '🛵', 'label' => __('On the way')],
                             4 => ['icon' => '🎁', 'label' => __('Delivered')],
                         ];
@@ -540,6 +540,8 @@
                             </template>
                         @elseif ($order->payment_method === 'razorpay')
                             💳 {{ __('Paid Online') }} ({{ __('payment ' . $order->payment_status) }})
+                        @elseif ($order->codPaymentReceived())
+                            ✅ {{ __('Cash on Delivery') }} — {{ __('Payment Received') }}
                         @else
                             💵 {{ __('Cash on Delivery') }}
                         @endif
@@ -662,10 +664,10 @@
 
             {{-- header --}}
             <div class="relative shrink-0 bg-gradient-to-r from-maroon-800 to-maroon-700 px-4 py-3.5 flex items-center gap-3 overflow-hidden">
-                <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle, #e9c873 1.5px, transparent 1.5px); background-size: 16px 16px;"></div>
+                <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle, #fcd34d 1.5px, transparent 1.5px); background-size: 16px 16px;"></div>
                 <span class="relative w-10 h-10 shrink-0 rounded-full bg-gold-500 grid place-items-center text-xl shadow-inner">🍬</span>
                 <div class="relative min-w-0 flex-1">
-                    <p class="font-display font-semibold text-cream leading-tight">{{ __('Makhanbhog Support') }}</p>
+                    <p class="font-display font-semibold text-cream leading-tight">{{ __('Shree Vinayak Support') }}</p>
                     <p class="text-[11px] text-cream/70 truncate">{{ $order->orderNumber() }} · {{ __('we usually reply in a few minutes') }}</p>
                 </div>
                 <div class="relative flex items-center gap-0.5 shrink-0">

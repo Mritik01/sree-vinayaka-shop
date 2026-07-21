@@ -81,7 +81,7 @@ class SeedLegalDocuments extends Command
     {
         return <<<'HTML'
 <h2>1. Introduction</h2>
-<p>Welcome to Makhanbhog Sweets. These Terms &amp; Conditions ("Terms") govern your access to and use of our website and mobile-friendly ordering platform (the "Platform"), operated from Thuthibari, for browsing, ordering, and receiving delivery of sweets, namkeen, and related food products ("Products"). By creating an account, placing an order, or otherwise using the Platform, you agree to be bound by these Terms and by our Privacy Policy. If you do not agree, please do not use the Platform.</p>
+<p>Welcome to Shree Vinayak Family Shop. These Terms &amp; Conditions ("Terms") govern your access to and use of our website and mobile-friendly ordering platform (the "Platform"), operated from Siswa Bazar, for browsing, ordering, and receiving delivery of sweets, namkeen, and related food products ("Products"). By creating an account, placing an order, or otherwise using the Platform, you agree to be bound by these Terms and by our Privacy Policy. If you do not agree, please do not use the Platform.</p>
 
 <h2>2. Eligibility</h2>
 <p>You must be at least 18 years old, or using the Platform under the supervision of a parent or guardian, to create an account and place orders. By registering, you confirm that the mobile number and information you provide are accurate and belong to you.</p>
@@ -99,7 +99,7 @@ class SeedLegalDocuments extends Command
 <p>We currently accept Cash on Delivery (COD) and online payment via Razorpay (cards, UPI, netbanking, and wallets as offered by Razorpay). Online payments are processed securely by Razorpay; we do not store your card, UPI, or bank credentials. If you have previously not accepted a COD order, we may require your next order(s) to be prepaid online before COD is offered to you again — this is shown clearly at checkout when it applies.</p>
 
 <h2>7. Delivery &amp; Shipping</h2>
-<p>We currently deliver within a defined radius of our Thuthibari location; if your delivery address falls outside this area, the Platform will inform you at checkout and the order cannot be placed. Estimated delivery times shown on your order are our best estimate, not a guaranteed delivery window, and may be affected by weather, traffic, order volume, or circumstances beyond our control. Please ensure someone is available to receive the order at the address and time provided.</p>
+<p>We currently deliver within a defined radius of our Siswa Bazar location; if your delivery address falls outside this area, the Platform will inform you at checkout and the order cannot be placed. Estimated delivery times shown on your order are our best estimate, not a guaranteed delivery window, and may be affected by weather, traffic, order volume, or circumstances beyond our control. Please ensure someone is available to receive the order at the address and time provided.</p>
 
 <h2>8. Cancellation, Return &amp; Refund Policy</h2>
 <p>You may cancel an order yourself within the short cancellation window shown on your order tracking page, before we begin preparing it; once that window has passed or the order is out for delivery, please contact us directly and we will do our best to accommodate reasonable requests. Because our Products are freshly prepared, perishable food items, we generally cannot accept returns once an order has been delivered, except where the item received is materially different from what was ordered, damaged, or spoiled on arrival — please contact us with photos within a reasonable time of delivery so we can make it right. Where an order paid for online is cancelled or refused, the amount paid is refunded automatically to your original payment method; Cash on Delivery orders that are cancelled naturally involve no charge. Repeated refusal of Cash on Delivery orders may result in future orders requiring prepayment.</p>
@@ -114,20 +114,20 @@ class SeedLegalDocuments extends Command
 <p>Our collection and use of your personal information is described in full in our <a href="/privacy">Privacy Policy</a>, which forms part of these Terms. By using the Platform, you also agree to the Privacy Policy.</p>
 
 <h2>12. Limitation of Liability</h2>
-<p>To the fullest extent permitted by law, Makhanbhog Sweets shall not be liable for any indirect, incidental, or consequential loss arising from your use of the Platform or from delays, unavailability of products, or circumstances beyond our reasonable control. Nothing in these Terms limits any liability that cannot be excluded under applicable Indian law, including in relation to food safety.</p>
+<p>To the fullest extent permitted by law, Shree Vinayak Family Shop shall not be liable for any indirect, incidental, or consequential loss arising from your use of the Platform or from delays, unavailability of products, or circumstances beyond our reasonable control. Nothing in these Terms limits any liability that cannot be excluded under applicable Indian law, including in relation to food safety.</p>
 
 <h2>13. Account Suspension</h2>
 <p>We may suspend or terminate an account, without prior notice, where we reasonably believe it has been used for fraud, abuse of coupons or the rewards program, repeated refusal of Cash on Delivery orders, or any other breach of these Terms. You may request that your account be closed at any time by contacting us using the details below.</p>
 
 <h2>14. Governing Law</h2>
-<p>These Terms are governed by the laws of India. Any dispute arising out of or in connection with these Terms shall be subject to the exclusive jurisdiction of the competent courts having jurisdiction over Thuthibari.</p>
+<p>These Terms are governed by the laws of India. Any dispute arising out of or in connection with these Terms shall be subject to the exclusive jurisdiction of the competent courts having jurisdiction over Siswa Bazar.</p>
 
 <h2>15. Contact Information</h2>
 <p>For any questions about these Terms, please reach us at:</p>
 <ul>
 <li>Phone: +91 89209 37331</li>
 <li>WhatsApp: <a href="https://wa.me/918920937331">wa.me/918920937331</a></li>
-<li>Address: Main Market Road, Thuthibari</li>
+<li>Address: Roadways Bus Stand, Nichlaul Road, Siswa Bazar, Maharajganj, UP 273163</li>
 </ul>
 HTML;
     }
@@ -136,7 +136,7 @@ HTML;
     {
         return <<<'HTML'
 <h2>1. Introduction</h2>
-<p>This Privacy Policy explains how Makhanbhog Sweets ("we", "us") collects, uses, stores, and protects your personal information when you use our website and ordering platform (the "Platform"). It should be read together with our <a href="/terms">Terms &amp; Conditions</a>.</p>
+<p>This Privacy Policy explains how Shree Vinayak Family Shop ("we", "us") collects, uses, stores, and protects your personal information when you use our website and ordering platform (the "Platform"). It should be read together with our <a href="/terms">Terms &amp; Conditions</a>.</p>
 
 <h2>2. Information We Collect</h2>
 <p>We collect the information you provide directly, such as your name, mobile number, and delivery address(es) when you register or place an order. We also collect information generated by your use of the Platform, including order history, cart activity, product views, favourites, coupon and reward usage, and — where you contact us — support chat messages and any photos you choose to attach. To keep the Platform secure and to improve it, we also collect basic technical information such as IP address, device/browser type, and general usage activity, and, where you choose to allow it, precise location to confirm you're within our delivery area.</p>
@@ -176,7 +176,7 @@ HTML;
 <ul>
 <li>Phone: +91 89209 37331</li>
 <li>WhatsApp: <a href="https://wa.me/918920937331">wa.me/918920937331</a></li>
-<li>Address: Main Market Road, Thuthibari</li>
+<li>Address: Roadways Bus Stand, Nichlaul Road, Siswa Bazar, Maharajganj, UP 273163</li>
 </ul>
 HTML;
     }
@@ -185,7 +185,7 @@ HTML;
     {
         return <<<'HTML'
 <h2>1. Introduction</h2>
-<p>This Refund &amp; Cancellation Policy explains when you can cancel an order placed with Makhanbhog Sweets, and how and when refunds are issued. It should be read together with our <a href="/terms">Terms &amp; Conditions</a>.</p>
+<p>This Refund &amp; Cancellation Policy explains when you can cancel an order placed with Shree Vinayak Family Shop, and how and when refunds are issued. It should be read together with our <a href="/terms">Terms &amp; Conditions</a>.</p>
 
 <h2>2. Cancelling an Order Yourself</h2>
 <p>You can cancel an order yourself, free of charge, from your order tracking page for a short window immediately after placing it — while the order is still shown as "Placed" or "Confirmed" and before we've begun preparing it. Once that window has closed, or the order has moved further along (for example, it's already being prepared or is out for delivery), self-service cancellation is no longer available and you'll need to contact us directly using the details below so we can assess whether cancellation is still possible.</p>
@@ -216,7 +216,7 @@ HTML;
 <ul>
 <li>Phone: +91 89209 37331</li>
 <li>WhatsApp: <a href="https://wa.me/918920937331">wa.me/918920937331</a></li>
-<li>Address: Main Market Road, Thuthibari</li>
+<li>Address: Roadways Bus Stand, Nichlaul Road, Siswa Bazar, Maharajganj, UP 273163</li>
 </ul>
 HTML;
     }
@@ -225,10 +225,10 @@ HTML;
     {
         return <<<'HTML'
 <h2>1. What This Policy Covers</h2>
-<p>Makhanbhog Sweets offers same-day, hyperlocal delivery direct from our own outlet in Thuthibari — we do not ship products by post or courier, and there are no tracking numbers or third-party delivery partners involved. This policy explains how that local delivery works.</p>
+<p>Shree Vinayak Family Shop offers same-day, hyperlocal delivery direct from our own outlet in Siswa Bazar — we do not ship products by post or courier, and there are no tracking numbers or third-party delivery partners involved. This policy explains how that local delivery works.</p>
 
 <h2>2. Delivery Area</h2>
-<p>We currently deliver within a limited radius of our Thuthibari outlet. If a delivery address falls outside our current delivery area, the Platform will let you know at checkout and the order cannot be placed to that address. Our delivery area may be adjusted from time to time as our team and coverage grow.</p>
+<p>We currently deliver within a limited radius of our Siswa Bazar outlet. If a delivery address falls outside our current delivery area, the Platform will let you know at checkout and the order cannot be placed to that address. Our delivery area may be adjusted from time to time as our team and coverage grow.</p>
 
 <h2>3. Delivery Charges</h2>
 <p>Any delivery fee that applies — or the order value above which delivery is free — is shown live in your cart and at checkout, since it can be adjusted from time to time. You'll always see the exact delivery charge for your order, if any, before you pay or confirm a Cash on Delivery order.</p>
@@ -253,7 +253,7 @@ HTML;
 <ul>
 <li>Phone: +91 89209 37331</li>
 <li>WhatsApp: <a href="https://wa.me/918920937331">wa.me/918920937331</a></li>
-<li>Address: Main Market Road, Thuthibari</li>
+<li>Address: Roadways Bus Stand, Nichlaul Road, Siswa Bazar, Maharajganj, UP 273163</li>
 </ul>
 HTML;
     }

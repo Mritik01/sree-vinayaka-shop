@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Checkout — Makhanbhog Sweets')
+@section('title', 'Checkout — Shree Vinayak Family Shop')
 
 @section('content')
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
@@ -113,10 +113,10 @@
                                       placeholder="{{ __('House / shop, street, landmark, village or town') }}"
                                       class="w-full rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition"></textarea>
 
-                            {{-- live delivery-area status (only when the Thuthibari-only restriction is on) --}}
+                            {{-- live delivery-area status (only when the Siswa Bazar-only restriction is on) --}}
                             <div x-show="$store.shop.restricted" x-cloak class="mt-3">
                                 <div x-show="locationStatus === 'idle'" x-cloak class="rounded-lg bg-gold-100/60 border border-gold-300/60 text-maroon-700 text-xs px-3.5 py-2.5">
-                                    📍 {{ __('We currently deliver only within') }} <span class="font-semibold" x-text="$store.shop.radiusKm"></span> {{ __('km of Thuthibari.') }}
+                                    📍 {{ __('We currently deliver only within') }} <span class="font-semibold" x-text="$store.shop.radiusKm"></span> {{ __('km of Siswa Bazar.') }}
                                     <button @click="checkDeliveryArea()" type="button" class="font-semibold text-gold-600 hover:text-gold-700 underline underline-offset-2 transition">
                                         {{ __('Check if we deliver to you') }}
                                     </button>
@@ -129,7 +129,7 @@
                                 </div>
                                 <div x-show="locationStatus === 'outside'" x-cloak class="rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs px-3.5 py-2.5">
                                     🚫 {{ __('Sorry — you\'re about') }} <span class="font-semibold" x-text="locationDistanceKm"></span> {{ __('km away, outside our') }}
-                                    <span x-text="$store.shop.radiusKm"></span> {{ __('km delivery area around Thuthibari.') }}
+                                    <span x-text="$store.shop.radiusKm"></span> {{ __('km delivery area around Siswa Bazar.') }}
                                 </div>
                                 <div x-show="locationStatus === 'denied'" x-cloak class="rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs px-3.5 py-2.5">
                                     ⚠️ {{ __("We couldn't access your location. Please allow location access in your browser — we need it to confirm you're inside our") }}

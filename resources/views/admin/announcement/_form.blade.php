@@ -30,8 +30,10 @@
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" name="is_enabled" value="1" x-model="enabled" class="sr-only peer">
-                <div class="w-11 h-6 bg-gold-200 rounded-full peer peer-checked:bg-pista-500 transition-colors"></div>
-                <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+                {{-- off-state was bg-gold-200 — too close to this card's own bg-cream/40 to read as
+                     a toggle at all; a visible border plus a darker off-track fixes that in both states --}}
+                <div class="w-11 h-6 bg-maroon-200 border border-maroon-300/70 rounded-full peer peer-checked:bg-pista-500 peer-checked:border-pista-500 transition-colors"></div>
+                <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow-md ring-1 ring-black/10 transition-transform peer-checked:translate-x-5"></div>
             </label>
         </div>
 

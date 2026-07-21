@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'All Sweets & Snacks — Makhanbhog Sweets')
+@section('title', 'Shop All Products — Shree Vinayak Family Shop')
 
 @section('content')
 @php
@@ -47,16 +47,16 @@
         <nav class="text-sm text-maroon-500 flex items-center gap-2 mb-5">
             <a href="/" class="hover:text-gold-600 transition">{{ __('Home') }}</a>
             <span class="text-gold-400">✦</span>
-            <span class="text-maroon-700 font-medium">{{ __('All Sweets') }}</span>
+            <span class="text-maroon-700 font-medium">{{ __('All Products') }}</span>
         </nav>
 
         <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
                 <p class="text-gold-600 tracking-[0.3em] uppercase text-xs font-semibold mb-1.5">✦ {{ __('Fresh Every Morning') }} ✦</p>
-                <h1 class="font-display text-3xl sm:text-4xl font-bold text-maroon-800">{{ __('Our Sweets & Snacks') }}</h1>
+                <h1 class="font-display text-3xl sm:text-4xl font-bold text-maroon-800">{{ __('Our Products') }}</h1>
             </div>
             <p class="text-sm text-maroon-400">
-                {{ __('Showing') }} <span class="font-semibold text-maroon-700" x-text="visibleCount()"></span> {{ __('of') }} {{ $products->count() }} {{ __('treats') }}
+                {{ __('Showing') }} <span class="font-semibold text-maroon-700" x-text="visibleCount()"></span> {{ __('of') }} {{ $products->count() }} {{ __('products') }}
             </p>
         </div>
 
@@ -82,7 +82,7 @@
         {{-- toolbar: search + sort --}}
         <div class="flex items-center gap-3 mt-6 mb-8">
             <div class="relative flex-1 sm:max-w-xs">
-                <input type="search" x-model="filters.q" placeholder="{{ __('Search sweets…') }}"
+                <input type="search" x-model="filters.q" placeholder="{{ __('Search products…') }}"
                        class="w-full rounded-xl border border-gold-300/70 bg-white pl-10 pr-4 py-2.5 text-sm text-maroon-800 placeholder-maroon-400/60 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition shadow-sm">
                 <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-maroon-300 pointer-events-none">🔎</span>
             </div>

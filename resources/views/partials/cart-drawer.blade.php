@@ -19,7 +19,7 @@
         <div x-show="$store.cart.items.length === 0" x-cloak class="flex-1 flex flex-col items-center justify-center text-center px-6">
             <p class="text-5xl mb-4">🛍️</p>
             <p class="text-maroon-700 font-display text-lg">Your cart is empty</p>
-            <p class="text-maroon-500 mt-2 text-sm max-w-xs">Add a few sweets from Thuthibari's Favourites and they'll show up here.</p>
+            <p class="text-maroon-500 mt-2 text-sm max-w-xs">Add a few sweets from Siswa Bazar's Favourites and they'll show up here.</p>
             <a href="/#bestsellers" @click="$store.cart.open = false" class="btn-gold inline-block mt-6">Explore Our Sweets</a>
         </div>
 
@@ -29,11 +29,14 @@
                 <div class="flex items-start gap-3 px-5 py-4"
                      x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0 -translate-x-2">
                     <a :href="`/product/${item.slug}`" class="w-16 h-16 rounded-lg overflow-hidden shrink-0 border border-gold-200/60">
-                        <img :src="item.image" :alt="item.name" class="w-full h-full object-cover">
+                        <img :src="item.image" :alt="item.name" class="w-full h-full object-cover" :class="item.is_out_of_stock ? 'grayscale opacity-60' : ''">
                     </a>
 
                     <div class="flex-1 min-w-0">
                         <a :href="`/product/${item.slug}`" class="font-display text-maroon-800 text-sm font-semibold hover:text-gold-600 transition truncate block" x-text="item.name"></a>
+                        <template x-if="item.is_out_of_stock">
+                            <span class="inline-block mt-0.5 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Out of Stock</span>
+                        </template>
                         <p class="text-xs text-maroon-400 mt-0.5">Size: <span x-text="item.type === 'loose' ? portionLabel(item.portion) : item.weight"></span></p>
                         <p class="font-display font-semibold text-sm mt-1" :style="`color: ${item.color}`">₹<span x-text="item.price"></span></p>
 
@@ -41,7 +44,7 @@
                             <div class="flex items-center gap-2 bg-cream rounded-full border border-gold-300/60 px-2 py-0.5">
                                 <button @click="$store.cart.decrement(item)" aria-label="Decrease quantity" class="w-5 h-5 rounded-full hover:bg-gold-100 text-maroon-700 font-bold transition text-sm">−</button>
                                 <span class="w-5 text-center text-xs font-semibold text-maroon-800" x-text="item.quantity"></span>
-                                <button @click="$store.cart.increment(item)" aria-label="Increase quantity" class="w-5 h-5 rounded-full hover:bg-gold-100 text-maroon-700 font-bold transition text-sm">+</button>
+                                <button @click="$store.cart.increment(item)" :disabled="item.is_out_of_stock" aria-label="Increase quantity" class="w-5 h-5 rounded-full hover:bg-gold-100 text-maroon-700 font-bold transition text-sm disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed">+</button>
                             </div>
                             <button @click="$store.cart.remove(item)" class="text-xs font-medium text-maroon-400 hover:text-red-600 underline underline-offset-2 transition">Remove</button>
                         </div>
@@ -57,12 +60,17 @@
                 <span class="font-display font-semibold text-xl text-maroon-800">₹<span x-text="$store.cart.subtotal()"></span></span>
             </div>
 
-            <template x-if="$store.shop.accepting">
+            <template x-if="$store.shop.accepting && !$store.cart.hasOutOfStockItems()">
                 <a href="/checkout" @click="$store.cart.open = false" class="btn-gold w-full text-center inline-flex items-center justify-center gap-2">Check Out</a>
             </template>
             <template x-if="!$store.shop.accepting">
                 <div class="rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs px-4 py-3 text-center">
                     🚫 We're not accepting online orders right now — your cart will be waiting.
+                </div>
+            </template>
+            <template x-if="$store.shop.accepting && $store.cart.hasOutOfStockItems()">
+                <div class="rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs px-4 py-3 text-center">
+                    🚫 Remove out-of-stock items to proceed to checkout.
                 </div>
             </template>
 

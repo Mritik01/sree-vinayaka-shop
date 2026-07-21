@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Default color values for maroon/gold/cream/ivory (see tailwind.config.js) — pixel-identical to
+   this app's original hardcoded hex palette, so nothing visually changes for anyone until an
+   admin actively picks a different theme in Admin → Application Customization. This block is
+   what admin/rider pages always render (they never include the per-request override in
+   layouts/app.blade.php), which is what keeps their look permanently pinned to Maroon + Gold
+   regardless of the customer site's selected theme. cream/ivory are never themed per-brand (see
+   config/customer_themes.php) — only maroon/gold vary between themes. */
+:root {
+  --color-maroon-50: 253 242 242;
+  --color-maroon-100: 249 217 217;
+  --color-maroon-400: 138 28 43;
+  --color-maroon-500: 122 22 34;
+  --color-maroon-600: 107 20 32;
+  --color-maroon-700: 74 14 23;
+  --color-maroon-800: 58 11 18;
+  --color-maroon-900: 46 9 16;
+  --color-gold-50: 253 248 236;
+  --color-gold-100: 248 236 201;
+  --color-gold-300: 233 200 115;
+  --color-gold-400: 212 169 64;
+  --color-gold-500: 200 150 46;
+  --color-gold-600: 169 122 31;
+  --color-cream: 253 246 233;
+  --color-ivory: 255 251 242;
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;
@@ -27,9 +53,9 @@
   .section-heading {
     @apply text-3xl md:text-4xl font-display font-bold text-maroon-700 text-center;
   }
-  /* double gold frame used on product/photo cards — the "mithai box" look */
+  /* flat, minimal photo-card frame — thin hairline border + soft shadow, no ornate double ring */
   .mithai-frame {
-    @apply rounded-2xl border-2 border-gold-400 ring-2 ring-gold-300/50 ring-offset-2 ring-offset-white;
+    @apply rounded-xl border border-gold-100 shadow-md;
   }
 
   /* hide the scrollbar on horizontal snap carousels (mobile shop-by-range etc.) */
@@ -92,6 +118,16 @@
 }
 .animate-heart-pop {
   animation: heart-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* admin "payment received" toast — a soft gold glow pulse around the card, twice, so a rider
+   marking cash collected feels like genuine good news rather than just another alert */
+@keyframes coin-glow {
+  0%, 100% { box-shadow: 0 0 0 rgba(200, 150, 46, 0); }
+  30% { box-shadow: 0 0 0 6px rgba(200, 150, 46, 0.28); }
+}
+.animate-coin-glow {
+  animation: coin-glow 1.1s ease-out 2;
 }
 
 /* review form — celebratory sparkles flying out from the stars on a 5-star pick;

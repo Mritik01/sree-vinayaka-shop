@@ -16,8 +16,10 @@ class AdminSeeder extends Seeder
         Admin::updateOrCreate(
             ['username' => 'admin'],
             [
-                'name' => 'Makhanbhog Admin',
-                'password' => Hash::make('Admin@123'),
+                'name' => 'Shree Vinayak Admin',
+                'email' => 'admin@vinayakfamilyshop.com',
+                'password' => Hash::make('admin123'),
+                'is_super_admin' => true,
             ]
         );
     }

@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Rider;
 
 use App\Http\Controllers\Controller;
 use App\Models\Order;
+use App\Notifications\OrderPaymentReceived;
+use App\Services\PlatformIncomeService;
 use App\Services\RewardService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -104,7 +106,39 @@ class OrderController extends Controller
             RewardService::recordDelivery($order->user);
         }
 
+        // platform income (₹15 fixed + 50% of the delivery charge) — see PlatformIncomeService
+        if (!$wasDelivered && $order->status === 'delivered') {
+            PlatformIncomeService::recordForDelivery($order);
+        }
+
         return redirect()->route('rider.orders.show', $order)->with('status', 'Order '.$order->orderNumber().' marked '.str_replace('_', ' ', $order->status).'.');
+    }
+
+    // rider taps this the moment they collect cash on delivery — the only path by which a COD
+    // order's payment_status ever becomes 'paid' (RazorpayController only ever writes that for
+    // payment_method === 'razorpay'). Same amount_paid/paid_at shape Razorpay's own capture uses,
+    // so balanceDueOnDelivery()/codPaymentReceived() treat both paths identically everywhere else.
+    public function markPaymentReceived(Order $order)
+    {
+        abort_unless($order->rider_id === Auth::guard('rider')->id(), 404);
+
+        if ($order->payment_method === 'razorpay') {
+            return back()->with('status', 'This order was paid online — there is no cash to mark as received.');
+        }
+
+        if ($order->payment_status === 'paid') {
+            return back()->with('status', "Order {$order->orderNumber()}'s payment was already marked as received.");
+        }
+
+        $order->update([
+            'payment_status' => 'paid',
+            'amount_paid' => $order->total,
+            'paid_at' => now(),
+        ]);
+
+        OrderPaymentReceived::notifyAdmins($order);
+
+        return back()->with('status', "Payment of ₹".number_format($order->total)." marked as received for order {$order->orderNumber()}.");
     }
 
     public function uploadPhoto(Request $request, Order $order)

@@ -4,12 +4,9 @@
     $outletIsOpen = $outletHourIst >= 8 && $outletHourIst < 21;
 @endphp
 
-<section class="relative overflow-hidden" style="background: linear-gradient(135deg, #4a0e17 0%, #6b1420 60%, #3a0b12 100%);"
+<section class="relative overflow-hidden" style="background: linear-gradient(135deg, #052e12 0%, #0a3d1a 60%, #062915 100%);"
          x-data="{ shown: false }"
          x-init="const io = new IntersectionObserver((entries) => { if (entries[0].isIntersecting) { shown = true; io.disconnect(); } }, { threshold: 0.15 }); io.observe($el)">
-    {{-- previous section is white — its colour zigzags down into the maroon --}}
-    @include('partials.trim', ['fill' => '#ffffff', 'flip' => true])
-
     {{-- ambient glow, echoing the promo banner above --}}
     <div class="pointer-events-none absolute top-1/4 -left-16 w-80 h-80 rounded-full bg-gold-400/10 blur-3xl"></div>
     <div class="pointer-events-none absolute bottom-0 -right-16 w-96 h-96 rounded-full bg-gold-500/10 blur-3xl"></div>
@@ -18,8 +15,8 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
             <div class="relative transition-all duration-700 ease-out mb-6 md:mb-0"
                  :class="shown ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-6'">
-                <div class="mithai-frame ring-offset-maroon-700 h-72 sm:h-96 relative overflow-hidden group">
-                    <img src="{{ asset('images/outlet/storefront.jpg') }}" alt="{{ __('Makhanbhog Sweets storefront in Thuthibari') }}" loading="lazy"
+                <div class="mithai-frame h-72 sm:h-96 relative overflow-hidden group">
+                    <img src="{{ asset('images/outlet/storefront.jpg') }}" alt="{{ __('Shree Vinayak Family Shop storefront in Siswa Bazar') }}" loading="lazy"
                          class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105">
                     <div class="absolute inset-0 bg-gradient-to-t from-maroon-900/60 via-transparent to-transparent"></div>
                 </div>
@@ -34,11 +31,11 @@
             <div class="text-center md:text-left transition-all duration-700 ease-out" style="transition-delay: 150ms"
                  :class="shown ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-6'">
                 <p class="text-gold-300 font-semibold tracking-widest uppercase text-sm mb-3">{{ __('Our Outlet') }}</p>
-                <h2 class="font-display text-3xl sm:text-5xl font-bold text-cream leading-tight">{{ __('Come, Taste It Fresh') }}</h2>
-                <p class="text-gold-100/85 mt-4">{{ __('Nothing beats mithai straight off the counter. Drop by our shop — a warm welcome (and a free taste) is waiting.') }}</p>
+                <h2 class="font-display text-3xl sm:text-5xl font-bold text-cream leading-tight">{{ __('Come, Grab It Fresh') }}</h2>
+                <p class="text-gold-100/85 mt-4">{{ __('Nothing beats picking it up fresh from the counter. Drop by our outlet — quick visit, always in stock.') }}</p>
 
                 <div class="mt-8 space-y-3 text-cream/90 text-sm">
-                    <p class="flex items-center justify-center md:justify-start gap-3">📍 {{ __('Main Market Road, Thuthibari') }}</p>
+                    <p class="flex items-center justify-center md:justify-start gap-3">📍 {{ __('Roadways Bus Stand, Nichlaul Road, Siswa Bazar, Maharajganj, UP 273163') }}</p>
                     <p class="flex items-center justify-center md:justify-start gap-3">🕗 {{ __('Open Daily') }} · 8:00 AM – 9:00 PM
                         @if ($outletIsOpen)
                             <span class="bg-pista-500 text-white text-xs font-semibold px-3 py-1 rounded-md">{{ __('Open Now') }}</span>
@@ -51,10 +48,8 @@
                     @endif
                 </div>
 
-                <a href="https://www.google.com/maps/place/Makhanbhog+sweets/@27.4242366,83.6925724,928m/data=!3m2!1e3!4b1!4m6!3m5!1s0x39942351305d449b:0x37dd7b4b5f25945c!8m2!3d27.4242366!4d83.6925724!16s%2Fg%2F11sb3rl_yn?entry=ttu&amp;g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn-gold mt-8">{{ __('Get Directions') }}</a>
+                <a href="https://www.google.com/maps/place/Vinayak+family+shop/@27.1555715,83.7583867,116m/data=!3m1!1e3!4m15!1m8!3m7!1s0x399405f255a1917b:0x6a81af17a7f824bc!2sSiswa+Bazar,+Uttar+Pradesh+273163!3b1!8m2!3d27.1496918!4d83.7597505!16s%2Fg%2F11c1pcy3jv!3m5!1s0x399405c96c7bf3d1:0x2b1f6ee963c89b2d!8m2!3d27.155558!4d83.7584378!16s%2Fg%2F11fs1rllp9?entry=ttu&amp;g_ep=EgoyMDI2MDcxOS4wIKXMDSoASAFQAw%3D%3D" target="_blank" rel="noopener" class="btn-gold mt-8">{{ __('Get Directions') }}</a>
             </div>
         </div>
     </div>
-
-    @include('partials.trim', ['fill' => '#ffffff'])
 </section>

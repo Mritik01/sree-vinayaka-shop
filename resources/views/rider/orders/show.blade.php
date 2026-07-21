@@ -14,12 +14,13 @@
     @php
         $isPaidOnline = $order->payment_method === 'razorpay' && $order->payment_status === 'paid';
         $isUnpaidOnline = $order->payment_method === 'razorpay' && $order->payment_status !== 'paid';
+        $isCodPaid = $order->codPaymentReceived();
     @endphp
 
     {{-- payment mode — the single most important thing a rider needs to know before handing over the order --}}
     <div class="rounded-2xl border-2 p-4 mt-3 flex items-center gap-3
-        {{ $isUnpaidOnline ? 'bg-red-50 border-red-300' : ($isPaidOnline ? 'bg-pista-100 border-pista-400' : 'bg-gold-50 border-gold-400') }}">
-        <span class="text-3xl shrink-0">{{ $isUnpaidOnline ? '⚠️' : ($isPaidOnline ? '✅' : '💵') }}</span>
+        {{ $isUnpaidOnline ? 'bg-red-50 border-red-300' : (($isPaidOnline || $isCodPaid) ? 'bg-pista-100 border-pista-400' : 'bg-gold-50 border-gold-400') }}">
+        <span class="text-3xl shrink-0">{{ $isUnpaidOnline ? '⚠️' : (($isPaidOnline || $isCodPaid) ? '✅' : '💵') }}</span>
         <div class="min-w-0">
             @if ($isUnpaidOnline)
                 <p class="font-display font-bold text-red-700">{{ __('Payment Not Confirmed') }}</p>
@@ -32,12 +33,27 @@
             @elseif ($isPaidOnline)
                 <p class="font-display font-bold text-pista-600">{{ __('Paid Online') }}</p>
                 <p class="text-xs text-pista-600/80 mt-0.5">{{ __('No cash to collect from the customer.') }}</p>
+            @elseif ($isCodPaid)
+                <p class="font-display font-bold text-pista-600">{{ __('Payment Received') }}</p>
+                <p class="text-xs text-pista-600/80 mt-0.5">₹{{ number_format($order->amount_paid) }} {{ __('collected') }}{{ $order->paid_at ? ' · '.$order->paid_at->format('h:i A') : '' }}</p>
             @else
                 <p class="font-display font-bold text-gold-600">{{ __('Cash on Delivery') }}</p>
                 <p class="text-xs text-gold-600/80 mt-0.5">{{ __('Collect') }} ₹{{ number_format($order->balanceDueOnDelivery()) }} {{ __('from the customer.') }}</p>
             @endif
         </div>
     </div>
+
+    {{-- rider taps this the moment cash is actually handed over — the only way a COD order's
+         payment_status ever becomes 'paid' (see Rider\OrderController::markPaymentReceived) --}}
+    @if (!$isPaidOnline && !$isUnpaidOnline && !$isCodPaid)
+        <form method="POST" action="{{ route('rider.orders.payment-received', $order) }}" class="mt-3">
+            @csrf
+            @method('PATCH')
+            <button type="submit" class="w-full bg-pista-500 hover:bg-pista-600 text-white font-semibold rounded-xl py-3 transition flex items-center justify-center gap-2">
+                ✅ {{ __('Mark Payment Received') }}
+            </button>
+        </form>
+    @endif
 
     <div class="bg-white rounded-2xl border border-gold-200/60 p-5 mt-3">
         <div class="flex items-start justify-between gap-3">

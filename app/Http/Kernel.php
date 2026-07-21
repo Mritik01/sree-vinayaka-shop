@@ -58,6 +58,7 @@ class Kernel extends HttpKernel
      */
     protected $middlewareAliases = [
         'auth' => \App\Http\Middleware\Authenticate::class,
+        'not-blocked' => \App\Http\Middleware\EnsureNotBlocked::class,
         'admin.auth' => \App\Http\Middleware\EnsureAdmin::class,
         'admin.super' => \App\Http\Middleware\EnsureSuperAdmin::class,
         'rider.auth' => \App\Http\Middleware\EnsureRider::class,

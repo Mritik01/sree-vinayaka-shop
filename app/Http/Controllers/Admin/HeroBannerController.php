@@ -94,7 +94,7 @@ class HeroBannerController extends Controller
     private function validateData(Request $request): array
     {
         $data = $request->validate([
-            'title' => 'required|string|max:150',
+            'title' => 'nullable|string|max:150',
             'eyebrow' => 'nullable|string|max:100',
             'subtitle' => 'nullable|string|max:200',
             'button_text' => 'nullable|string|max:60',

@@ -29,10 +29,10 @@
                         <tr class="border-b border-gold-50 last:border-0 hover:bg-cream/50 transition cursor-pointer"
                             ondblclick="window.location.href='{{ route('admin.hero-banners.edit', $banner) }}'">
                             <td class="px-5 py-3">
-                                <img src="{{ asset($banner->image_path) }}" alt="{{ $banner->title }}" class="w-32 h-14 rounded-lg object-cover border border-gold-200/60">
+                                <img src="{{ asset($banner->image_path) }}" alt="{{ $banner->title ?: 'Hero banner' }}" class="w-32 h-14 rounded-lg object-cover border border-gold-200/60">
                             </td>
                             <td class="px-5 py-3 text-maroon-800 font-medium max-w-[220px]">
-                                <p class="truncate">{{ $banner->title }}</p>
+                                <p class="truncate {{ $banner->title ? '' : 'text-maroon-300 italic font-normal' }}">{{ $banner->title ?: 'Image only — no title' }}</p>
                                 @if ($banner->eyebrow)
                                     <p class="text-xs text-maroon-400 truncate">{{ $banner->eyebrow }}</p>
                                 @endif

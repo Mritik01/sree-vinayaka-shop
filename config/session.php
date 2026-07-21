@@ -168,7 +168,12 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // defaults to true in production even if SESSION_SECURE_COOKIE is never explicitly set in
+    // the deploy's .env (a real gap this app previously had — the bare env() with no default
+    // meant a production deploy would silently allow the session cookie over plain HTTP unless
+    // someone remembered to set this by hand). Local/staging (APP_ENV != production) keeps the
+    // previous unset/null behavior so http://localhost dev is unaffected.
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV', 'production') === 'production'),
 
     /*
     |--------------------------------------------------------------------------

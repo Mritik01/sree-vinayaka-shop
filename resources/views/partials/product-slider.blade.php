@@ -48,7 +48,7 @@
     </div>
 
     <div class="relative z-10 max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12">
-        <h2 class="section-heading">{{ __("Thuthibari's Favourites") }}</h2>
+        <h2 class="section-heading">{{ __("Siswa Bazar's Favourites") }}</h2>
         <p class="text-center text-maroon-500 mt-3 mb-10 max-w-xl mx-auto">{{ __("Hand-picked bestsellers, made fresh every morning — swipe through and see what everyone's ordering.") }}</p>
     </div>
 

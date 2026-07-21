@@ -10,17 +10,21 @@
 </article>
 
 <style>
-    .legal-body h2 { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 1.25rem; color: #7a1622; margin: 2rem 0 0.75rem; }
-    .legal-body h3 { font-weight: 700; font-size: 1.05rem; color: #7a1622; margin: 1.5rem 0 0.5rem; }
-    .legal-body h4 { font-weight: 700; font-size: 0.95rem; color: #7a1622; margin: 1.25rem 0 0.4rem; }
+    {{-- shared with the admin live-preview pane (see comment above), which never receives the
+         customer theme override — using the CSS vars (not literal hex) means this still resolves
+         to plain maroon/gold there while correctly following whatever theme the customer site
+         has picked everywhere else. --}}
+    .legal-body h2 { font-family: 'Baloo 2', sans-serif; font-weight: 700; font-size: 1.25rem; color: rgb(var(--color-maroon-500)); margin: 2rem 0 0.75rem; }
+    .legal-body h3 { font-weight: 700; font-size: 1.05rem; color: rgb(var(--color-maroon-500)); margin: 1.5rem 0 0.5rem; }
+    .legal-body h4 { font-weight: 700; font-size: 0.95rem; color: rgb(var(--color-maroon-500)); margin: 1.25rem 0 0.4rem; }
     .legal-body h2:first-child, .legal-body h3:first-child { margin-top: 0; }
     .legal-body p { margin: 0 0 0.9rem; }
     .legal-body ul, .legal-body ol { margin: 0 0 0.9rem; padding-left: 1.4rem; }
     .legal-body ul { list-style: disc; }
     .legal-body ol { list-style: decimal; }
     .legal-body li { margin-bottom: 0.35rem; }
-    .legal-body blockquote { border-left: 3px solid #c8962e; padding-left: 1rem; color: #8a6a52; margin: 1rem 0; font-style: italic; }
-    .legal-body a { color: #7a1622; text-decoration: underline; text-underline-offset: 2px; }
-    .legal-body a:hover { color: #c8962e; }
-    .legal-body strong, .legal-body b { color: #4a0f18; }
+    .legal-body blockquote { border-left: 3px solid rgb(var(--color-gold-500)); padding-left: 1rem; color: #6b7280; margin: 1rem 0; font-style: italic; }
+    .legal-body a { color: rgb(var(--color-maroon-500)); text-decoration: underline; text-underline-offset: 2px; }
+    .legal-body a:hover { color: rgb(var(--color-gold-500)); }
+    .legal-body strong, .legal-body b { color: rgb(var(--color-maroon-800)); }
 </style>

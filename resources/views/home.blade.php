@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Makhanbhog Sweets — No. 1 Sweet Shop in Thuthibari')
+@section('title', 'Shree Vinayak Family Shop — No. 1 Grocery Store in Siswa Bazar')
 
 @section('content')
     {{-- reference-matching top: featured categories → categories → hero banner → category-tabbed shop → feature strip --}}

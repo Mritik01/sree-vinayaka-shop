@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'My Account — Makhanbhog Sweets')
+@section('title', 'My Account — Shree Vinayak Family Shop')
 
 @section('content')
 <section class="relative py-8 sm:py-12 bg-ivory min-h-[80vh]">
@@ -71,7 +71,7 @@
                     {{-- hero banner card --}}
                     <div class="bg-white rounded-3xl border border-gold-200/60 shadow-sm overflow-hidden animate-rise-in">
                         <div class="relative h-28 sm:h-32 bg-gradient-to-r from-maroon-800 via-maroon-600 to-maroon-800 overflow-hidden">
-                            <div class="absolute inset-0 opacity-15" style="background-image: radial-gradient(circle, #e9c873 1.5px, transparent 1.5px); background-size: 18px 18px;"></div>
+                            <div class="absolute inset-0 opacity-15" style="background-image: radial-gradient(circle, #fcd34d 1.5px, transparent 1.5px); background-size: 18px 18px;"></div>
                             <div class="absolute -top-10 right-[15%] w-40 h-40 rounded-full bg-gold-400/30 blur-2xl"></div>
                             <div class="absolute -bottom-12 left-[30%] w-48 h-48 rounded-full bg-gold-500/20 blur-3xl"></div>
                             {{-- gentle string of glowing bulbs, echoing the homepage canopy --}}

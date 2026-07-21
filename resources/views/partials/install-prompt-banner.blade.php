@@ -10,7 +10,7 @@
      x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
      class="w-full bg-gold-50 border-b border-gold-300/60 text-maroon-800 shadow-md">
     <div class="max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12 py-2.5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-sm font-medium text-center">
-        <span>📲 {{ __('Install Makhanbhog Sweets for faster ordering next time.') }}</span>
+        <span>📲 {{ __('Install Shree Vinayak Family Shop for faster ordering next time.') }}</span>
 
         <button type="button" @click="install()"
                 class="px-3 py-1 rounded-full bg-gold-500 text-maroon-900 font-semibold hover:bg-gold-600 transition text-xs">

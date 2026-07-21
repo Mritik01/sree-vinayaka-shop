@@ -3,7 +3,7 @@
         'pending' => 'bg-gold-100 text-gold-600 border-gold-300/60',
         'confirmed' => 'bg-pista-100 text-pista-600 border-pista-400/40',
         'out_for_delivery' => 'bg-sky-50 text-sky-600 border-sky-200',
-        'delivered' => 'bg-maroon-100 text-maroon-600 border-maroon-400/30',
+        'delivered' => 'bg-purple-100 text-purple-600 border-purple-300',
         'cancelled' => 'bg-red-50 text-red-600 border-red-200',
     ];
     $labels = [

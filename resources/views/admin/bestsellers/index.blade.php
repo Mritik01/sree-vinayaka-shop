@@ -5,7 +5,7 @@
 
 @section('content')
     <p class="text-maroon-500 text-sm mb-5 max-w-2xl">
-        Pick which products show up in <span class="font-semibold">Thuthibari's Favourites</span> on the homepage. Unchecked products stay in the catalog but won't appear in that section.
+        Pick which products show up in <span class="font-semibold">Siswa Bazar's Favourites</span> on the homepage. Unchecked products stay in the catalog but won't appear in that section.
     </p>
 
     <form method="POST" action="{{ route('admin.bestsellers.update') }}" x-data="{ dirty: false, q: '' }" @change="dirty = true">

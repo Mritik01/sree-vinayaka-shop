@@ -199,7 +199,7 @@ class CheckoutController extends Controller
                 return response()->json([
                     'ok' => false,
                     'message' => sprintf(
-                        "Sorry, we currently deliver only within %s km of Thuthibari — you're about %s km away.",
+                        "Sorry, we currently deliver only within %s km of Siswa Bazar — you're about %s km away.",
                         rtrim(rtrim(number_format($settings->delivery_radius_km, 1), '0'), '.'),
                         number_format($distanceKm, 1)
                     ),
@@ -269,6 +269,16 @@ class CheckoutController extends Controller
                 'quantity' => $product->pivot->quantity,
                 'portion' => (int) $product->pivot->portion,
             ]);
+        }
+
+        // a product can go out of stock after it was already added to the cart — catch it
+        // here as the last line of defense before an order is actually placed
+        $outOfStockNames = $orderLines->filter(fn ($line) => $line['product']->is_out_of_stock)->pluck('product.name');
+        if ($outOfStockNames->isNotEmpty()) {
+            return response()->json([
+                'ok' => false,
+                'message' => $outOfStockNames->implode(', ').' '.($outOfStockNames->count() > 1 ? 'are' : 'is')." out of stock. Please remove ".($outOfStockNames->count() > 1 ? 'them' : 'it')." to continue.",
+            ], 422);
         }
 
         $subtotal = (int) $orderLines->sum(fn ($line) => $line['product']->priceForPortion($line['portion']) * $line['quantity']);
@@ -464,7 +474,7 @@ class CheckoutController extends Controller
                     'order_id' => $razorpayOrder['id'],
                     'amount' => $razorpayOrder['amount'],
                     'currency' => $razorpayOrder['currency'],
-                    'name' => 'Makhanbhog Sweets',
+                    'name' => 'Shree Vinayak Family Shop',
                     'description' => $order->orderNumber(),
                     'prefill' => [
                         'name' => $data['customer_name'],

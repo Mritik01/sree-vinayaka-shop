@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Admin') — Makhanbhog Sweets</title>
+    <title>@yield('title', 'Admin') — Shree Vinayak Family Shop</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
          x-data="adminNotifier({{ $latestOrderId }}, {{ request()->routeIs('admin.orders.index') ? 'true' : 'false' }})">
         <aside class="w-60 shrink-0 h-screen sticky top-0 bg-maroon-800 text-cream flex flex-col overflow-y-auto">
             <div class="px-6 py-6 border-b border-cream/10">
-                <p class="font-display font-bold text-lg">Makhanbhog <span class="text-gold-400">Sweets</span></p>
+                <p class="font-display font-bold text-lg">Shree Vinayak <span class="text-gold-400">Family Shop</span></p>
                 <p class="text-cream/50 text-xs mt-0.5">{{ __('Admin Panel') }}</p>
             </div>
             <nav class="flex-1 px-3 py-5 text-sm">
@@ -49,8 +49,13 @@
                         ['route' => 'admin.configuration', 'label' => __('Configuration'), 'icon' => '⚙️'],
                     ];
 
-                    // only a Super Admin can manage other admin accounts — see EnsureSuperAdmin
+                    // Super-Admin-only surfaces — see EnsureSuperAdmin. Application Customization
+                    // and Income are gated here (and, more importantly, on the routes themselves
+                    // via the admin.super middleware — hiding the link alone would be no real
+                    // security) alongside the existing Admin Accounts / Impersonation Log entries.
                     if (Auth::guard('admin')->user()?->isSuperAdmin()) {
+                        $navItems[] = ['route' => 'admin.income.index', 'label' => __('Income'), 'icon' => '💰'];
+                        $navItems[] = ['route' => 'admin.customization.index', 'label' => __('Application Customization'), 'icon' => '🎨'];
                         $navItems[] = ['route' => 'admin.admins.index', 'label' => __('Admin Accounts'), 'icon' => '🛡️'];
                         $navItems[] = ['route' => 'admin.impersonation-log.index', 'label' => __('Impersonation Log'), 'icon' => '🕵️'];
                     }
@@ -372,6 +377,27 @@
                             <a :href="`/admin/orders/${warning.id}`" class="text-xs font-semibold text-gold-600 hover:text-gold-700 underline underline-offset-2 mt-1.5 inline-block">{{ __('View order') }} →</a>
                         </div>
                         <button type="button" @click="autoCancelWarnings = autoCancelWarnings.filter((w) => w._key !== warning._key)"
+                                class="shrink-0 text-maroon-300 hover:text-maroon-600 transition text-lg leading-none">✕</button>
+                    </div>
+                </template>
+
+                {{-- a rider just ticked "Mark Payment Received" on a COD order — good news, so it
+                     gets a warmer gold/green treatment and a gentle glow pulse instead of the red
+                     alert styling above --}}
+                <template x-for="toast in codPaymentToasts" :key="toast._key">
+                    <div class="bg-gradient-to-br from-pista-50 to-gold-50 border-2 border-pista-400 rounded-xl shadow-xl p-4 flex items-start gap-3 animate-coin-glow"
+                         x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-6" x-transition:enter-end="opacity-100 translate-x-0"
+                         x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+                        <span class="text-xl shrink-0 animate-bounce">💰</span>
+                        <div class="min-w-0 flex-1">
+                            <p class="font-display font-semibold text-pista-700 text-sm">{{ __('Payment Received') }}</p>
+                            <p class="text-xs text-maroon-600 mt-0.5">
+                                <span x-text="toast.order_number"></span> (<span x-text="toast.customer_name"></span>)
+                                — ₹<span x-text="toast.total"></span> {{ __('collected on delivery.') }}
+                            </p>
+                            <a :href="`/admin/orders/${toast.id}`" class="text-xs font-semibold text-pista-600 hover:text-pista-700 underline underline-offset-2 mt-1.5 inline-block">{{ __('View order') }} →</a>
+                        </div>
+                        <button type="button" @click="codPaymentToasts = codPaymentToasts.filter((t) => t._key !== toast._key)"
                                 class="shrink-0 text-maroon-300 hover:text-maroon-600 transition text-lg leading-none">✕</button>
                     </div>
                 </template>

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $product->name.' — Makhanbhog Sweets')
+@section('title', $product->name.' — Shree Vinayak Family Shop')
 
 @section('content')
 @php
@@ -27,23 +27,39 @@
     <section class="relative pb-16">
         <div class="max-w-[1600px] mx-auto px-4 sm:px-6 py-8 sm:py-10 grid lg:grid-cols-2 gap-10 lg:gap-16 items-start">
             {{-- image column — a thumbnail rail sits left of the main photo, ready for more photos later; today there's only one real image so it shows as the single (active) thumbnail rather than faking extra ones --}}
-            <div class="animate-rise-in flex items-start gap-4 sm:gap-8 lg:gap-12" style="animation-delay: .05s">
-                <div class="hidden sm:flex flex-col gap-3 shrink-0">
-                    <button type="button" aria-label="{{ $product->name }} photo" aria-current="true"
-                        class="w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden border-2 border-maroon-700 shadow-sm shrink-0">
-                        <img src="{{ asset($product->image) }}" alt="" style="object-position: {{ $product->image_position ?? '50% 50%' }};" class="w-full h-full object-cover">
-                    </button>
+            <div>
+                <div class="animate-rise-in flex items-start gap-4 sm:gap-8 lg:gap-12" style="animation-delay: .05s">
+                    <div class="hidden sm:flex flex-col gap-3 shrink-0">
+                        <button type="button" aria-label="{{ $product->name }} photo" aria-current="true"
+                            class="w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden border-2 border-maroon-700 shadow-sm shrink-0">
+                            <img src="{{ asset($product->image) }}" alt="" style="object-position: {{ $product->image_position ?? '50% 50%' }};" class="w-full h-full object-cover">
+                        </button>
+                    </div>
+
+                    <div class="relative rounded-2xl overflow-hidden aspect-square shadow-md border border-gold-200/60 w-full sm:w-[400px] md:w-[450px] shrink-0">
+                        <img src="{{ asset($product->image) }}" alt="{{ $product->name }}" style="object-position: {{ $product->image_position ?? '50% 50%' }};"
+                             class="absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105 {{ $product->is_out_of_stock ? 'grayscale opacity-60' : '' }}">
+                        @if ($product->is_out_of_stock)
+                            <div class="absolute inset-0 z-[5] bg-maroon-950/35 flex items-center justify-center pointer-events-none">
+                                <span class="bg-maroon-900 text-cream text-sm font-bold uppercase tracking-wider px-4 py-2 rounded-full shadow-lg border border-white/20">
+                                    {{ __('Out of Stock') }}
+                                </span>
+                            </div>
+                        @elseif ($product->hasDiscount())
+                            <span class="absolute top-4 left-4 text-sm font-bold uppercase tracking-wide px-3 py-1.5 rounded-full bg-red-600 text-white shadow-md">
+                                {{ $product->discountBadgeLabel() }}
+                            </span>
+                        @endif
+                    </div>
                 </div>
 
-                <div class="relative rounded-2xl overflow-hidden aspect-square shadow-md border border-gold-200/60 w-full sm:w-[400px] md:w-[450px] shrink-0">
-                    <img src="{{ asset($product->image) }}" alt="{{ $product->name }}" style="object-position: {{ $product->image_position ?? '50% 50%' }};"
-                         class="absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105">
-                    @if ($product->hasDiscount())
-                        <span class="absolute top-4 left-4 text-sm font-bold uppercase tracking-wide px-3 py-1.5 rounded-full bg-red-600 text-white shadow-md">
-                            {{ $product->discountBadgeLabel() }}
-                        </span>
-                    @endif
-                </div>
+                {{-- desktop-only "Product Details" accordion, directly under the photo; the
+                     mobile equivalent lives further down, swapped in for the trust-badges strip --}}
+                @if ($product->description)
+                    <div class="hidden lg:block animate-rise-in mt-5" style="animation-delay: .1s">
+                        @include('partials.product-details-accordion', ['description' => $product->description])
+                    </div>
+                @endif
             </div>
 
             {{-- details column --}}
@@ -87,12 +103,14 @@
 
                 <div class="animate-rise-in border-t border-gold-200/70 mt-4 pt-4 flex flex-wrap items-center gap-x-6 gap-y-2" style="animation-delay: .2s">
                     <span class="text-sm text-maroon-600 flex items-center gap-1.5">🌿 {{ __('Fresh & Preservative-Free') }}</span>
-                    <span class="text-sm text-maroon-600 flex items-center gap-1.5">❤️ {{ __("Thuthibari's Favourite") }}</span>
+                    <span class="text-sm text-maroon-600 flex items-center gap-1.5">❤️ {{ __("Siswa Bazar's Favourite") }}</span>
                 </div>
 
-                <p class="animate-rise-in text-maroon-600/90 leading-relaxed mt-5" style="animation-delay: .25s">
-                    {{ $product->description }}
-                </p>
+                @if ($product->description)
+                    <p class="animate-rise-in text-maroon-600/90 leading-relaxed mt-5" style="animation-delay: .25s">
+                        {{ $product->description }}
+                    </p>
+                @endif
 
                 @if ($product->isLoose())
                     <div class="animate-rise-in mt-7" style="animation-delay: .3s">
@@ -114,6 +132,15 @@
                 @endif
 
                 <div class="animate-rise-in mt-6" style="animation-delay: .35s">
+                    @if ($product->is_out_of_stock)
+                        <div class="rounded-2xl bg-red-50 border border-red-200 px-5 py-4 flex items-center gap-3">
+                            <span class="text-2xl">🚫</span>
+                            <div>
+                                <p class="text-sm font-bold text-red-700">{{ __('Out of Stock') }}</p>
+                                <p class="text-xs text-red-500 mt-0.5">{{ __("This item isn't available right now — check back soon.") }}</p>
+                            </div>
+                        </div>
+                    @else
                     <p class="text-sm font-semibold text-maroon-800 mb-2">{{ __('Select Quantity') }}</p>
                     <div class="flex items-stretch gap-3">
                         <div class="flex items-center gap-3 bg-white rounded-full border border-gold-300/60 px-3 shadow-sm">
@@ -132,11 +159,12 @@
                     <a href="/cart" class="inline-block mt-3 text-sm text-maroon-500 hover:text-gold-600 underline underline-offset-2 transition">
                         {{ __('Go to cart & place your order — Cash on Delivery') }}
                     </a>
+                    @endif
                 </div>
 
                 <div class="animate-rise-in mt-6 rounded-full text-center py-3.5 px-6 font-semibold text-sm sm:text-base shadow-sm"
-                     style="animation-delay: .4s; background: linear-gradient(120deg, #a97a1f, #c8962e); color: #fdf6e9;">
-                    🛵 {{ __('Hyperlocal Delivery Available in Thuthibari') }}
+                     style="animation-delay: .4s; background: linear-gradient(120deg, rgb(var(--color-gold-600)), rgb(var(--color-gold-500))); color: rgb(var(--color-cream));">
+                    🛵 {{ __('Hyperlocal Delivery Available in Siswa Bazar') }}
                 </div>
 
                 <div class="animate-rise-in mt-6 rounded-2xl bg-gold-50/70 border border-gold-200/60 px-6 py-4 flex items-center gap-6" style="animation-delay: .45s">
@@ -151,14 +179,23 @@
                     </div>
                 </div>
 
-                <div class="animate-rise-in grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-gold-200/60" style="animation-delay: .5s">
-                    @foreach ([['🌿','100% Fresh Daily'], ['🧼','Hygienic Packing'], ['🙏','Pure Ingredients'], ['❤️','Loved in Thuthibari']] as [$emoji, $label])
+                {{-- on mobile, a "Product Details" accordion takes this spot instead — the icon
+                     strip stays put on desktop either way (it sits below the separate accordion
+                     already placed under the photo there, so nothing's lost) --}}
+                <div class="animate-rise-in grid grid-cols-2 sm:grid-cols-4 gap-3 mt-8 pt-6 border-t border-gold-200/60 {{ $product->description ? 'hidden lg:grid' : '' }}" style="animation-delay: .5s">
+                    @foreach ([['🌿','100% Fresh Daily'], ['🧼','Hygienic Packing'], ['🙏','Pure Ingredients'], ['❤️','Loved in Siswa Bazar']] as [$emoji, $label])
                         <div class="text-center">
                             <p class="text-2xl">{{ $emoji }}</p>
                             <p class="text-xs text-maroon-500 mt-1 leading-tight">{{ __($label) }}</p>
                         </div>
                     @endforeach
                 </div>
+
+                @if ($product->description)
+                    <div class="lg:hidden animate-rise-in mt-8" style="animation-delay: .5s">
+                        @include('partials.product-details-accordion', ['description' => $product->description])
+                    </div>
+                @endif
             </div>
         </div>
     </section>
@@ -167,14 +204,32 @@
         <section class="relative bg-ivory py-16 overflow-hidden">
             <div class="max-w-[1600px] mx-auto px-4 sm:px-6">
                 <h2 class="section-heading">{{ __('You Might Also Like') }}</h2>
-                <p class="text-center text-maroon-500 mt-3 mb-10">{{ __("More favourites from Thuthibari's kitchen.") }}</p>
+                <p class="text-center text-maroon-500 mt-3 mb-10">{{ __("More favourites from Siswa Bazar's kitchen.") }}</p>
 
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6" x-data="favoritesList({{ Auth::check() ? 'true' : 'false' }}, @json($favoritedIds))">
-                    @foreach ($related as $index => $item)
-                        <div class="animate-rise-in" style="animation-delay: {{ 0.1 * $index }}s">
-                            @include('partials.product-card-mini', ['product' => $item, 'fixedWidth' => false])
+                <div x-data="favoritesList({{ Auth::check() ? 'true' : 'false' }}, @json($favoritedIds))">
+                    {{-- auto-advancing horizontal carousel on every breakpoint (see
+                         window.relatedAutoSlider in app.js) — pauses on hover/touch, loops back
+                         to the start at the end. Card width scales down on mobile so more than
+                         one full card is visible at once. --}}
+                    <div class="relative" x-data="relatedAutoSlider(240)" @mouseenter="paused = true" @mouseleave="paused = false" @touchstart="paused = true">
+                        <button x-show="canLeft" x-cloak @click="scrollBy(-1)" aria-label="{{ __('Scroll left') }}"
+                                class="hidden sm:flex absolute left-1 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white border border-gold-300/60 shadow-md items-center justify-center text-maroon-700 hover:bg-cream transition">
+                            &#8249;
+                        </button>
+                        <div x-ref="track" @scroll.debounce.100ms="update()"
+                             class="flex gap-4 sm:gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                             :class="fits() && 'justify-center'">
+                            @foreach ($related as $index => $item)
+                                <div class="w-40 sm:w-48 lg:w-56 shrink-0 snap-start animate-rise-in" style="animation-delay: {{ 0.1 * $index }}s">
+                                    @include('partials.product-card-mini', ['product' => $item, 'fixedWidth' => false])
+                                </div>
+                            @endforeach
                         </div>
-                    @endforeach
+                        <button x-show="canRight" x-cloak @click="scrollBy(1)" aria-label="{{ __('Scroll right') }}"
+                                class="hidden sm:flex absolute right-1 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white border border-gold-300/60 shadow-md items-center justify-center text-maroon-700 hover:bg-cream transition">
+                            &#8250;
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -255,7 +310,7 @@
                     <div class="mt-10 pt-8 border-t border-gold-200/60"
                          x-data="reviewForm('{{ $product->slug }}', {{ Auth::check() ? 'true' : 'false' }}, {{ optional($userReview)->rating ?? 0 }}, {{ \Illuminate\Support\Js::from(optional($userReview)->comment ?? '') }})">
                         <p class="font-display text-lg text-maroon-800" x-text="hasReviewed ? 'Update your review' : 'Share your experience'"></p>
-                        <p class="text-sm text-maroon-400 mt-1">How was the mithai? Other sweet-lovers want to know.</p>
+                        <p class="text-sm text-maroon-400 mt-1">How was it? Other shoppers want to know.</p>
 
                         <div class="relative w-fit flex gap-1 mt-5">
                             <template x-for="i in 5" :key="i">
@@ -379,6 +434,9 @@
          x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-full" x-transition:enter-end="opacity-100 translate-y-0"
          x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-full"
          class="fixed bottom-16 inset-x-0 z-40 md:hidden bg-white/95 backdrop-blur border-t border-gold-300/50 shadow-2xl px-4 py-3 flex items-center justify-between gap-3">
+        @if ($product->is_out_of_stock)
+            <p class="text-sm font-bold text-red-600 flex items-center gap-1.5">🚫 {{ __('Out of Stock') }}</p>
+        @else
         <div>
             <p class="text-[10px] text-maroon-400 uppercase tracking-wide">{{ __('Total') }}</p>
             <p class="font-display font-bold text-lg" style="color: {{ $product->color }};">₹<span x-text="quantity * unitPrice()"></span></p>
@@ -389,6 +447,7 @@
             <span x-show="!justAddedToCart">{{ __('Add to Cart') }}</span>
             <span x-show="justAddedToCart" x-cloak>{{ __('Added') }} 🛒</span>
         </button>
+        @endif
     </div>
 </div>
 @endsection

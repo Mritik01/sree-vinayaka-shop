@@ -27,6 +27,6 @@ class BestsellerController extends Controller
         Product::whereIn('id', $selected)->update(['is_bestseller' => true]);
         Product::whereNotIn('id', $selected)->update(['is_bestseller' => false]);
 
-        return redirect()->route('admin.bestsellers.index')->with('status', "Thuthibari's Favourites updated.");
+        return redirect()->route('admin.bestsellers.index')->with('status', "Siswa Bazar's Favourites updated.");
     }
 }

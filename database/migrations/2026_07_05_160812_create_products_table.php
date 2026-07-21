@@ -14,10 +14,10 @@ return new class extends Migration
         Schema::create('products', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('description');
+            $table->string('description')->nullable();
             $table->unsignedInteger('price');
-            $table->string('weight');
-            $table->string('tag');
+            $table->string('weight')->nullable();
+            $table->string('tag')->nullable();
             $table->string('image');
             $table->string('color', 7);
             $table->unsignedInteger('sort_order')->default(0);

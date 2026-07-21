@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Contact Us — Makhanbhog Sweets')
-@section('description', "Get in touch with Makhanbhog Sweets, Thuthibari's favourite sweet shop — phone, WhatsApp, email, opening hours, and directions to our outlet.")
+@section('title', 'Contact Us — Shree Vinayak Family Shop')
+@section('description', "Get in touch with Shree Vinayak Family Shop, Siswa Bazar's favourite grocery store — phone, WhatsApp, email, opening hours, and directions to our outlet.")
 
 @php
     // same IST-hours logic as partials/visit-us.blade.php, kept in sync deliberately since both
@@ -25,7 +25,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-start mt-10">
             <div class="mithai-frame relative overflow-hidden h-64 sm:h-80">
-                <img src="{{ asset('images/outlet/storefront.jpg') }}" alt="{{ __('Makhanbhog Sweets storefront in Thuthibari') }}" loading="lazy"
+                <img src="{{ asset('images/outlet/storefront.jpg') }}" alt="{{ __('Shree Vinayak Family Shop storefront in Siswa Bazar') }}" loading="lazy"
                      class="absolute inset-0 w-full h-full object-cover">
             </div>
 
@@ -35,8 +35,8 @@
                         <span class="text-xl shrink-0">📍</span>
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-maroon-400">{{ __('Address') }}</p>
-                            <p class="text-maroon-800 font-medium mt-0.5">{{ __('Main Market Road, Thuthibari') }}</p>
-                            <a href="https://www.google.com/maps/place/Makhanbhog+sweets/@27.4242366,83.6925724,928m/data=!3m2!1e3!4b1!4m6!3m5!1s0x39942351305d449b:0x37dd7b4b5f25945c!8m2!3d27.4242366!4d83.6925724!16s%2Fg%2F11sb3rl_yn?entry=ttu&amp;g_ep=EgoyMDI2MDcxNS4wIKXMDSoASAFQAw%3D%3D"
+                            <p class="text-maroon-800 font-medium mt-0.5">{{ __('Roadways Bus Stand, Nichlaul Road, Siswa Bazar, Maharajganj, UP 273163') }}</p>
+                            <a href="https://www.google.com/maps/place/Vinayak+family+shop/@27.1555715,83.7583867,116m/data=!3m1!1e3!4m15!1m8!3m7!1s0x399405f255a1917b:0x6a81af17a7f824bc!2sSiswa+Bazar,+Uttar+Pradesh+273163!3b1!8m2!3d27.1496918!4d83.7597505!16s%2Fg%2F11c1pcy3jv!3m5!1s0x399405c96c7bf3d1:0x2b1f6ee963c89b2d!8m2!3d27.155558!4d83.7584378!16s%2Fg%2F11fs1rllp9?entry=ttu&amp;g_ep=EgoyMDI2MDcxOS4wIKXMDSoASAFQAw%3D%3D"
                                target="_blank" rel="noopener" class="text-gold-600 hover:text-gold-700 font-semibold text-xs mt-1 inline-block">{{ __('Get Directions') }} →</a>
                         </div>
                     </div>
@@ -78,7 +78,7 @@
                         <span class="text-xl shrink-0">✉️</span>
                         <div>
                             <p class="text-xs font-semibold uppercase tracking-wide text-maroon-400">{{ __('Email') }}</p>
-                            <a href="mailto:contact@makhanbhogsweets.com" class="text-maroon-800 font-medium mt-0.5 hover:text-gold-600 transition inline-block">contact@makhanbhogsweets.com</a>
+                            <a href="mailto:support@vinayakfamilyshop.com" class="text-maroon-800 font-medium mt-0.5 hover:text-gold-600 transition inline-block">support@vinayakfamilyshop.com</a>
                         </div>
                     </div>
                 </div>

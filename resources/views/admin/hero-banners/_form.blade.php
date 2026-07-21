@@ -11,7 +11,7 @@
 <div class="grid md:grid-cols-2 gap-5">
     <div>
         <label class="block text-sm font-medium text-maroon-700 mb-1.5">Eyebrow <span class="text-maroon-400 font-normal">(small gold line above the title, optional)</span></label>
-        <input type="text" name="eyebrow" value="{{ old('eyebrow', $banner->eyebrow ?? '') }}" maxlength="100" placeholder="e.g. Loved By Thuthibari"
+        <input type="text" name="eyebrow" value="{{ old('eyebrow', $banner->eyebrow ?? '') }}" maxlength="100" placeholder="e.g. Loved By Siswa Bazar"
                class="w-full rounded-lg border border-gold-300/70 px-3.5 py-2.5 text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
     </div>
     <div>
@@ -23,8 +23,8 @@
 </div>
 
 <div class="mt-5">
-    <label class="block text-sm font-medium text-maroon-700 mb-1.5">Title</label>
-    <input type="text" name="title" value="{{ old('title', $banner->title ?? '') }}" required maxlength="150" placeholder="e.g. The Sweet Box Everyone's Taking Home"
+    <label class="block text-sm font-medium text-maroon-700 mb-1.5">Title <span class="text-maroon-400 font-normal">(optional — leave blank if your banner image already has text/branding baked in)</span></label>
+    <input type="text" name="title" value="{{ old('title', $banner->title ?? '') }}" maxlength="150" placeholder="e.g. The Sweet Box Everyone's Taking Home"
            class="w-full rounded-lg border border-gold-300/70 px-3.5 py-2.5 text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition"
            @input="overlayTitle = $event.target.value">
 </div>
@@ -57,7 +57,8 @@
 {{-- banner image: wide crop via Cropper.js, with live desktop + mobile frame previews so the
      admin sees exactly how the slide will look at both sizes before saving --}}
 <div class="mt-6 border-t border-gold-200/60 pt-5">
-    <p class="text-sm font-medium text-maroon-700 mb-2">Banner Image</p>
+    <p class="text-sm font-medium text-maroon-700 mb-1">Banner Image</p>
+    <p class="text-xs text-maroon-400 mb-2">Recommended size: 1920 × 823px (21:9, wide banner shape) — anything smaller than 1680 × 720px may look soft once cropped. JPG or PNG.</p>
 
     <div>
         <template x-if="rawImageSrc">
@@ -84,20 +85,28 @@
             <p class="text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-2">Desktop Preview</p>
             <div class="relative rounded-xl overflow-hidden border border-gold-300/60 aspect-[21/9] bg-maroon-900">
                 <img :src="livePreview" class="absolute inset-0 w-full h-full object-cover">
-                <div class="absolute inset-0 bg-gradient-to-r from-maroon-900/85 via-maroon-900/45 to-transparent"></div>
-                <div class="absolute inset-0 flex items-center px-4">
-                    <p class="text-cream font-bold text-sm leading-snug drop-shadow max-w-[60%]" x-text="overlayTitle || 'Banner title appears here'"></p>
-                </div>
+                <template x-if="overlayTitle">
+                    <div>
+                        <div class="absolute inset-0 bg-gradient-to-r from-maroon-900/85 via-maroon-900/45 to-transparent"></div>
+                        <div class="absolute inset-0 flex items-center px-4">
+                            <p class="text-cream font-bold text-sm leading-snug drop-shadow max-w-[60%]" x-text="overlayTitle"></p>
+                        </div>
+                    </div>
+                </template>
             </div>
         </div>
         <div>
             <p class="text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-2">Mobile Preview</p>
             <div class="relative rounded-xl overflow-hidden border border-gold-300/60 aspect-[4/3] bg-maroon-900 max-w-[180px]">
                 <img :src="livePreview" class="absolute inset-0 w-full h-full object-cover">
-                <div class="absolute inset-0 bg-gradient-to-r from-maroon-900/85 via-maroon-900/45 to-transparent"></div>
-                <div class="absolute inset-0 flex items-center px-3">
-                    <p class="text-cream font-bold text-[11px] leading-snug drop-shadow max-w-[75%]" x-text="overlayTitle || 'Banner title appears here'"></p>
-                </div>
+                <template x-if="overlayTitle">
+                    <div>
+                        <div class="absolute inset-0 bg-gradient-to-r from-maroon-900/85 via-maroon-900/45 to-transparent"></div>
+                        <div class="absolute inset-0 flex items-center px-3">
+                            <p class="text-cream font-bold text-[11px] leading-snug drop-shadow max-w-[75%]" x-text="overlayTitle"></p>
+                        </div>
+                    </div>
+                </template>
             </div>
         </div>
     </div>

@@ -54,7 +54,11 @@ return [
     'channels' => [
         'stack' => [
             'driver' => 'stack',
-            'channels' => ['single'],
+            // 'daily' (14-day retention, defined below) instead of 'single' — a single unbounded
+            // laravel.log file grows forever with no rotation, a real disk-space risk on a
+            // long-running production box. LOG_CHANNEL defaults to 'stack', so this takes effect
+            // immediately without needing any .env change.
+            'channels' => ['daily'],
             'ignore_exceptions' => false,
         ],
 

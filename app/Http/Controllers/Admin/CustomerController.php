@@ -10,9 +10,11 @@ use App\Models\SiteVisit;
 use App\Models\User;
 use App\Models\UserActivity;
 use App\Notifications\AdminMessage;
+use App\Services\CustomerBlockService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 
 class CustomerController extends Controller
@@ -25,6 +27,7 @@ class CustomerController extends Controller
     {
         $sort = in_array($request->get('sort'), self::SORTS, true) ? $request->get('sort') : 'spent';
         $search = trim((string) $request->get('q', ''));
+        $statusFilter = in_array($request->get('status'), ['active', 'blocked'], true) ? $request->get('status') : '';
 
         $customers = User::query()
             ->withCount(['orders as total_orders' => fn ($q) => $q->where('status', '!=', 'cancelled')])
@@ -69,6 +72,11 @@ class CustomerController extends Controller
 
         $totalCustomers = $customers->count();
         $totalRevenue = (int) $customers->sum('total_spent');
+        $blockedCount = $customers->where('is_blocked', true)->count();
+
+        if ($statusFilter !== '') {
+            $customers = $customers->where('is_blocked', $statusFilter === 'blocked')->values();
+        }
 
         if ($search !== '') {
             $needle = strtolower($search);
@@ -90,10 +98,12 @@ class CustomerController extends Controller
             'customers' => $paginatedCustomers,
             'sort' => $sort,
             'search' => $search,
+            'statusFilter' => $statusFilter,
             'mvp' => $mvp,
             'chartData' => $chartData,
             'totalCustomers' => $totalCustomers,
             'totalRevenue' => $totalRevenue,
+            'blockedCount' => $blockedCount,
             'newThisWeek' => User::where('created_at', '>=', now()->startOfWeek(Carbon::MONDAY))->count(),
         ];
 
@@ -142,7 +152,51 @@ class CustomerController extends Controller
             'mvpBadges' => $mvpBadges,
             'assignedCoupons' => $assignedCoupons,
             'assignableCoupons' => $assignableCoupons,
+            'blockHistory' => $user->blockHistory()->with('admin')->get(),
         ], $this->behaviourData($user)));
+    }
+
+    // any logged-in admin can block/unblock (not super-admin-only) — same tier as cancelling an
+    // order or issuing a refund, both already unrestricted admin actions in this app
+    public function block(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'reason' => 'required|in:'.implode(',', array_keys(User::BLOCK_REASONS)),
+            'message' => ['nullable', 'string', 'max:1000', 'required_if:reason,other'],
+            'notes' => 'nullable|string|max:1000',
+        ], [
+            'message.required_if' => 'Please write a message for the customer since you chose "Other (Custom Reason)".',
+        ]);
+
+        // every reason except 'other' has a sensible, clear default — falling back to it here
+        // (rather than only in the UI) guarantees block_message is never blank in the database,
+        // regardless of how this endpoint is called
+        $message = trim($data['message'] ?? '') ?: User::defaultBlockMessageFor($data['reason']);
+
+        CustomerBlockService::block(
+            $user,
+            Auth::guard('admin')->user(),
+            $data['reason'],
+            $message,
+            trim($data['notes'] ?? '') ?: null
+        );
+
+        // called exclusively via fetch() from blockCustomerModal() (see admin.js) — a redirect
+        // response here (e.g. back()) gets auto-followed by the browser as a same-method PATCH
+        // to the redirect target, which 405s since that route only accepts GET/HEAD. A plain
+        // JSON response, matching updateName() below, sidesteps that entirely.
+        return response()->json(['ok' => true, 'message' => "{$user->name} has been blocked."]);
+    }
+
+    public function unblock(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        CustomerBlockService::unblock($user, Auth::guard('admin')->user(), trim($data['notes'] ?? '') ?: null);
+
+        return back()->with('status', "{$user->name} has been unblocked and regains normal access immediately.");
     }
 
     // "attach a coupon to just this customer" — the moment a coupon has any row here, Coupon::isRestricted()

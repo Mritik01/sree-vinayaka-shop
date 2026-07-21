@@ -165,6 +165,14 @@ class Order extends Model
         return max(0, $this->amount_paid - $this->total - $this->refunded_amount);
     }
 
+    // true only once a COD order's cash has actually been handed over — the only place this ever
+    // becomes true is Rider\OrderController::markPaymentReceived(), since RazorpayController only
+    // ever writes payment_status for payment_method === 'razorpay'
+    public function codPaymentReceived(): bool
+    {
+        return $this->payment_method !== 'razorpay' && $this->payment_status === 'paid';
+    }
+
     public function isRefundable(): bool
     {
         return $this->payment_method === 'razorpay'

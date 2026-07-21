@@ -72,6 +72,30 @@ function playChatPing() {
     }
 }
 
+// bright three-note "cha-ching" for a rider marking COD cash as collected — distinct in shape
+// from both the insistent new-order chime and the softer chat ping so an admin can tell them
+// apart by ear without looking at the screen
+function playPaymentChime() {
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = ctx.currentTime;
+        [[988, 0], [1318.5, 0.1], [1568, 0.2]].forEach(([freq, delay]) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.0001, now + delay);
+            gain.gain.exponentialRampToValueAtTime(0.3, now + delay + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.5);
+            osc.connect(gain).connect(ctx.destination);
+            osc.start(now + delay);
+            osc.stop(now + delay + 0.55);
+        });
+    } catch (e) {
+        // audio blocked before first user interaction — nothing else to do
+    }
+}
+
 // customizable sidebar order — drag-and-drop, persisted per-browser via localStorage. Dashboard
 // is deliberately never part of this list at all (it's rendered as its own fixed row in the
 // blade, above this component entirely) so there's no way to drag it out of first place.
@@ -145,6 +169,12 @@ window.adminNotifier = function (initialLatestId, isOrdersIndex) {
         soundInterval: null,
         soundStopTimer: null,
         autoCancelWarnings: [],
+        codPaymentToasts: [],
+        // orders already toasted for "COD payment received" — without this, an order touched
+        // again later for an unrelated reason (rider marks delivered, admin adds an item) would
+        // still carry payment_status: 'paid' and would otherwise re-trigger the celebration toast
+        // every time it reappears in the time-cursor diff below. Same idiom as poppedIds.
+        notifiedPaidIds: new Set(),
         supportUnread: 0,
         supportToasts: [],
         // null until the first poll so a page load never replays a chime/toast for a message
@@ -199,6 +229,24 @@ window.adminNotifier = function (initialLatestId, isOrdersIndex) {
                 }
 
                 if (data.orders && data.orders.length) {
+                    // a rider ticking "Mark Payment Received" on a COD order is the only way it
+                    // ever becomes payment_status: 'paid' (see Order::codPaymentReceived) — surface
+                    // it live with its own chime + toast, distinct from the persistent bell entry
+                    // the same event also lands in (see OrderPaymentReceived notification)
+                    data.orders.forEach((o) => {
+                        const isCodPaid = o.payment_method !== 'RAZORPAY' && o.payment_status === 'paid';
+                        if (!isCodPaid) return;
+                        if (this.notifiedPaidIds.has(o.id)) return;
+                        this.notifiedPaidIds.add(o.id);
+
+                        playPaymentChime();
+                        const key = Date.now() + Math.random();
+                        this.codPaymentToasts.push({ ...o, _key: key });
+                        setTimeout(() => {
+                            this.codPaymentToasts = this.codPaymentToasts.filter((t) => t._key !== key);
+                        }, 12000);
+                    });
+
                     // brand new (never seen before) vs. an update to an order already on screen —
                     // an existing order coming back through this same time-cursor poll (e.g. a rider
                     // marking it delivered) must never re-trigger the new-order popup/chime
@@ -289,7 +337,7 @@ const statusBadgeStyles = {
     pending: 'bg-gold-100 text-gold-600 border-gold-300/60',
     confirmed: 'bg-pista-100 text-pista-600 border-pista-400/40',
     out_for_delivery: 'bg-sky-50 text-sky-600 border-sky-200',
-    delivered: 'bg-maroon-100 text-maroon-600 border-maroon-400/30',
+    delivered: 'bg-purple-100 text-purple-600 border-purple-300',
     cancelled: 'bg-red-50 text-red-600 border-red-200',
 };
 
@@ -306,20 +354,56 @@ const statusLabels = window.ORDER_STATUS_LABELS || {
 // live-inserts freshly-placed orders and live-patches status changes on orders already on
 // screen (e.g. a rider marking one delivered) — all without a page reload, driven by the
 // 'admin-orders-changed' event adminNotifier() broadcasts on every poll tick
-window.ordersLivePage = function (initialOrders, statusFilter, currentPage, perPage, initialSearch) {
+window.ordersLivePage = function (config) {
+    const filters = config.filters || {};
+    const hasIncomingFilters = !!(config.search || filters.quick_filter || filters.payment_status
+        || filters.payment_method || filters.rider_id || filters.amount_min || filters.amount_max || config.statusFilter);
+
     return {
-        orders: initialOrders || [],
+        orders: config.orders || [],
         missedCount: 0,
         now: Date.now(),
+        loading: false,
 
-        search: initialSearch || '',
-        searching: !!initialSearch,
+        // collapsed by default so the order table sits right under the page title instead of
+        // below a full screen of cards/chips — remembered per-browser, but a link that arrives
+        // with a filter already applied (e.g. from Income History, or a bookmarked/shared URL)
+        // opens the panel automatically so the admin isn't confused about why the table looks
+        // filtered with no visible explanation
+        panelOpen: localStorage.getItem('mb_admin_orders_panel_open') !== null
+            ? localStorage.getItem('mb_admin_orders_panel_open') === '1'
+            : hasIncomingFilters,
+
+        // every filter dimension lives here as reactive state — one applyFilters() call builds
+        // the URL from all of them at once, so any combination (quick date + payment status +
+        // rider + amount range + free-text search, all together) is just "whatever's currently
+        // set", never a special case to wire up per combination
+        statusFilter: config.statusFilter || '',
+        search: config.search || '',
+        quickFilter: filters.quick_filter || '',
+        dateFrom: filters.from || '',
+        dateTo: filters.to || '',
+        paymentStatus: filters.payment_status || '',
+        paymentMethod: filters.payment_method || '',
+        riderId: filters.rider_id || '',
+        amountMin: filters.amount_min || '',
+        amountMax: filters.amount_max || '',
+
+        searching: hasIncomingFilters,
         totalMatches: null,
-        searchTimer: null,
+        currentPage: config.currentPage,
+        perPage: config.perPage,
+        filterTimer: null,
+
+        stats: config.stats || {},
 
         init() {
             // ticks the digital-clock countdown shown next to confirmed / out-for-delivery orders
             setInterval(() => { this.now = Date.now(); }, 1000);
+        },
+        togglePanel() {
+            this.panelOpen = !this.panelOpen;
+            localStorage.setItem('mb_admin_orders_panel_open', this.panelOpen ? '1' : '0');
         },
         statusBadgeClasses(status) {
             return statusBadgeStyles[status] || statusBadgeStyles.pending;
@@ -346,7 +430,7 @@ window.ordersLivePage = function (initialOrders, statusFilter, currentPage, perP
                 if (idx !== -1) {
                     // already on screen — patch it in place (status, eta, coupon, etc.), unless it no
                     // longer matches the active status filter, in which case it drops off this view
-                    if (statusFilter !== '' && incoming.status !== statusFilter) {
+                    if (this.statusFilter !== '' && incoming.status !== this.statusFilter) {
                         this.orders.splice(idx, 1);
                     } else {
                         this.orders[idx] = { ...this.orders[idx], ...incoming, _new: this.orders[idx]._new };
@@ -361,16 +445,16 @@ window.ordersLivePage = function (initialOrders, statusFilter, currentPage, perP
             if (toInsert.length === 0) return;
 
             // brand-new orders are always 'pending' and sort newest-first, so they only belong at
-            // the top of an unfiltered/pending view of page 1 — anywhere else (including an active
-            // search, which a fresh order likely doesn't match), just flag that some arrived
-            const applicable = !this.searching && currentPage === 1 && (statusFilter === '' || statusFilter === 'pending');
+            // the top of an unfiltered/pending view of page 1 — anywhere else (including any active
+            // filter, which a fresh order likely doesn't match), just flag that some arrived
+            const applicable = !this.searching && this.currentPage === 1 && (this.statusFilter === '' || this.statusFilter === 'pending');
             if (!applicable) {
                 this.missedCount += toInsert.length;
                 return;
             }
 
             const rows = toInsert.map((o) => ({ ...o, _new: true }));
-            this.orders = [...rows, ...this.orders].slice(0, perPage);
+            this.orders = [...rows, ...this.orders].slice(0, this.perPage);
             setTimeout(() => {
                 rows.forEach((r) => {
                     const row = this.orders.find((o) => o.id === r.id);
@@ -379,30 +463,91 @@ window.ordersLivePage = function (initialOrders, statusFilter, currentPage, perP
             }, 2500);
         },
 
-        // instant keystroke search — debounced fetch of fresh rows as JSON, swapped straight
-        // into the same reactive `orders` array the live new-order feature already drives
-        onSearchInput() {
-            clearTimeout(this.searchTimer);
-            this.searchTimer = setTimeout(() => this.performSearch(), 300);
+        setStatus(status) {
+            this.statusFilter = this.statusFilter === status ? '' : status;
+            this.applyFilters();
         },
-        async performSearch() {
-            clearTimeout(this.searchTimer);
+        setQuickFilter(value) {
+            this.quickFilter = this.quickFilter === value ? '' : value;
+            if (this.quickFilter !== 'custom') {
+                this.dateFrom = '';
+                this.dateTo = '';
+            }
+            this.applyFilters();
+        },
+        onFilterInput(delay = 400) {
+            clearTimeout(this.filterTimer);
+            this.filterTimer = setTimeout(() => this.applyFilters(), delay);
+        },
+        clearFilters() {
+            this.statusFilter = '';
+            this.search = '';
+            this.quickFilter = '';
+            this.dateFrom = '';
+            this.dateTo = '';
+            this.paymentStatus = '';
+            this.paymentMethod = '';
+            this.riderId = '';
+            this.amountMin = '';
+            this.amountMax = '';
+            this.applyFilters();
+        },
+        hasActiveFilters() {
+            return !!(this.search || this.quickFilter || this.paymentStatus || this.paymentMethod
+                || this.riderId || this.amountMin || this.amountMax || this.statusFilter);
+        },
+
+        // every filter maps to one query string — shared by the AJAX refresh below and the
+        // Export-to-Excel link, so "export only the currently filtered data" just falls out of
+        // both reading from the exact same place, nothing to keep in sync by hand
+        buildParams() {
+            const params = new URLSearchParams();
+            if (this.statusFilter) params.set('status', this.statusFilter);
+            if (this.search.trim()) params.set('q', this.search.trim());
+            if (this.quickFilter) params.set('quick_filter', this.quickFilter);
+            if (this.quickFilter === 'custom') {
+                if (this.dateFrom) params.set('from', this.dateFrom);
+                if (this.dateTo) params.set('to', this.dateTo);
+            }
+            if (this.paymentStatus) params.set('payment_status', this.paymentStatus);
+            if (this.paymentMethod) params.set('payment_method', this.paymentMethod);
+            if (this.riderId) params.set('rider_id', this.riderId);
+            if (this.amountMin) params.set('amount_min', this.amountMin);
+            if (this.amountMax) params.set('amount_max', this.amountMax);
+
+            const currentPerPage = new URLSearchParams(window.location.search).get('per_page');
+            if (currentPerPage) params.set('per_page', currentPerPage);
+
+            return params;
+        },
+        exportUrl() {
+            return `${config.exportBaseUrl}?${this.buildParams().toString()}`;
+        },
+
+        // instant filtering — any chip/select/date/amount/search change lands here, debounced
+        // for free-text/number inputs (onFilterInput) or immediate for chips/selects. Always
+        // resets to page 1 of the new filtered set; paging through a large filtered result still
+        // goes through a normal (filter-preserving, see withQueryString) page reload — same as
+        // this table's pagination already worked before this feature existed.
+        async applyFilters() {
+            this.loading = true;
+            this.currentPage = 1;
+            const params = this.buildParams();
             const url = new URL(window.location.pathname, window.location.origin);
-            new URLSearchParams(window.location.search).forEach((value, key) => {
-                if (key !== 'q' && key !== 'page') url.searchParams.set(key, value);
-            });
-            const trimmed = this.search.trim();
-            if (trimmed) url.searchParams.set('q', trimmed);
+            url.search = params.toString();
 
             try {
                 const res = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' } });
                 const data = await res.json();
                 this.orders = (data.orders || []).map((o) => ({ ...o, _new: false }));
                 this.totalMatches = data.total;
-                this.searching = trimmed !== '';
+                this.stats = data.stats || this.stats;
+                this.searching = this.hasActiveFilters();
                 window.history.replaceState(null, '', url.toString());
             } catch (e) {
-                // network hiccup — leave the last results in place, typing again will retry
+                // network hiccup — leave the last results in place, changing a filter again will retry
+            } finally {
+                this.loading = false;
             }
         },
     };
@@ -766,6 +911,70 @@ window.notifyCustomerModal = function () {
                     setTimeout(() => { this.open = false; }, 1800);
                 } else {
                     this.error = data.message || 'Could not send the notification.';
+                }
+            } catch (e) {
+                this.error = 'Network error, please try again.';
+            } finally {
+                this.sending = false;
+            }
+        },
+    };
+};
+
+// Block Customer modal — opened via the global `open-block-modal` event from the customer list
+// or the customer detail page. Selecting a reason auto-fills a clear default customer-facing
+// message (from User::DEFAULT_BLOCK_MESSAGES, passed in from the Blade partial); the admin can
+// freely edit it before confirming, and sees exactly what the customer will see in the preview.
+window.blockCustomerModal = function (reasons, defaultMessages) {
+    return {
+        open: false,
+        targetId: null,
+        targetName: '',
+        reasons,
+        reason: '',
+        message: '',
+        notes: '',
+        sending: false,
+        blocked: false,
+        error: '',
+
+        init() {
+            window.addEventListener('open-block-modal', (e) => {
+                this.targetId = e.detail?.id ?? null;
+                this.targetName = e.detail?.name ?? '';
+                this.reason = '';
+                this.message = '';
+                this.notes = '';
+                this.error = '';
+                this.blocked = false;
+                this.open = true;
+            });
+        },
+        selectReason(key) {
+            this.reason = key;
+            // only overwrite the textarea if it's still blank or still holds another reason's
+            // default — an admin who's already started typing their own message never gets it
+            // silently replaced by clicking around between reason cards
+            const isUntouched = this.message.trim() === '' || Object.values(defaultMessages).includes(this.message);
+            if (isUntouched) this.message = defaultMessages[key] || '';
+        },
+        async submit() {
+            if (this.sending || !this.reason) return;
+            this.error = '';
+            this.sending = true;
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch(`/admin/customers/${this.targetId}/block`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify({ reason: this.reason, message: this.message.trim(), notes: this.notes.trim() }),
+                });
+                if (res.ok) {
+                    this.blocked = true;
+                    setTimeout(() => window.location.reload(), 1400);
+                } else {
+                    const data = await res.json().catch(() => ({}));
+                    this.error = data.message || Object.values(data.errors || {}).flat()[0] || 'Could not block this customer.';
                 }
             } catch (e) {
                 this.error = 'Network error, please try again.';
@@ -1242,6 +1451,100 @@ window.adminDashboardCharts = function (data) {
                         x: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
                         y: { ticks: { color: tickColor }, grid: { display: false } },
                     },
+                },
+            });
+        },
+    };
+};
+
+// Super Admin's Income dashboard — same palette/gridColor/tickColor idiom as adminDashboardCharts
+// above, so this reads as part of the same design language rather than a bolted-on new page
+window.incomeDashboardCharts = function (data) {
+    return {
+        init() {
+            const gridColor = 'rgba(122, 22, 34, 0.08)';
+            const tickColor = '#7a1622';
+
+            new Chart(this.$refs.dailyChart, {
+                type: 'line',
+                data: {
+                    labels: data.daily.labels,
+                    datasets: [{
+                        label: 'Income (₹)',
+                        data: data.daily.income,
+                        borderColor: palette.gold,
+                        backgroundColor: 'rgba(200, 150, 46, 0.12)',
+                        fill: true,
+                        tension: 0.35,
+                        pointBackgroundColor: palette.maroon,
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: tickColor }, grid: { color: gridColor } },
+                        x: { ticks: { color: tickColor, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } },
+                    },
+                },
+            });
+
+            new Chart(this.$refs.ordersTrendChart, {
+                type: 'bar',
+                data: {
+                    labels: data.daily.labels,
+                    datasets: [{
+                        label: 'Delivered orders',
+                        data: data.daily.orders,
+                        backgroundColor: palette.pista,
+                        borderRadius: 6,
+                        maxBarThickness: 18,
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
+                        x: { ticks: { color: tickColor, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } },
+                    },
+                },
+            });
+
+            new Chart(this.$refs.monthlyChart, {
+                type: 'bar',
+                data: {
+                    labels: data.monthly.labels,
+                    datasets: [
+                        { label: '₹15 Commission', data: data.monthly.fixed, backgroundColor: palette.gold, stack: 'income', borderRadius: 4, maxBarThickness: 34 },
+                        { label: 'Delivery Charge Income', data: data.monthly.delivery, backgroundColor: palette.maroon, stack: 'income', borderRadius: 4, maxBarThickness: 34 },
+                    ],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12, padding: 14 } } },
+                    scales: {
+                        y: { beginAtZero: true, stacked: true, ticks: { color: tickColor }, grid: { color: gridColor } },
+                        x: { stacked: true, ticks: { color: tickColor }, grid: { display: false } },
+                    },
+                },
+            });
+
+            new Chart(this.$refs.breakdownChart, {
+                type: 'doughnut',
+                data: {
+                    labels: ['₹15 Commission', 'Delivery Charge Income'],
+                    datasets: [{
+                        data: [data.breakdown.fixed, data.breakdown.delivery],
+                        backgroundColor: [palette.gold, palette.maroon],
+                        borderColor: palette.cream,
+                        borderWidth: 3,
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    cutout: '62%',
+                    plugins: { legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12, padding: 14 } } },
                 },
             });
         },
@@ -2119,6 +2422,144 @@ window.featuredCategoryImageCropper = function (existingImageUrl) {
         destroy() {
             cropper?.destroy();
             cropper = null;
+        },
+    };
+};
+
+// Business Logo uploader (admin/customization/index.blade.php) — the one uploader in this app
+// that has to handle two genuinely different file types: raster (PNG/JPG/JPEG) goes through the
+// same Cropper.js square-crop-to-PNG flow as featuredCategoryImageCropper() above (transparency
+// preserved the same way); SVG can't be cropped or decoded by Cropper/GD at all (it's vector XML,
+// not a raster format either understands), so it skips the cropper entirely and is submitted as a
+// plain file input — the browser's own <img>-preview (a blob URL) is enough since there's no
+// crop/zoom to do on scalable vector art. Submission is a plain multipart form POST (matches
+// CustomizationController::updateLogo(), which responds with back()->with()/withErrors(), the
+// same convention every other admin image upload in this app already uses — not fetch/JSON).
+window.logoUploadCard = function (existingLogoUrl, hasError) {
+    let cropper = null;
+
+    return {
+        open: hasError, // reopen automatically if the previous submission had a logo error
+        existingLogoUrl,
+        rawImageSrc: null,
+        livePreview: existingLogoUrl,
+        isSvg: false,
+        hasNewFile: false,
+        fileError: '',
+        confirmingDelete: false,
+
+        openModal() {
+            this.open = true;
+        },
+        closeModal() {
+            this.open = false;
+            this.resetSelection();
+        },
+        resetSelection() {
+            this.rawImageSrc = null;
+            this.livePreview = this.existingLogoUrl;
+            this.isSvg = false;
+            this.hasNewFile = false;
+            this.fileError = '';
+            cropper?.destroy();
+            cropper = null;
+        },
+        onFileSelected(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            this.fileError = '';
+
+            if (file.size > 2 * 1024 * 1024) {
+                this.fileError = 'That file is larger than 2MB — please choose a smaller one.';
+                e.target.value = '';
+                return;
+            }
+
+            this.hasNewFile = true;
+            this.isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+
+            if (this.isSvg) {
+                cropper?.destroy();
+                cropper = null;
+                this.rawImageSrc = null;
+                this.livePreview = URL.createObjectURL(file);
+                return;
+            }
+
+            // checked here, on the ORIGINAL file, because Cropper.js's exported canvas is always
+            // a fixed 512×512 regardless of source size — checking after cropping would always
+            // see 512×512 and could never actually reject anything
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const probe = new Image();
+                probe.onload = () => {
+                    if (probe.naturalWidth < 200 || probe.naturalHeight < 200) {
+                        this.fileError = 'Please upload an image at least 200×200px.';
+                        this.hasNewFile = false;
+                        e.target.value = '';
+                        return;
+                    }
+                    this.rawImageSrc = ev.target.result;
+                    this.$nextTick(() => this.mountCropper());
+                };
+                probe.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        },
+        mountCropper() {
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+            cropper = new Cropper(this.$refs.cropperImage, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                background: false,
+                crop: () => this.refreshPreview(),
+                ready: () => this.refreshPreview(),
+            });
+        },
+        zoom(delta) {
+            cropper?.zoom(delta);
+        },
+        refreshPreview() {
+            if (!cropper) return;
+            this.livePreview = cropper.getCroppedCanvas({ width: 300, height: 300, fillColor: 'transparent' }).toDataURL('image/png');
+        },
+        // called from the form's @submit — for a raster crop, fills the hidden field the
+        // controller reads (svg_file, if chosen, is already attached via the native file input
+        // itself and needs no JS help)
+        beforeSubmit() {
+            if (this.isSvg || !cropper || !this.hasNewFile) return;
+            this.$refs.croppedImageInput.value = cropper.getCroppedCanvas({ width: 512, height: 512, fillColor: 'transparent' }).toDataURL('image/png');
+        },
+    };
+};
+
+// Customer website theme picker (admin/customization/index.blade.php) — 10 config-defined
+// presets (see config/customer_themes.php). Selecting a card only updates a self-contained
+// preview panel's own inline CSS custom properties (never the surrounding admin page — the whole
+// point of this feature is that admin's own look never changes); nothing applies site-wide until
+// the plain form beneath is actually submitted to admin.customization.theme.
+window.themeSelector = function (initialTheme, themes) {
+    return {
+        selected: initialTheme,
+        themes,
+
+        select(slug) {
+            this.selected = slug;
+        },
+        activeVars() {
+            return this.themes[this.selected]?.vars || {};
+        },
+        // used as an inline :style binding on the preview panel — CSS custom properties set
+        // directly on that one element, scoped to it and its descendants only
+        previewStyle() {
+            return Object.entries(this.activeVars())
+                .map(([name, value]) => `--color-${name}: ${value}`)
+                .join('; ');
         },
     };
 };

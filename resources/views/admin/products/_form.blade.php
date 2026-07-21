@@ -19,6 +19,7 @@
         discountEnabled: {{ old('discount_enabled', isset($product) && $product->discount_type ? '1' : '0') ? 'true' : 'false' }},
         discountType: {{ Illuminate\Support\Js::from(old('discount_type', $product->discount_type ?? 'percentage')) }},
         discountValue: {{ Illuminate\Support\Js::from(old('discount_value', $product->discount_value ?? '')) }},
+        outOfStock: {{ old('is_out_of_stock', $product->is_out_of_stock ?? false) ? 'true' : 'false' }},
 
         onPhotoChange(e) {
             const file = e.target.files[0];
@@ -229,6 +230,19 @@
                 </div>
             </div>
 
+            <div class="md:col-span-2 rounded-lg border p-4 transition"
+                 :class="outOfStock ? 'border-red-300 bg-red-50' : 'border-gold-200/70 bg-cream/40'">
+                <label class="flex items-center gap-2.5 text-sm font-medium" :class="outOfStock ? 'text-red-700' : 'text-maroon-700'">
+                    <input type="checkbox" name="is_out_of_stock" value="1" x-model="outOfStock"
+                           class="w-4 h-4 rounded border-gold-300/70 text-red-600 focus:ring-red-400">
+                    🚫 Mark as Out of Stock
+                </label>
+                <p class="text-xs mt-1.5" :class="outOfStock ? 'text-red-600' : 'text-maroon-400'">
+                    <span x-show="!outOfStock">Customers can still see and buy this product normally.</span>
+                    <span x-show="outOfStock" x-cloak>Customers will see an "Out of Stock" badge everywhere this product appears, and won't be able to add it to their cart.</span>
+                </p>
+            </div>
+
             <div>
                 <label class="block text-sm font-medium text-maroon-700 mb-1.5">Tag <span class="text-maroon-300">(optional badge, e.g. Chilled)</span></label>
                 <input type="text" name="tag" x-model="tag"
@@ -312,13 +326,21 @@
                  @mouseup.window="stopDrag()">
                 <template x-if="photoPreview">
                     <img :src="photoPreview" alt="" :style="`object-position: ${imagePosition}`"
-                         class="absolute inset-0 w-full h-full object-cover pointer-events-none">
+                         class="absolute inset-0 w-full h-full object-cover pointer-events-none transition"
+                         :class="outOfStock ? 'grayscale opacity-60' : ''">
                 </template>
                 <template x-if="!photoPreview">
                     <div class="absolute inset-0 flex items-center justify-center text-5xl opacity-30">🍬</div>
                 </template>
-                <span x-show="discountBadge()" x-cloak x-text="discountBadge()"
+                <span x-show="discountBadge() && !outOfStock" x-cloak x-text="discountBadge()"
                       class="absolute top-1.5 left-1.5 bg-maroon-700 text-cream text-[10px] font-bold px-1.5 py-0.5 rounded-md shadow"></span>
+                {{-- out-of-stock takes visual priority over the discount badge — a product that
+                     can't be bought shouldn't still be advertising a % off --}}
+                <div x-show="outOfStock" x-cloak class="absolute inset-0 z-[5] bg-maroon-950/35 flex items-center justify-center pointer-events-none">
+                    <span class="bg-maroon-900 text-cream text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg border border-white/20">
+                        Out of Stock
+                    </span>
+                </div>
                 {{-- decorative only — there's no persisted product id yet for a real heart-toggle --}}
                 <div class="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-white/85 flex items-center justify-center shadow-sm">
                     <svg class="w-3.5 h-3.5 text-maroon-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
@@ -346,7 +368,7 @@
                x-text="type === 'loose' ? (portions.length ? portionLabel(defaultPortionGrams()) : 'Select portions') : (weight || 'Weight')"></p>
 
             <div class="flex items-center justify-between gap-2 mt-2 pt-1 mt-auto">
-                <p class="flex items-baseline gap-1 flex-wrap min-w-0">
+                <p class="flex items-baseline gap-1 flex-wrap min-w-0" :class="outOfStock ? 'opacity-40' : ''">
                     <template x-if="discountEnabled && discountValue">
                         <span class="text-[11px] text-maroon-300 line-through">₹<span x-text="previewOriginalPrice() || 0"></span></span>
                     </template>
@@ -354,11 +376,18 @@
                         <span x-show="type === 'loose'">From </span>₹<span x-text="previewPrice() || 0"></span>
                     </span>
                 </p>
-                <div class="w-8 h-8 rounded-full bg-maroon-800 text-cream flex items-center justify-center shrink-0 shadow pointer-events-none">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.4">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                </div>
+                <template x-if="!outOfStock">
+                    <div class="w-8 h-8 rounded-full bg-maroon-800 text-cream flex items-center justify-center shrink-0 shadow pointer-events-none">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                    </div>
+                </template>
+                <template x-if="outOfStock">
+                    <span class="text-[10px] font-bold uppercase tracking-wide text-red-600 bg-red-50 border border-red-200 rounded-full px-2.5 py-1.5 shrink-0 whitespace-nowrap">
+                        Out of Stock
+                    </span>
+                </template>
             </div>
         </div>
         <p class="text-[11px] text-maroon-400 mt-2 text-center">No rating shown yet — a new product has no reviews.</p>

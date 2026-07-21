@@ -47,9 +47,15 @@
     <div class="relative rounded-xl overflow-hidden aspect-square bg-cream/60">
         <a href="{{ route('products.show', $product) }}" class="absolute inset-0 z-0" aria-label="View {{ $product->name }}">
             <img src="{{ asset($product->image) }}" alt="{{ $product->name }}" loading="lazy"
-                 class="absolute inset-0 w-full h-full object-cover" style="object-position: {{ $product->image_position ?? '50% 50%' }};">
+                 class="absolute inset-0 w-full h-full object-cover {{ $product->is_out_of_stock ? 'grayscale opacity-60' : '' }}" style="object-position: {{ $product->image_position ?? '50% 50%' }};">
         </a>
-        @if ($product->hasDiscount())
+        @if ($product->is_out_of_stock)
+            <div class="absolute inset-0 z-[5] bg-maroon-950/35 flex items-center justify-center pointer-events-none">
+                <span class="bg-maroon-900 text-cream text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg border border-white/20">
+                    {{ __('Out of Stock') }}
+                </span>
+            </div>
+        @elseif ($product->hasDiscount())
             <span class="absolute top-1.5 left-1.5 z-10 bg-maroon-700 text-cream text-[10px] font-bold px-1.5 py-0.5 rounded-md shadow">
                 {{ $product->discountBadgeLabel() }}
             </span>
@@ -127,6 +133,11 @@
             @endif
         </p>
 
+        @if ($product->is_out_of_stock)
+            <span class="text-[10px] font-bold uppercase tracking-wide text-red-600 bg-red-50 border border-red-200 rounded-full px-2.5 py-1.5 shrink-0 whitespace-nowrap">
+                {{ __('Out of Stock') }}
+            </span>
+        @else
         <template x-if="cartQty({{ $product->id }}) === 0">
             <button type="button" @click="addProductToCart({{ $product->id }}, 1, false, {{ $hasMultiplePortions ? 'selPortion' : ($miniPortion ?? 'null') }})"
                     aria-label="Add {{ $product->name }} to cart"
@@ -143,5 +154,6 @@
                 <button type="button" @click="stepCartQty({{ $product->id }}, 1)" class="w-7 h-full flex items-center justify-center hover:bg-maroon-700 transition" aria-label="Increase quantity">+</button>
             </div>
         </template>
+        @endif
     </div>
 </div>

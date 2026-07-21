@@ -10,14 +10,16 @@
     }
 @endphp
 
-{{-- full-bleed section, matching the edge-to-edge treatment used by hero-slider/festival-special above it --}}
-<section class="relative overflow-hidden py-16 sm:py-20"
-         style="background: linear-gradient(120deg, #4a0e17 0%, #7a1622 70%, #a97a1f 160%);"
+{{-- full-bleed section, matching the edge-to-edge treatment used by hero-slider/festival-special above it.
+     pb trimmed vs. pt — this section and about-section.blade.php right after it both used to carry a full
+     py-16/py-20, stacking into a ~160px gap between "Sweeten Every Celebration" and "Shop By Range" --}}
+<section class="relative overflow-hidden pt-16 sm:pt-20 pb-8 sm:pb-10"
+         style="background: linear-gradient(120deg, #052e12 0%, #16a34a 70%, #f59e0b 160%);"
          x-data="{ shown: false }"
          x-init="const io = new IntersectionObserver((entries) => { if (entries[0].isIntersecting) { shown = true; io.disconnect(); } }, { threshold: 0.15 }); io.observe($el)">
 
     {{-- ambient glow + dot texture --}}
-    <div class="pointer-events-none absolute inset-0 opacity-15" style="background-image: radial-gradient(circle, #e9c873 1.5px, transparent 1.5px); background-size: 22px 22px;"></div>
+    <div class="pointer-events-none absolute inset-0 opacity-15" style="background-image: radial-gradient(circle, #fcd34d 1.5px, transparent 1.5px); background-size: 22px 22px;"></div>
     <div class="pointer-events-none absolute -top-20 right-[8%] w-96 h-96 rounded-full bg-gold-400/20 blur-3xl"></div>
     <div class="pointer-events-none absolute -bottom-24 left-[4%] w-96 h-96 rounded-full bg-gold-500/15 blur-3xl"></div>
 
@@ -32,13 +34,13 @@
         @endfor
     </div>
 
-    <div class="relative max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+    <div class="relative max-w-6xl mx-auto px-4 sm:px-8 lg:px-12">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 items-center">
             <div class="text-center md:text-left transition-all duration-700 ease-out"
                  :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'">
                 <p class="text-gold-300 font-semibold tracking-widest uppercase text-sm mb-3">{{ __('Weddings · Festivals · Corporate') }}</p>
                 <h2 class="font-display text-3xl sm:text-5xl font-bold text-cream leading-tight">
-                    {{ __('Sweeten Every') }}<br>
+                    {{ __('Gift Every') }}<br>
                     <span class="relative inline-block">
                         {{ __('Celebration') }}
                         <svg class="absolute left-0 -bottom-1.5 w-full h-2.5 text-gold-400" viewBox="0 0 200 10" preserveAspectRatio="none" aria-hidden="true">
@@ -46,14 +48,14 @@
                         </svg>
                     </span>
                 </h2>
-                <p class="text-gold-100/85 mt-5 text-lg max-w-md mx-auto md:mx-0">{{ __("Custom gift boxes packed fresh to order — tell us the occasion, we'll handle the meetha.") }}</p>
+                <p class="text-gold-100/85 mt-5 text-lg max-w-md mx-auto md:mx-0">{{ __("Custom grocery hampers packed fresh to order — tell us the occasion, we'll put it together for you.") }}</p>
 
                 {{-- feature rows, so the CTA isn't the only thing telling customers what they're getting --}}
                 <div class="space-y-3.5 mt-7 max-w-md mx-auto md:mx-0">
                     @foreach ([
                         ['icon' => '🎁', 'title' => __('Custom Packaging'), 'desc' => __('Boxes wrapped and themed to match your occasion')],
-                        ['icon' => '🍯', 'title' => __('Made Fresh to Order'), 'desc' => __('Nothing sits around — prepared once your box is confirmed')],
-                        ['icon' => '📦', 'title' => __('Any Quantity'), 'desc' => __('From a dozen favours to a thousand-piece order')],
+                        ['icon' => '⚡', 'title' => __('Packed Fresh to Order'), 'desc' => __('Nothing sits around — prepared once your box is confirmed')],
+                        ['icon' => '📦', 'title' => __('Any Quantity'), 'desc' => __('From a single hamper to a thousand-piece order')],
                     ] as $i => $feature)
                         <div class="flex items-center gap-3.5 text-left transition-all duration-500 ease-out"
                              :class="shown ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4'"
@@ -68,26 +70,26 @@
                 </div>
 
                 @if ($businessPhone)
-                    <a href="https://wa.me/91{{ $businessPhone['digits'] }}?text={{ rawurlencode(__('Hi! I would like to plan a gift box order with Makhanbhog Sweets.')) }}"
+                    <a href="https://wa.me/91{{ $businessPhone['digits'] }}?text={{ rawurlencode(__('Hi! I would like to plan a gift box order with Shree Vinayak Family Shop.')) }}"
                        target="_blank" rel="noopener" class="btn-gold mt-8">{{ __('Plan Your Order') }}</a>
                 @else
                     {{-- no contact number configured — fall back to browsing instead of a dead WhatsApp link --}}
-                    <a href="/#bestsellers" class="btn-gold mt-8">{{ __('Browse Sweets') }}</a>
+                    <a href="/#bestsellers" class="btn-gold mt-8">{{ __('Browse Store') }}</a>
                 @endif
             </div>
 
             {{-- animated gift centerpiece --}}
-            <div class="flex justify-center md:justify-end transition-all duration-700 ease-out"
+            <div class="flex justify-center md:justify-start transition-all duration-700 ease-out"
                  style="transition-delay: 150ms"
                  :class="shown ? 'opacity-100 scale-100' : 'opacity-0 scale-90'">
-                <div class="relative w-full max-w-[22rem] aspect-square mx-8 sm:mx-12">
+                <div class="relative w-full max-w-[22rem] aspect-square mx-8 sm:mx-0">
                     {{-- soft glow ring behind the box so the centerpiece claims more of the column --}}
                     <div class="pointer-events-none absolute inset-0 rounded-full bg-gold-400/20 blur-3xl scale-110"></div>
 
-                    <div class="mithai-frame ring-offset-maroon-700 absolute inset-0 bg-gradient-to-br from-maroon-400/40 to-gold-500/30 backdrop-blur-sm flex items-center justify-center overflow-visible">
+                    <div class="mithai-frame absolute inset-0 bg-gradient-to-br from-maroon-400/40 to-gold-500/30 backdrop-blur-sm flex items-center justify-center overflow-visible">
                         <div class="absolute inset-0 rounded-2xl overflow-hidden">
                             <img src="{{ asset('images/promo/gift-box-showcase.jpg') }}"
-                                 alt="{{ __('Makhanbhog Sweets gift boxes with assorted mithai') }}"
+                                 alt="{{ __('Shree Vinayak Family Shop gift boxes with assorted treats') }}"
                                  class="w-full h-full object-cover"
                                  loading="lazy">
                         </div>

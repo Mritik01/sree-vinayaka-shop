@@ -145,10 +145,18 @@ class PhoneAuthController extends Controller
 
         $user = User::where('phone', $phone)->first();
 
-        // phone number belongs to an existing account — nothing else to ask, log them straight in
+        // phone number belongs to an existing account — nothing else to ask, log them straight in.
+        // A blocked account still logs in normally (they genuinely own this phone number) — every
+        // other gated route (see EnsureNotBlocked) then bounces them to the restricted screen, and
+        // `blocked: true` here tells the auth modal to skip the welcome-back celebration and send
+        // them straight there too, instead of wherever they were originally headed.
         if ($user) {
             $this->loginAndAttribute($request, $user);
             Cache::forget($cacheKey);
+
+            if ($user->isBlocked()) {
+                return response()->json(['ok' => true, 'new_user' => false, 'blocked' => true, 'redirect' => route('account.blocked')]);
+            }
 
             return response()->json(['ok' => true, 'new_user' => false, 'name' => $user->name]);
         }

@@ -40,6 +40,8 @@ class ShopSetting extends Model
         'high_demand_message',
         'high_demand_stop_message',
         'business_mobile_number',
+        'business_logo_path',
+        'customer_theme',
     ];
 
     protected $casts = [
@@ -66,9 +68,20 @@ class ShopSetting extends Model
         'high_demand_fee_amount' => 'integer',
     ];
 
+    // request-level memoization only — this singleton row is read repeatedly per request (once
+    // in AppServiceProvider's shared view data, then again from controllers/Blade partials that
+    // each call current() independently), and was previously a fresh SELECT every single time.
+    // Safe: within one request, ->update() mutates this SAME cached instance in place (PHP
+    // objects are held by reference), so a later current() call in the same request still sees
+    // the fresh value, not stale data — only the redundant duplicate queries are eliminated.
+    // Static properties reset naturally between requests under the traditional PHP-FPM/CLI
+    // lifecycle this app runs under; this would need revisiting if the app ever moves to a
+    // persistent-worker runtime like Octane, where statics can leak across requests.
+    private static ?self $cached = null;
+
     public static function current(): self
     {
-        return static::firstOrCreate([]);
+        return static::$cached ??= static::firstOrCreate([]);
     }
 
     public static function acceptingOrders(): bool
@@ -115,6 +128,22 @@ class ShopSetting extends Model
         $url = 'https://wa.me/91'.$this->business_mobile_number;
 
         return $text ? $url.'?text='.rawurlencode($text) : $url;
+    }
+
+    // null business_logo_path (the default, and what every existing install has today) falls back
+    // to the static asset every customer-facing view already used before this feature existed —
+    // see Admin\CustomizationController for how an uploaded logo gets here
+    public function businessLogoUrl(): string
+    {
+        return $this->business_logo_path ? asset($this->business_logo_path) : asset('images/logo-circle.png');
+    }
+
+    // the active theme's full CSS-variable definition — see config/customer_themes.php. Falls back
+    // to the default if customer_theme somehow holds a slug that's no longer configured (e.g. a
+    // theme was removed from the config after being selected)
+    public function customerThemeConfig(): array
+    {
+        return config('customer_themes.'.$this->customer_theme) ?? config('customer_themes.maroon_gold');
     }
 
     public function rewardGiftProduct(): BelongsTo

@@ -26,7 +26,12 @@
                                 {{ strtoupper(substr($customer->name, 0, 1)) }}
                             </div>
                             <div class="min-w-0">
-                                <p class="text-maroon-800 font-medium truncate">{{ $customer->name }}</p>
+                                <p class="text-maroon-800 font-medium truncate flex items-center gap-1.5">
+                                    {{ $customer->name }}
+                                    @if ($customer->is_blocked)
+                                        <span class="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 shrink-0">🚫 Blocked</span>
+                                    @endif
+                                </p>
                                 <p class="text-xs space-x-1">
                                     @if ($mvp['today'] && $mvp['today']['user']->id === $customer->id)<span title="Today's MVP">🏆</span>@endif
                                     @if ($mvp['week'] && $mvp['week']['user']->id === $customer->id)<span title="This Week's MVP">👑</span>@endif

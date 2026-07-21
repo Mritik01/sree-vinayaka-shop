@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Your Cart — Makhanbhog Sweets')
+@section('title', 'Your Cart — Shree Vinayak Family Shop')
 
 @section('content')
 @php
@@ -28,7 +28,7 @@
             <div x-show="items.length === 0" x-cloak class="text-center py-20">
                 <p class="text-5xl mb-4">🛍️</p>
                 <p class="text-maroon-700 font-display text-xl">{{ __('Your cart is empty') }}</p>
-                <p class="text-maroon-500 mt-2 max-w-sm mx-auto">{{ __("Add a few sweets from Thuthibari's Favourites and they'll show up here.") }}</p>
+                <p class="text-maroon-500 mt-2 max-w-sm mx-auto">{{ __("Add a few sweets from Siswa Bazar's Favourites and they'll show up here.") }}</p>
                 <a href="/#bestsellers" class="btn-gold inline-block mt-8">{{ __('Explore Our Sweets') }}</a>
             </div>
 
@@ -38,12 +38,15 @@
                     <template x-for="item in items" :key="item.id">
                         <div class="flex items-center gap-4 p-4 sm:p-5"
                              x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0 -translate-x-2">
-                            <a :href="`/product/${item.slug}`" class="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden shrink-0 border border-gold-200/60">
-                                <img :src="item.image" :alt="item.name" class="w-full h-full object-cover">
+                            <a :href="`/product/${item.slug}`" class="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden shrink-0 border border-gold-200/60">
+                                <img :src="item.image" :alt="item.name" class="w-full h-full object-cover" :class="item.is_out_of_stock ? 'grayscale opacity-60' : ''">
                             </a>
 
                             <div class="flex-1 min-w-0">
                                 <a :href="`/product/${item.slug}`" class="font-display text-maroon-800 text-lg hover:text-gold-600 transition truncate block" x-text="item.name"></a>
+                                <template x-if="item.is_out_of_stock">
+                                    <span class="inline-block mt-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">{{ __('Out of Stock') }}</span>
+                                </template>
                                 <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
                                     <template x-if="item.type === 'loose'">
                                         <select @change="changePortion(item, parseInt($event.target.value))"
@@ -70,7 +73,7 @@
                                 <div class="flex items-center gap-2.5 bg-cream rounded-full border border-gold-300/60 px-2.5 py-1">
                                     <button @click="decrement(item)" aria-label="Decrease quantity" class="w-6 h-6 rounded-full hover:bg-gold-100 text-maroon-700 font-bold transition">−</button>
                                     <span class="w-5 text-center text-sm font-semibold text-maroon-800" x-text="item.quantity"></span>
-                                    <button @click="increment(item)" aria-label="Increase quantity" class="w-6 h-6 rounded-full hover:bg-gold-100 text-maroon-700 font-bold transition">+</button>
+                                    <button @click="increment(item)" :disabled="item.is_out_of_stock" aria-label="Increase quantity" class="w-6 h-6 rounded-full hover:bg-gold-100 text-maroon-700 font-bold transition disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed">+</button>
                                 </div>
                             </div>
                         </div>
@@ -93,7 +96,7 @@
 
                     @include('partials.free-delivery-progress')
 
-                    <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop'" x-cloak>
+                    <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop' && !hasOutOfStockItems()" x-cloak>
                         <a href="/checkout" class="btn-gold w-full text-center mt-5 inline-flex items-center justify-center gap-2">
                             {{ __('Proceed to Checkout') }}
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
@@ -101,6 +104,9 @@
                             </svg>
                         </a>
                         <p class="text-xs text-maroon-400 text-center mt-3">{{ __('Coupons and delivery address are entered on the next step.') }}</p>
+                    </div>
+                    <div x-show="hasOutOfStockItems()" x-cloak class="mt-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3.5 text-center">
+                        🚫 {{ __('Remove out-of-stock items from your cart to proceed to checkout.') }}
                     </div>
                     <div x-show="!$store.shop.accepting" x-cloak class="mt-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3.5 text-center">
                         🚫 {{ __("We're not accepting online orders right now. Please check back soon — your cart will be waiting.") }}

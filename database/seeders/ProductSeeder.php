@@ -111,7 +111,7 @@ class ProductSeeder extends Seeder
             [
                 'name' => 'Kalakand',
                 'category' => 'Sweets',
-                'description' => "Grainy milk-solid fudge set soft and studded with pistachio. Rich, milky and not too sweet — a Makhanbhog household favourite.",
+                'description' => "Grainy milk-solid fudge set soft and studded with pistachio. Rich, milky and not too sweet — a Shree Vinayak household favourite.",
                 'price' => 300, 'weight' => '300g', 'tag' => 'Milk Cake',
                 'image' => 'images/products/kalakand.jpg', 'color' => '#8a1c2b', 'sort_order' => 11,
             ],
@@ -508,7 +508,7 @@ class ProductSeeder extends Seeder
             [
                 'name' => 'Jalebi',
                 'category' => 'Syrup',
-                'description' => "Crisp, syrup-soaked spirals fried fresh to order — best enjoyed warm, the way Thuthibari has always loved it.",
+                'description' => "Crisp, syrup-soaked spirals fried fresh to order — best enjoyed warm, the way Siswa Bazar has always loved it.",
                 'price' => 150, 'weight' => '250g', 'tag' => 'Fresh & Hot',
                 'image' => 'images/products/jalebi-2.jpg', 'color' => '#c1440e', 'sort_order' => 66,
             ],

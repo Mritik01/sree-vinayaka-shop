@@ -116,7 +116,7 @@ class RiderController extends Controller
             'name' => 'required|string|max:100',
             'username' => 'required|string|max:50|unique:riders,username'.($ignoreId ? ",{$ignoreId}" : ''),
             'phone' => 'nullable|string|max:20',
-            'password' => ($ignoreId ? 'nullable' : 'required').'|string|min:4',
+            'password' => ($ignoreId ? 'nullable' : 'required').'|string|min:8',
             'cropped_image' => 'nullable|string',
         ]);
 

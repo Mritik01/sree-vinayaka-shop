@@ -5,11 +5,17 @@ namespace App\Notifications;
 use App\Models\Order;
 use App\Models\OrderItem;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Queue\SerializesModels;
 
-class ItemsRemovedFromOrder extends Notification
+// queueable so sending this never blocks the request that triggered it — see AdminMessage.php.
+// SerializesModels matters here specifically: the Order/OrderItem constructor properties need
+// to serialize as lightweight model references (not full PHP object serialization) once this
+// actually goes through a real queue driver instead of sync.
+class ItemsRemovedFromOrder extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, SerializesModels;
 
     public function __construct(
         public Order $order,

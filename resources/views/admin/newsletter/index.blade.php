@@ -5,7 +5,7 @@
 
 @section('content')
     <p class="text-maroon-500 text-sm -mt-1 mb-4">
-        Everyone who signed up through the "Join the Makhanbhog Parivaar" form on the homepage — {{ $totalCount }} total.
+        Everyone who signed up through the "Join the Shree Vinayak Parivaar" form on the homepage — {{ $totalCount }} total.
     </p>
 
     <div class="flex flex-wrap items-center justify-between gap-3 mb-5">

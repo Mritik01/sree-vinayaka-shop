@@ -3,7 +3,7 @@
      the same textured/glow-blob treatment used on festival-special/promo-banner, a fade-up reveal,
      and a form that actually posts to NewsletterController::subscribe() — admin sees every signup
      at Admin → Newsletter (mirrors the existing Leads list exactly). --}}
-<section class="relative bg-white pb-20 pt-4 overflow-hidden">
+<section class="relative bg-white py-20 overflow-hidden">
     <div class="max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12">
         <div class="relative rounded-2xl sm:rounded-3xl bg-gradient-to-br from-cream via-gold-50 to-cream border border-gold-300/60 shadow-lg px-6 sm:px-16 py-12 sm:py-16 grid grid-cols-1 md:grid-cols-2 gap-10 items-center overflow-hidden"
              x-data="{ shown: false }"
@@ -17,8 +17,8 @@
             <div class="relative z-10 text-center md:text-left transition-all duration-700 ease-out"
                  :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'">
                 <p class="text-gold-600 font-semibold tracking-widest uppercase text-sm mb-3">{{ __('Stay in Touch') }}</p>
-                <h2 class="font-display text-3xl sm:text-5xl font-bold text-maroon-900 leading-tight">{{ __('Join the Makhanbhog Parivaar') }}</h2>
-                <p class="text-maroon-500 mt-4">{{ __('Be the first to hear about festive specials, new sweets, and seasonal treats.') }}</p>
+                <h2 class="font-display text-3xl sm:text-5xl font-bold text-maroon-900 leading-tight">{{ __('Join the Shree Vinayak Parivaar') }}</h2>
+                <p class="text-maroon-500 mt-4">{{ __('Be the first to hear about new arrivals, special offers, and seasonal treats.') }}</p>
 
                 <form x-data="{
                           email: '', loading: false, sent: false, already: false, error: '',
@@ -79,7 +79,7 @@
                 <div class="relative w-56 h-56 sm:w-72 sm:h-72 rotate-2">
                     <div class="absolute inset-0 rounded-[1.75rem] bg-gradient-to-br from-gold-400 to-maroon-600 rotate-3"></div>
                     <div class="absolute inset-0 rounded-[1.75rem] overflow-hidden ring-4 ring-white shadow-xl -rotate-1">
-                        <img src="{{ asset('images/promo/gift-box-showcase.jpg') }}" alt="{{ __('Makhanbhog gift box') }}" loading="lazy"
+                        <img src="{{ asset('images/promo/gift-box-showcase.jpg') }}" alt="{{ __('Shree Vinayak gift box') }}" loading="lazy"
                              class="w-full h-full object-cover">
                     </div>
                     <span class="absolute -bottom-3 -left-3 w-14 h-14 rounded-full bg-white shadow-lg flex items-center justify-center text-2xl -rotate-6">🎁</span>

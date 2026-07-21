@@ -5,11 +5,14 @@ namespace App\Notifications;
 use App\Models\Order;
 use App\Models\Rider;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Queue\SerializesModels;
 
-class RiderAssigned extends Notification
+// queueable so sending this never blocks the request that triggered it — see AdminMessage.php
+class RiderAssigned extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, SerializesModels;
 
     public function __construct(
         public Order $order,

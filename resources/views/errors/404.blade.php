@@ -3,13 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ __('Page Not Found') }} — Makhanbhog Sweets</title>
+    <title>{{ __('Page Not Found') }} — Shree Vinayak Family Shop</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Baloo+2:wght@600;700&display=swap" rel="stylesheet">
     @vite(['resources/css/app.css'])
+    {{-- this page doesn't extend layouts.app, so it needs its own copy of the per-request theme
+         override — $customerTheme is shared globally via View::share, so it's available here too --}}
+    <style>
+        :root {
+            @foreach ($customerTheme['vars'] as $name => $value)
+                --color-{{ $name }}: {{ $value }};
+            @endforeach
+        }
+    </style>
 </head>
 <body class="antialiased font-body bg-ivory text-maroon-900 min-h-screen flex flex-col overflow-x-hidden">
 
@@ -17,9 +26,9 @@
          a genuine error page has no business depending on --}}
     <header class="relative z-10 px-5 sm:px-8 py-5">
         <a href="{{ url('/') }}" class="inline-flex items-center gap-2.5">
-            <img src="{{ asset('images/logo-circle.png') }}" alt="Makhanbhog Sweets" class="h-9 w-9 sm:h-10 sm:w-10">
+            <img src="{{ $businessLogo ?? asset('images/logo-circle.png') }}" alt="Shree Vinayak Family Shop" class="h-9 w-9 sm:h-10 sm:w-10 rounded-full object-cover bg-white">
             <span class="font-display font-bold text-base sm:text-lg">
-                <span class="text-gold-600">Makhanbhog</span> <span class="text-maroon-800">Sweets</span>
+                <span class="text-gold-600">Shree Vinayak</span> <span class="text-maroon-800">Family Shop</span>
             </span>
         </a>
     </header>
@@ -79,7 +88,7 @@
         @include('partials.trim', ['fill' => '#3a0b12'])
     </div>
     <footer class="relative bg-maroon-800 text-cream/70 text-center text-xs sm:text-sm py-5 px-5">
-        {{ __('Makhanbhog Sweets') }} · {{ __("Thuthibari's favourite sweet shop since generations") }}
+        {{ __('Shree Vinayak Family Shop') }} · {{ __("Siswa Bazar's favourite grocery store since generations") }}
     </footer>
 </body>
 </html>

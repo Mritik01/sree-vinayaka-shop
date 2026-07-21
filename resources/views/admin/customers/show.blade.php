@@ -95,8 +95,32 @@
                                 class="text-sm px-4 py-2 rounded-full bg-maroon-700 text-cream hover:bg-maroon-800 transition font-medium inline-flex items-center gap-1.5">
                             🔔 Send Notification
                         </button>
+                        @if ($customer->is_blocked)
+                            <form method="POST" action="{{ route('admin.customers.unblock', $customer) }}"
+                                  onsubmit="return confirm('Unblock {{ $customer->name }}? They will regain normal access immediately.');">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="text-sm px-4 py-2 rounded-full bg-pista-500 text-white hover:bg-pista-600 transition font-medium inline-flex items-center gap-1.5">
+                                    ✅ Unblock Customer
+                                </button>
+                            </form>
+                        @else
+                            <button type="button"
+                                    onclick='window.dispatchEvent(new CustomEvent("open-block-modal", { detail: { id: {{ $customer->id }}, name: @json($customer->name) } }))'
+                                    class="text-sm px-4 py-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition font-medium inline-flex items-center gap-1.5">
+                                🚫 Block Customer
+                            </button>
+                        @endif
                     </div>
                 </div>
+
+                @if ($customer->is_blocked)
+                    <div class="flex items-center gap-2 mt-4 pt-4 border-t border-gold-100">
+                        <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-red-50 text-red-600 border border-red-200">
+                            🚫 This customer is currently blocked — {{ $customer->blockReasonLabel() }}
+                        </span>
+                    </div>
+                @endif
 
                 @if (array_filter($mvpBadges))
                     <div class="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gold-100">
@@ -418,6 +442,57 @@
             </div>
         </div>
 
+        {{-- account status — current block state + permanent audit trail, see CustomerBlockService --}}
+        <div class="bg-white rounded-2xl border border-gold-200/60 p-5 animate-fade-up">
+            <div class="flex items-center justify-between mb-3">
+                <p class="font-display text-maroon-800">🛡️ Account Status</p>
+                @if ($customer->is_blocked)
+                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-200">🚫 Blocked</span>
+                @else
+                    <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-pista-100 text-pista-600 border border-pista-400/40">✅ Active</span>
+                @endif
+            </div>
+
+            @if ($customer->block_reason)
+                <dl class="space-y-2 text-sm mb-4">
+                    <div class="flex justify-between gap-3"><dt class="text-maroon-400 shrink-0">Block Reason</dt><dd class="text-maroon-800 font-medium text-right">{{ $customer->blockReasonLabel() }}</dd></div>
+                    @if ($customer->block_message)
+                        <div><dt class="text-maroon-400">Custom Message</dt><dd class="text-maroon-700 mt-1 bg-cream/60 border border-gold-100 rounded-lg px-3 py-2 text-xs leading-relaxed">&ldquo;{{ $customer->block_message }}&rdquo;</dd></div>
+                    @endif
+                    <div class="flex justify-between gap-3"><dt class="text-maroon-400 shrink-0">Blocked By</dt><dd class="text-maroon-800 text-right">{{ $customer->blockedByAdmin->name ?? '—' }}</dd></div>
+                    <div class="flex justify-between gap-3"><dt class="text-maroon-400 shrink-0">Block Date</dt><dd class="text-maroon-800 text-right">{{ $customer->blocked_at?->format('d M Y, h:i A') }}</dd></div>
+                    @if (!$customer->is_blocked && $customer->unblocked_at)
+                        <div class="flex justify-between gap-3"><dt class="text-maroon-400 shrink-0">Unblock Date</dt><dd class="text-maroon-800 text-right">{{ $customer->unblocked_at->format('d M Y, h:i A') }}<span class="block text-xs text-maroon-400">by {{ $customer->unblockedByAdmin->name ?? '—' }}</span></dd></div>
+                    @endif
+                    @if ($customer->block_notes)
+                        <div><dt class="text-maroon-400">Internal Notes <span class="text-[10px]">(not visible to customer)</span></dt><dd class="text-maroon-600 mt-1 text-xs italic">{{ $customer->block_notes }}</dd></div>
+                    @endif
+                </dl>
+            @else
+                <p class="text-maroon-400 text-sm mb-4">This customer has never been blocked.</p>
+            @endif
+
+            @if ($blockHistory->isNotEmpty())
+                <details class="pt-3 border-t border-gold-100">
+                    <summary class="text-xs font-semibold uppercase tracking-wide text-maroon-400 cursor-pointer select-none">📜 Full History ({{ $blockHistory->count() }})</summary>
+                    <ul class="mt-2.5 space-y-2.5 max-h-64 overflow-y-auto">
+                        @foreach ($blockHistory as $entry)
+                            <li class="text-xs border-l-2 {{ $entry->action === 'blocked' ? 'border-red-300' : 'border-pista-400' }} pl-3">
+                                <p class="text-maroon-700 font-medium">
+                                    {{ $entry->action === 'blocked' ? '🚫 Blocked' : '✅ Unblocked' }}
+                                    @if ($entry->reasonLabel()) — {{ $entry->reasonLabel() }} @endif
+                                </p>
+                                <p class="text-maroon-400">{{ $entry->occurred_at->format('d M Y, h:i A') }} · {{ $entry->admin->name ?? 'Unknown admin' }}</p>
+                                @if ($entry->notes)
+                                    <p class="text-maroon-500 italic mt-0.5">{{ $entry->notes }}</p>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                </details>
+            @endif
+        </div>
+
         {{-- delivery addresses --}}
         <div class="bg-white rounded-2xl border border-gold-200/60 p-5 animate-fade-up" style="animation-delay: 100ms">
             <p class="font-display text-maroon-800 mb-3">📍 Delivery Addresses</p>
@@ -482,4 +557,5 @@
     </div>
 
     @include('admin.customers._notify-modal')
+    @include('admin.customers._block-modal')
 @endsection

@@ -26,7 +26,7 @@
          @filter-category.window="active = $event.detail">
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6">
         <h2 class="section-heading">{{ __('Shop By Range') }}</h2>
-        <p class="text-center text-maroon-500 mt-3 mb-10 sm:mb-14 max-w-xl mx-auto">{{ __("Each piece reflects quality and authentic flavours — pick a range to filter Thuthibari's Favourites above.") }}</p>
+        <p class="text-center text-maroon-500 mt-3 mb-10 sm:mb-14 max-w-xl mx-auto">{{ __("Each piece reflects quality and authentic flavours — pick a range to filter Siswa Bazar's Favourites above.") }}</p>
 
         {{-- mobile swipe hint --}}
         <p class="sm:hidden text-center text-[11px] uppercase tracking-[0.2em] text-gold-600/80 mb-6 animate-pulse">← {{ __('swipe to explore') }} →</p>

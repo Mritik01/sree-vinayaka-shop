@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('products', function (Blueprint $table) {
-            // defaults true so existing products keep showing in "Thuthibari's Favourites"
+            // defaults true so existing products keep showing in "Siswa Bazar's Favourites"
             // until the admin curates the list down via the new Bestsellers page
             $table->boolean('is_bestseller')->default(true)->after('sort_order');
         });

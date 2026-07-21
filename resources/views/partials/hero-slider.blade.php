@@ -34,7 +34,13 @@
                                 $mobileSize = @getimagesize(public_path($mobilePath));
                             }
                         @endphp
-                        <img src="{{ asset($banner->image_path) }}" alt="{{ $banner->title }}"
+                        @php
+                            // title became optional so a fully pre-designed banner image (own
+                            // logo/text/CTA baked in) doesn't need a redundant text overlay — the
+                            // dark scrim only makes sense when there's actually text sitting on it
+                            $hasOverlayText = $banner->eyebrow || $banner->title || $banner->subtitle || $banner->button_text;
+                        @endphp
+                        <img src="{{ asset($banner->image_path) }}" alt="{{ $banner->title ?: $banner->eyebrow ?: 'Hero banner' }}"
                              @if ($hasMobileVariant && $fullSize && $mobileSize)
                                  srcset="{{ asset($mobilePath) }} {{ $mobileSize[0] }}w, {{ asset($banner->image_path) }} {{ $fullSize[0] }}w"
                                  sizes="100vw"
@@ -42,33 +48,38 @@
                              @if ($i === 0) fetchpriority="high" @else loading="lazy" @endif
                              class="absolute inset-0 w-full h-full object-cover animate-kenburns">
 
-                        {{-- warm maroon scrim keeps any uploaded photo legible behind the text --}}
-                        <div class="absolute inset-0 bg-gradient-to-r from-maroon-900/85 via-maroon-900/45 to-transparent"></div>
+                        @if ($hasOverlayText)
+                            {{-- warm maroon scrim keeps any uploaded photo legible behind the text —
+                                 only rendered when there's text to protect (see $hasOverlayText above) --}}
+                            <div class="absolute inset-0 bg-gradient-to-r from-maroon-900/85 via-maroon-900/45 to-transparent"></div>
 
-                        <div class="relative z-10 h-full flex items-center px-5 sm:px-10 lg:px-14">
-                            <div class="max-w-md lg:max-w-lg">
-                                @if ($banner->eyebrow)
-                                    <p class="animate-fade-up [animation-delay:100ms] text-gold-300 font-semibold tracking-widest uppercase text-[10px] sm:text-xs mb-2 sm:mb-3">
-                                        {{ $banner->eyebrow }}
-                                    </p>
-                                @endif
-                                <h1 class="animate-fade-up [animation-delay:250ms] text-xl sm:text-3xl lg:text-4xl font-bold text-cream leading-tight drop-shadow-md mb-2 sm:mb-3">
-                                    {{ $banner->title }}
-                                </h1>
-                                @if ($banner->subtitle)
-                                    <p class="animate-fade-up [animation-delay:400ms] text-xs sm:text-base text-gold-100/90 mb-4 sm:mb-6">
-                                        {{ $banner->subtitle }}
-                                    </p>
-                                @endif
-                                @if ($banner->button_text)
-                                    <a href="{{ $banner->button_url ?: '#bestsellers' }}"
-                                       @if(str_starts_with($banner->button_url ?? '', 'http')) target="_blank" rel="noopener" @endif
-                                       class="animate-fade-up [animation-delay:550ms] inline-block bg-maroon-800 hover:bg-maroon-700 text-cream text-xs sm:text-sm font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl shadow transition">
-                                        {{ $banner->button_text }} <span aria-hidden="true">→</span>
-                                    </a>
-                                @endif
+                            <div class="relative z-10 h-full flex items-center px-5 sm:px-10 lg:px-14">
+                                <div class="max-w-md lg:max-w-lg">
+                                    @if ($banner->eyebrow)
+                                        <p class="animate-fade-up [animation-delay:100ms] text-gold-300 font-semibold tracking-widest uppercase text-[10px] sm:text-xs mb-2 sm:mb-3">
+                                            {{ $banner->eyebrow }}
+                                        </p>
+                                    @endif
+                                    @if ($banner->title)
+                                        <h1 class="animate-fade-up [animation-delay:250ms] text-xl sm:text-3xl lg:text-4xl font-bold text-cream leading-tight drop-shadow-md mb-2 sm:mb-3">
+                                            {{ $banner->title }}
+                                        </h1>
+                                    @endif
+                                    @if ($banner->subtitle)
+                                        <p class="animate-fade-up [animation-delay:400ms] text-xs sm:text-base text-gold-100/90 mb-4 sm:mb-6">
+                                            {{ $banner->subtitle }}
+                                        </p>
+                                    @endif
+                                    @if ($banner->button_text)
+                                        <a href="{{ $banner->button_url ?: '#bestsellers' }}"
+                                           @if(str_starts_with($banner->button_url ?? '', 'http')) target="_blank" rel="noopener" @endif
+                                           class="animate-fade-up [animation-delay:550ms] inline-block bg-maroon-800 hover:bg-maroon-700 text-cream text-xs sm:text-sm font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl shadow transition">
+                                            {{ $banner->button_text }} <span aria-hidden="true">→</span>
+                                        </a>
+                                    @endif
+                                </div>
                             </div>
-                        </div>
+                        @endif
                     </div>
                 @endforeach
 

@@ -21,10 +21,16 @@
     <div class="relative aspect-[4/3] overflow-hidden" style="background: linear-gradient(160deg, {{ $product->color }}18, {{ $product->color }}4d);">
         <a href="{{ route('products.show', $product) }}" class="absolute inset-0 z-0" aria-label="View {{ $product->name }}">
             <img src="{{ asset($product->image) }}" alt="{{ $product->name }}" style="object-position: {{ $product->image_position ?? '50% 50%' }};"
-                 class="absolute inset-0 w-full h-full object-cover transition duration-300 hover:scale-105">
+                 class="absolute inset-0 w-full h-full object-cover transition duration-300 hover:scale-105 {{ $product->is_out_of_stock ? 'grayscale opacity-60' : '' }}">
         </a>
 
-        @if ($product->hasDiscount())
+        @if ($product->is_out_of_stock)
+            <div class="absolute inset-0 z-[5] bg-maroon-950/35 flex items-center justify-center pointer-events-none">
+                <span class="bg-maroon-900 text-cream text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full shadow-lg border border-white/20">
+                    {{ __('Out of Stock') }}
+                </span>
+            </div>
+        @elseif ($product->hasDiscount())
             <span class="absolute top-3 left-3 z-10 text-xs font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-red-600 text-white shadow-sm">
                 {{ $product->discountBadgeLabel() }}
             </span>
@@ -146,6 +152,11 @@
                 @endif
             </p>
             <div class="flex items-center gap-2">
+                @if ($product->is_out_of_stock)
+                    <span class="text-xs font-bold uppercase tracking-wide text-red-600 bg-red-50 border border-red-200 rounded-full px-3 py-2 shrink-0 whitespace-nowrap">
+                        {{ __('Out of Stock') }}
+                    </span>
+                @else
                 {{-- plain Add button when it's not in the cart yet — for a multi-portion loose
                      product this adds whatever weight is currently selected above (defaults to
                      the smallest portion until the customer picks a different one) --}}
@@ -182,6 +193,7 @@
                    style="background-color: {{ $product->color }}; color: {{ $onColor }};">
                     {{ __('Order Now') }}
                 </button>
+                @endif
             </div>
         </div>
     </div>

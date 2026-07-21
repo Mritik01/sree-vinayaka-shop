@@ -41,12 +41,12 @@
             privacy: @json($privacyDoc ? ['title' => $privacyDoc->title, 'content' => $privacyDoc->content, 'updatedAt' => $privacyDoc->published_at->format('d M Y')] : null),
         };
     </script>
-    <title>@yield('title', 'Makhanbhog Sweets — No. 1 Sweet Shop in Thuthibari')</title>
+    <title>@yield('title', 'Shree Vinayak Family Shop — No. 1 Grocery Store in Siswa Bazar')</title>
     {{-- plain @yield is correct here: @section('name', $value) already runs $value through e()
          internally (Laravel's ManagesLayouts::startSection()), so by the time this yields, a
          literal " in a per-page description is already &quot; — wrapping this in another {{ }}
          would escape it a second time (confirmed: & became &amp;amp; before this was caught). --}}
-    <meta name="description" content="@yield('description', "Makhanbhog Sweets, Thuthibari's favourite sweet shop, now delivering fresh mithai to your doorstep.")">
+    <meta name="description" content="@yield('description', "Shree Vinayak Family Shop, Siswa Bazar's favourite grocery store, now delivering fresh groceries to your doorstep.")">
 
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
@@ -56,7 +56,7 @@
     {{-- PWA installability — customer-facing pages only, deliberately not added to admin/rider
          layouts (see partials/install-prompt-banner.blade.php + window.installPrompt() in app.js) --}}
     <link rel="manifest" href="{{ asset('manifest.json') }}">
-    <meta name="theme-color" content="#7a1622">
+    <meta name="theme-color" content="{{ $customerTheme['swatch']['primary'] }}">
 
     {{-- loaded non-render-blocking (media="print" swapped to "all" on load) — the stylesheet
          itself was previously blocking first paint on the round-trip to fonts.googleapis.com,
@@ -72,6 +72,20 @@
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Baloo+2:wght@600;700;800&display=swap"></noscript>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+    {{-- customer site's selected color theme (Admin → Application Customization) — overrides the
+         :root defaults resources/css/app.css ships with (which are Maroon + Gold, pixel-identical
+         to this app's original palette). Deliberately customer-only: admin/layout.blade.php and
+         rider/layout.blade.php never include this block, so they always render app.css's
+         hardcoded defaults regardless of what customer_theme is set to — see
+         config/customer_themes.php and ShopSetting::customerThemeConfig(). --}}
+    <style>
+        :root {
+            @foreach ($customerTheme['vars'] as $name => $value)
+                --color-{{ $name }}: {{ $value }};
+            @endforeach
+        }
+    </style>
 </head>
 {{-- pb-32 (not pb-16) — the bottom nav alone is only 4rem tall, but the floating "View Cart"
      pill rests higher still (bottom-20 + its own height), so content needs clearance for both

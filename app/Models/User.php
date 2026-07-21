@@ -16,6 +16,38 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    // predefined reasons an admin can pick from when blocking a customer — see
+    // Admin\CustomerController::block() and admin/customers/_block-modal.blade.php. Mirrors the
+    // OrderItem::REMOVAL_REASONS convention (a fixed key => label map plus a 'custom' escape
+    // hatch) already used elsewhere in this app.
+    public const BLOCK_REASONS = [
+        'spam_orders' => 'Spam Orders',
+        'fake_orders' => 'Fake Orders',
+        'coupon_misuse' => 'Misuse of Offers/Coupons',
+        'abusive_behavior' => 'Abusive Behavior',
+        'fraudulent_activity' => 'Fraudulent Activity',
+        'multiple_fake_accounts' => 'Multiple Fake Accounts',
+        'payment_issues' => 'Payment Issues',
+        'delivery_misconduct' => 'Delivery Misconduct',
+        'other' => 'Other (Custom Reason)',
+    ];
+
+    // a clear, plain-language, non-scary default customer-facing message per reason — shown as a
+    // starting point in the block modal (the admin can edit it before confirming) so the message
+    // a customer actually sees is never a raw internal reason code or an empty box. 'other' has
+    // no sensible generic default, so the admin must write their own for that one.
+    public const DEFAULT_BLOCK_MESSAGES = [
+        'spam_orders' => "We've noticed an unusually high number of orders placed from your account in a short time, which looks like spam activity. Please contact our support team if you'd like to sort this out.",
+        'fake_orders' => 'One or more orders placed from your account could not be verified as genuine. Please contact our support team for help resolving this.',
+        'coupon_misuse' => "We've noticed repeated misuse of discount coupons or offers on your account. Please contact our support team if you think this is a mistake.",
+        'abusive_behavior' => 'Your account has been restricted due to abusive or inappropriate behavior towards our staff or delivery partners. Please contact our support team to discuss this.',
+        'fraudulent_activity' => 'Your account has been restricted due to suspected fraudulent activity. Please contact our support team for more information.',
+        'multiple_fake_accounts' => 'Your account appears to be linked to multiple duplicate accounts. Please contact our support team if you believe this is incorrect.',
+        'payment_issues' => 'Your account has an unresolved payment issue from a previous order. Please contact our support team so we can sort this out together.',
+        'delivery_misconduct' => "We've noticed repeated issues at the time of delivery (such as orders being refused or nobody being available). Please contact our support team for details.",
+        'other' => '',
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -30,6 +62,14 @@ class User extends Authenticatable
         'reward_progress',
         'free_gifts_available',
         'locale',
+        'is_blocked',
+        'block_reason',
+        'block_message',
+        'block_notes',
+        'blocked_by_admin_id',
+        'blocked_at',
+        'unblocked_by_admin_id',
+        'unblocked_at',
     ];
 
     /**
@@ -53,7 +93,42 @@ class User extends Authenticatable
         'password' => 'hashed',
         'reward_progress' => 'integer',
         'free_gifts_available' => 'integer',
+        'is_blocked' => 'boolean',
+        'blocked_at' => 'datetime',
+        'unblocked_at' => 'datetime',
     ];
+
+    public function isBlocked(): bool
+    {
+        return $this->is_blocked;
+    }
+
+    public function blockReasonLabel(): ?string
+    {
+        return $this->block_reason ? (self::BLOCK_REASONS[$this->block_reason] ?? $this->block_reason) : null;
+    }
+
+    public static function defaultBlockMessageFor(string $reasonKey): string
+    {
+        return self::DEFAULT_BLOCK_MESSAGES[$reasonKey] ?? '';
+    }
+
+    public function blockedByAdmin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'blocked_by_admin_id');
+    }
+
+    public function unblockedByAdmin(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'unblocked_by_admin_id');
+    }
+
+    // the permanent, never-deleted audit trail — see CustomerBlockHistory and
+    // database/migrations/2026_07_21_010002_create_customer_block_history_table.php
+    public function blockHistory(): HasMany
+    {
+        return $this->hasMany(CustomerBlockHistory::class)->latest('occurred_at');
+    }
 
     public function favorites(): BelongsToMany
     {

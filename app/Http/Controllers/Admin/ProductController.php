@@ -14,11 +14,22 @@ class ProductController extends Controller
 {
     use PaginatesAdminLists;
 
-    public const CATEGORIES = ['Sweets', 'Namkeen', 'Desi Ghee', 'Cookies', 'Mathi', 'Dry Fruits', 'Syrup'];
+    // was a hardcoded 7-item list — now sourced from the same admin-managed Category records
+    // that power the mobile Categories panel (Admin → Categories), so a newly created category
+    // shows up here immediately with no code change. Order matches that screen's drag-to-reorder.
+    private function categoryOptions(): array
+    {
+        return Category::where('is_active', true)->orderBy('sort_order')->pluck('name')->all();
+    }
 
     public function index(Request $request)
     {
         $query = Product::orderBy('sort_order');
+
+        $stockFilter = in_array($request->get('stock'), ['in_stock', 'out_of_stock'], true) ? $request->get('stock') : '';
+        if ($stockFilter !== '') {
+            $query->where('is_out_of_stock', $stockFilter === 'out_of_stock');
+        }
 
         $search = trim((string) $request->get('q', ''));
         if ($search !== '') {
@@ -33,9 +44,20 @@ class ProductController extends Controller
         $data = [
             'products' => $query->paginate($this->perPage($request))->withQueryString(),
             'search' => $search,
+            'stockFilter' => $stockFilter,
+            'outOfStockCount' => Product::where('is_out_of_stock', true)->count(),
         ];
 
         return $request->ajax() ? view('admin.products._results', $data) : view('admin.products.index', $data);
+    }
+
+    // quick toggle from the product list row — same shape as CategoryController::toggle() /
+    // HeroBannerController::toggle() (see resources/js/admin.js: window.settingToggle())
+    public function toggle(Product $product)
+    {
+        $product->update(['is_out_of_stock' => !$product->is_out_of_stock]);
+
+        return response()->json(['ok' => true, 'value' => $product->is_out_of_stock]);
     }
 
     // live JSON typeahead for the order-detail "Add Product" modal. Returns each match with its
@@ -74,7 +96,7 @@ class ProductController extends Controller
     public function create()
     {
         return view('admin.products.create', [
-            'categories' => self::CATEGORIES,
+            'categories' => $this->categoryOptions(),
             'allCategories' => Category::where('is_active', true)->orderBy('sort_order')->get(),
             'allTags' => ProductTag::orderBy('name')->get(),
         ]);
@@ -97,7 +119,7 @@ class ProductController extends Controller
     {
         return view('admin.products.edit', [
             'product' => $product,
-            'categories' => self::CATEGORIES,
+            'categories' => $this->categoryOptions(),
             'allCategories' => Category::where('is_active', true)->orderBy('sort_order')->get(),
             'allTags' => ProductTag::orderBy('name')->get(),
         ]);
@@ -108,7 +130,12 @@ class ProductController extends Controller
         $data = $this->validateData($request);
 
         if ($request->hasFile('image')) {
+            $oldImage = $product->image;
             $data['image'] = $this->storeImage($request);
+
+            if ($oldImage && $oldImage !== $data['image']) {
+                @unlink(public_path($oldImage));
+            }
         }
 
         $product->update($data);
@@ -120,6 +147,10 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        if ($product->image) {
+            @unlink(public_path($product->image));
+        }
+
         $product->delete();
 
         return redirect()->route('admin.products.index')->with('status', 'Product deleted.');
@@ -132,7 +163,7 @@ class ProductController extends Controller
 
         $data = $request->validate([
             'name' => 'required|string|max:150',
-            'category' => 'required|string|in:'.implode(',', self::CATEGORIES),
+            'category' => 'required|string|in:'.implode(',', $this->categoryOptions()),
             'description' => 'nullable|string',
             'type' => 'required|in:piece,loose',
             'price' => 'required|integer|min:1',
@@ -193,6 +224,12 @@ class ProductController extends Controller
             $data['discount_type'] = null;
             $data['discount_value'] = null;
         }
+
+        // checkbox — absent from the request entirely when unchecked, so boolean() (not the
+        // validate() array, which would just omit the key) is what makes unchecking actually
+        // persist as false rather than leaving the previous value untouched
+        $data['is_out_of_stock'] = $request->boolean('is_out_of_stock');
+
         unset($data['discount_enabled'], $data['categories'], $data['tags']);
 
         return $data;

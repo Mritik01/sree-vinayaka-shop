@@ -31,11 +31,13 @@ class Product extends Model
         'sort_order',
         'is_bestseller',
         'is_festival_special',
+        'is_out_of_stock',
     ];
 
     protected $casts = [
         'is_bestseller' => 'boolean',
         'is_festival_special' => 'boolean',
+        'is_out_of_stock' => 'boolean',
         'portions' => 'array',
         'search_tags' => 'array',
     ];
@@ -240,6 +242,7 @@ class Product extends Model
             'portion' => $portion,
             'price' => $this->priceForPortion($portion ?: null),
             'quantity' => $quantity,
+            'is_out_of_stock' => $this->is_out_of_stock,
         ];
     }
 }

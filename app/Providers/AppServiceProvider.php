@@ -39,6 +39,12 @@ class AppServiceProvider extends ServiceProvider
         // this only needs to change on the next page load, not live within an open tab, so a
         // plain View::share (recomputed once per request) is simpler than wiring it into the 5s poll
         $businessPhone = null;
+        // same "recomputed once per request, not part of the 5s poll" reasoning as $businessPhone
+        // above — the logo/theme only need to change on the next page load. Defaults here (used
+        // if the table/row isn't reachable yet) exactly match a fresh install's real DB defaults:
+        // no logo uploaded, default theme — see ShopSetting::businessLogoUrl()/customerThemeConfig()
+        $businessLogo = asset('images/logo-circle.png');
+        $customerTheme = config('customer_themes.maroon_gold');
         try {
             if (Schema::hasTable('shop_settings')) {
                 $settings = ShopSetting::current();
@@ -48,6 +54,8 @@ class AppServiceProvider extends ServiceProvider
                     'tel' => $settings->businessPhoneTelHref(),
                     'whatsapp' => $settings->businessWhatsappHref(),
                 ] : null;
+                $businessLogo = $settings->businessLogoUrl();
+                $customerTheme = $settings->customerThemeConfig();
                 $shopStatus = [
                     'accepting' => $settings->accepting_orders,
                     'restricted' => $settings->restrict_delivery_area,
@@ -82,6 +90,8 @@ class AppServiceProvider extends ServiceProvider
         View::share('shopStatus', $shopStatus);
         View::share('promoPopupEnabled', $promoPopupEnabled);
         View::share('businessPhone', $businessPhone);
+        View::share('businessLogo', $businessLogo);
+        View::share('customerTheme', $customerTheme);
 
         // guarded the same way as $shopStatus above — a missing table or unreachable DB
         // must never crash every page, it just means no banner shows this request

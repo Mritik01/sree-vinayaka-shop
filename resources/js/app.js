@@ -361,7 +361,11 @@ window.authModal = function () {
                     otp: this.otp,
                 });
                 if (ok && data.ok) {
-                    if (data.new_user) {
+                    if (data.blocked) {
+                        // a genuine, verified login — just a restricted one. No celebration;
+                        // straight to the restricted screen instead of wherever they were headed.
+                        window.location.href = data.redirect;
+                    } else if (data.new_user) {
                         this.isNewUser = true;
                         this.step = 'name';
                     } else {
@@ -505,7 +509,7 @@ window.deliverTo = function (addresses, isLoggedIn, labels = {}) {
         get currentLine() {
             const a = this.addresses.find((x) => x.id === this.currentId);
             if (a) return a.label ? `${a.label} — ${a.line}` : a.line;
-            return this.isLoggedIn ? (labels.empty || 'Add address') : (labels.guest || 'Thuthibari & nearby');
+            return this.isLoggedIn ? (labels.empty || 'Add address') : (labels.guest || 'Siswa Bazar & nearby');
         },
         handleEmpty() {
             if (!this.isLoggedIn) {
@@ -605,6 +609,34 @@ window.categoryShop = function (isLoggedIn, initialFavorites) {
     };
 };
 
+// "You Might Also Like" row on the product page (product-show.blade.php, desktop only — mobile
+// shows a plain static 2x2 grid instead) — same overflow-arrow mechanics as categoryRow() above,
+// plus a timer that auto-advances one card every few seconds and loops back to the start once it
+// reaches the end. Pauses while the pointer is over the row so it doesn't scroll out from under
+// someone reading a card.
+window.relatedAutoSlider = function (step = 280) {
+    const base = scrollArrows(step);
+    return {
+        ...base,
+        paused: false,
+        timer: null,
+        init() {
+            base.init.call(this);
+            this.timer = setInterval(() => {
+                if (this.paused) return;
+                if (this.canRight) {
+                    this.scrollBy(1);
+                } else {
+                    this.$refs.track?.scrollTo({ left: 0, behavior: 'smooth' });
+                }
+            }, 3500);
+        },
+        destroy() {
+            clearInterval(this.timer);
+        },
+    };
+};
+
 // grams -> "250g" / "1kg" — mirrors Product::portionLabel() on the PHP side; keep the two
 // in sync if the format ever changes
 window.portionLabel = function (grams) {
@@ -637,6 +669,10 @@ window.addProductToCart = async function (productId, quantity = 1, openDrawer = 
         body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
+    if (data.blocked) {
+        window.location.href = data.redirect;
+        return data;
+    }
     if (res.ok && data.ok) {
         window.dispatchEvent(new CustomEvent('cart-updated', { detail: { count: data.count, items: data.items } }));
         if (openDrawer) Alpine.store('cart').open = true;
@@ -1133,6 +1169,9 @@ window.cartPage = function (initialItems) {
         estimatedFees() {
             return Alpine.store('shop').totalFees(this.subtotal());
         },
+        hasOutOfStockItems() {
+            return this.items.some((item) => item.is_out_of_stock);
+        },
         init() {
             // if a customer arrives already above the threshold (e.g. items added on the product
             // page), don't fire the unlock celebration on load — only when they actually cross it
@@ -1149,7 +1188,7 @@ window.cartPage = function (initialItems) {
             });
         },
         async increment(item) {
-            if (item.quantity >= 10) return;
+            if (item.quantity >= 10 || item.is_out_of_stock) return;
             item.quantity++;
             await this.syncQuantity(item);
         },
@@ -1170,6 +1209,7 @@ window.cartPage = function (initialItems) {
                 body: JSON.stringify({ quantity: item.quantity }),
             });
             const data = await res.json().catch(() => ({}));
+            if (data.blocked) { window.location.href = data.redirect; return; }
             if (data.ok) window.dispatchEvent(new CustomEvent('cart-updated', { detail: { count: data.count, items: data.items } }));
         },
         async remove(item) {
@@ -1194,6 +1234,7 @@ window.cartPage = function (initialItems) {
                 body: JSON.stringify({ quantity: item.quantity, portion: newPortion }),
             });
             const data = await res.json().catch(() => ({}));
+            if (data.blocked) { window.location.href = data.redirect; return; }
             if (data.ok) {
                 const updated = data.items.find((i) => i.id === item.id);
                 if (updated) {
@@ -1305,7 +1346,9 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                     body: JSON.stringify(body),
                 });
                 const data = await res.json().catch(() => ({}));
-                if (data.ok) {
+                if (data.blocked) {
+                    window.location.href = data.redirect;
+                } else if (data.ok) {
                     this.coupon = data.coupon;
                     this.couponCode = '';
                     // stash the offer card so removing (not redeeming) the coupon can bring it back
@@ -1527,6 +1570,10 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                     body: JSON.stringify(payload),
                 });
                 const data = await res.json().catch(() => ({}));
+                if (data.blocked) {
+                    window.location.href = data.redirect;
+                    return;
+                }
                 if (data.ok) {
                     window.dispatchEvent(new CustomEvent('cart-updated', { detail: { count: 0 } }));
                     if (data.payment_method === 'razorpay') {
@@ -3165,8 +3212,11 @@ Alpine.store('cart', {
     subtotal() {
         return this.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     },
+    hasOutOfStockItems() {
+        return this.items.some((item) => item.is_out_of_stock);
+    },
     async increment(item) {
-        if (item.quantity >= 10) return;
+        if (item.quantity >= 10 || item.is_out_of_stock) return;
         item.quantity++;
         await this.sync(item);
     },
@@ -3183,6 +3233,7 @@ Alpine.store('cart', {
             body: JSON.stringify({ quantity: item.quantity }),
         });
         const data = await res.json().catch(() => ({}));
+        if (data.blocked) { window.location.href = data.redirect; return; }
         if (data.ok) window.dispatchEvent(new CustomEvent('cart-updated', { detail: { count: data.count, items: data.items } }));
     },
     async remove(item) {
@@ -3226,7 +3277,7 @@ function pollShopStatus() {
             if (data.restrict_delivery_area !== store.restricted) {
                 store.restricted = data.restrict_delivery_area;
                 showShopToast(store, data.restrict_delivery_area
-                    ? `📍 Heads up — we now deliver only within ${store.radiusKm} km of Thuthibari.`
+                    ? `📍 Heads up — we now deliver only within ${store.radiusKm} km of Siswa Bazar.`
                     : '🚚 Delivery area restriction lifted — we accept orders from anywhere again.');
             }
             store.deliveryFeeStrategy = data.delivery_fee_strategy || store.deliveryFeeStrategy;

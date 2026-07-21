@@ -34,11 +34,11 @@
              :class="on ? 'bg-white border-gold-200/60' : 'bg-gold-50 border-gold-300/60'">
             <div>
                 <p class="font-display text-maroon-800 flex items-center gap-2">
-                    <span x-show="on" x-cloak>📍 Thuthibari Delivery Only</span>
+                    <span x-show="on" x-cloak>📍 Siswa Bazar Delivery Only</span>
                     <span x-show="!on" x-cloak>🌍 Delivering Anywhere</span>
                 </p>
                 <p class="text-sm mt-1 text-maroon-500">
-                    <span x-show="on" x-cloak>Orders accepted only within {{ rtrim(rtrim(number_format($deliveryRadiusKm, 1), '0'), '.') }} km of Thuthibari — checked via the customer's live location.</span>
+                    <span x-show="on" x-cloak>Orders accepted only within {{ rtrim(rtrim(number_format($deliveryRadiusKm, 1), '0'), '.') }} km of Siswa Bazar — checked via the customer's live location.</span>
                     <span x-show="!on" x-cloak>No distance limit — orders are accepted from any location (testing mode).</span>
                 </p>
             </div>
@@ -91,37 +91,6 @@
                      x-text="on ? '✓' : '✕'"></div>
             </label>
         </div>
-    </div>
-
-    {{-- business contact number — single source of truth for the footer, WhatsApp links, order
-         help text, invoices, and the legal pages (see AppServiceProvider's $businessPhone share) --}}
-    <div class="rounded-2xl border border-gold-200/60 bg-white p-5 mb-5">
-        <div class="flex items-center gap-3">
-            <span class="text-2xl">📞</span>
-            <div>
-                <p class="font-display text-maroon-800">Business Contact</p>
-                <p class="text-sm text-maroon-500 mt-0.5">Shown in the footer, WhatsApp links, order help text, invoices, and the legal pages.</p>
-            </div>
-        </div>
-
-        <form method="POST" action="{{ route('admin.settings.business-info') }}" class="mt-4">
-            @csrf
-            @method('PATCH')
-            <label class="block text-xs font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">Business Mobile Number</label>
-            {{-- maxlength is generous (not 10) on purpose — the server strips any +91/spaces/dashes
-                 and keeps the last 10 digits, so a pasted formatted number like "+91 98765 43210"
-                 (15 raw characters) must not get truncated by the browser before that cleanup runs --}}
-            <input type="text" name="business_mobile_number" maxlength="20" placeholder="10-digit mobile number"
-                   value="{{ old('business_mobile_number', $settings->business_mobile_number) }}"
-                   class="w-full max-w-xs rounded-lg border border-gold-300/70 px-3 py-2 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
-            @error('business_mobile_number')
-                <p class="text-xs text-red-600 mt-1.5">{{ $message }}</p>
-            @enderror
-            <p class="text-xs text-maroon-400 mt-1.5">Leave blank to hide all "call"/WhatsApp contact links site-wide.</p>
-            <div class="flex justify-end mt-4">
-                <button type="submit" class="btn-gold text-sm px-5 py-2">Save</button>
-            </div>
-        </form>
     </div>
 
     {{-- payment methods — at least one must always stay enabled, enforced server-side --}}

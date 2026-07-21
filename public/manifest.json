@@ -1,11 +1,11 @@
 {
-  "name": "Makhanbhog Sweets",
-  "short_name": "Makhanbhog",
-  "description": "Order fresh mithai, namkeen, and sweets online from Makhanbhog Sweets, Thuthibari.",
+  "name": "Shree Vinayak Family Shop",
+  "short_name": "Shree Vinayak",
+  "description": "Order fresh groceries, mithai, namkeen, and more online from Shree Vinayak Family Shop, Siswa Bazar.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fdf6e9",
-  "theme_color": "#7a1622",
+  "background_color": "#f8faf9",
+  "theme_color": "#17783c",
   "icons": [
     { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }

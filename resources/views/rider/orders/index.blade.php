@@ -94,8 +94,8 @@
                             {{-- a "paid" online order can still have a balance_due > 0 if the admin
                                  added items after payment cleared — see Order::balanceDueOnDelivery() --}}
                             <span class="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                                  :class="order.payment_method === 'COD' ? 'bg-gold-100 text-gold-600' : (order.payment_status !== 'paid' ? 'bg-red-100 text-red-700' : (order.balance_due > 0 ? 'bg-gold-100 text-gold-600' : 'bg-pista-100 text-pista-600'))"
-                                  x-text="order.payment_method === 'COD' ? '💵 COD' : (order.payment_status !== 'paid' ? '⚠ UNPAID' : (order.balance_due > 0 ? '💵 ₹' + order.balance_due.toLocaleString('en-IN') + ' DUE' : '✓ PAID'))"></span>
+                                  :class="order.payment_method === 'COD' ? (order.payment_status === 'paid' ? 'bg-pista-100 text-pista-600' : 'bg-gold-100 text-gold-600') : (order.payment_status !== 'paid' ? 'bg-red-100 text-red-700' : (order.balance_due > 0 ? 'bg-gold-100 text-gold-600' : 'bg-pista-100 text-pista-600'))"
+                                  x-text="order.payment_method === 'COD' ? (order.payment_status === 'paid' ? '✓ PAID' : '💵 COD') : (order.payment_status !== 'paid' ? '⚠ UNPAID' : (order.balance_due > 0 ? '💵 ₹' + order.balance_due.toLocaleString('en-IN') + ' DUE' : '✓ PAID'))"></span>
                         </span>
                         <span class="font-semibold text-maroon-800">₹<span x-text="order.total.toLocaleString('en-IN')"></span></span>
                     </div>

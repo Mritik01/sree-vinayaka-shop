@@ -15,6 +15,10 @@ class CartController extends Controller
             'portion' => 'sometimes|nullable|integer|in:'.implode(',', Product::PORTION_OPTIONS),
         ]);
 
+        if ($product->is_out_of_stock) {
+            return response()->json(['ok' => false, 'message' => 'This product is currently out of stock.'], 422);
+        }
+
         $portion = $product->isLoose() ? ($data['portion'] ?? $product->defaultPortion()) : 0;
 
         if ($product->isLoose() && !in_array($portion, $product->portions ?? [], true)) {
@@ -44,6 +48,11 @@ class CartController extends Controller
             'quantity' => 'required|integer|min:1|max:10',
             'portion' => 'sometimes|nullable|integer|in:'.implode(',', Product::PORTION_OPTIONS),
         ]);
+
+        $existing = $request->user()->cart()->where('products.id', $product->id)->first();
+        if ($product->is_out_of_stock && $existing && $data['quantity'] > (int) $existing->pivot->quantity) {
+            return response()->json(['ok' => false, 'message' => 'This product is currently out of stock.'], 422);
+        }
 
         $updates = ['quantity' => $data['quantity']];
 

@@ -4,12 +4,15 @@ namespace App\Notifications;
 
 use App\Models\Order;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
+use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Collection;
 
-class OrderItemsAdded extends Notification
+// queueable so sending this never blocks the request that triggered it — see AdminMessage.php
+class OrderItemsAdded extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, SerializesModels;
 
     /**
      * @param  Collection<int, \App\Models\OrderItem>  $addedItems

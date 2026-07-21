@@ -7,7 +7,7 @@
     @php
         $steps = [
             1 => ['icon' => '🧾', 'label' => __('Placed')],
-            2 => ['icon' => '👨‍🍳', 'label' => __('Confirmed')],
+            2 => ['icon' => '📦', 'label' => __('Confirmed')],
             3 => ['icon' => '🛵', 'label' => __('Out for Delivery')],
             4 => ['icon' => '🎁', 'label' => __('Delivered')],
         ];
@@ -19,7 +19,12 @@
         $removalReasons = \App\Models\OrderItem::REMOVAL_REASONS;
     @endphp
 
-    <a href="{{ route('admin.orders.index') }}" class="text-sm text-maroon-500 hover:text-maroon-700 transition">← {{ __('Back to Orders') }}</a>
+    {{-- real browser-history back (so arriving here from a customer's page returns there, not
+         always to the Orders list) — falls back to the Orders list only when there's nowhere
+         to go back to (e.g. this page was opened directly in a new tab) --}}
+    <a href="{{ route('admin.orders.index') }}"
+       onclick="if (window.history.length > 1) { event.preventDefault(); window.history.back(); }"
+       class="text-sm text-maroon-500 hover:text-maroon-700 transition">← {{ __('Back') }}</a>
 
     <div class="space-y-5 mt-4" x-data='adminOrderShowPage(@json($orderForJs), {{ $order->id }}, @json($cancelledReasons))'>
         @if ($order->is_gift_order)
@@ -37,13 +42,14 @@
         @php
             $isPaidOnline = $order->payment_method === 'razorpay' && $order->payment_status === 'paid';
             $isUnpaidOnline = $order->payment_method === 'razorpay' && $order->payment_status !== 'paid';
+            $isCodPaid = $order->codPaymentReceived();
         @endphp
 
         {{-- payment mode — the single most important thing to know before confirming or dispatching this order --}}
         <div class="rounded-2xl border-2 p-4 flex items-center justify-between gap-3 flex-wrap shadow-sm animate-fade-up
-            {{ $isUnpaidOnline ? 'bg-red-50 border-red-300' : ($isPaidOnline ? 'bg-pista-100 border-pista-400' : 'bg-gold-50 border-gold-400') }}">
+            {{ $isUnpaidOnline ? 'bg-red-50 border-red-300' : (($isPaidOnline || $isCodPaid) ? 'bg-pista-100 border-pista-400' : 'bg-gold-50 border-gold-400') }}">
             <div class="flex items-center gap-3 min-w-0">
-                <span class="text-3xl shrink-0">{{ $isUnpaidOnline ? '⚠️' : ($isPaidOnline ? '✅' : '💵') }}</span>
+                <span class="text-3xl shrink-0">{{ $isUnpaidOnline ? '⚠️' : (($isPaidOnline || $isCodPaid) ? '✅' : '💵') }}</span>
                 <div class="min-w-0">
                     @if ($isUnpaidOnline)
                         <p class="font-display font-bold text-red-700">{{ __('Payment Not Confirmed') }}</p>
@@ -54,6 +60,9 @@
                     @elseif ($isPaidOnline)
                         <p class="font-display font-bold text-pista-600">{{ __('Paid Online') }}</p>
                         <p class="text-xs text-pista-600/80 mt-0.5">{{ __('No cash to collect — already paid via Razorpay.') }}</p>
+                    @elseif ($isCodPaid)
+                        <p class="font-display font-bold text-pista-600">{{ __('Cash Collected') }}</p>
+                        <p class="text-xs text-pista-600/80 mt-0.5">₹{{ number_format($order->amount_paid) }} {{ __('collected by the rider on delivery') }}{{ $order->paid_at ? ' · '.$order->paid_at->format('d M, h:i A') : '' }}.</p>
                     @else
                         <p class="font-display font-bold text-gold-600">{{ __('Cash on Delivery') }}</p>
                         <p class="text-xs text-gold-600/80 mt-0.5">{{ __('Rider must collect') }} ₹{{ number_format($order->total) }} {{ __('from the customer.') }}</p>
@@ -409,7 +418,15 @@
                             {{ strtoupper(substr($order->customer_name, 0, 1)) }}
                         </div>
                         <div class="min-w-0">
-                            <p class="text-sm font-medium text-maroon-800 truncate">{{ $order->customer_name }}</p>
+                            @if ($order->user)
+                                {{-- one-click lookup — jumps straight to this customer's admin profile
+                                     (order history, block status, coupons, everything) --}}
+                                <a href="{{ route('admin.customers.show', $order->user) }}" class="text-sm font-medium text-maroon-800 hover:text-gold-600 truncate block transition">
+                                    {{ $order->customer_name }} <span class="text-xs font-normal text-gold-600">→</span>
+                                </a>
+                            @else
+                                <p class="text-sm font-medium text-maroon-800 truncate">{{ $order->customer_name }}</p>
+                            @endif
                             <a href="tel:+91{{ preg_replace('/\D/', '', $order->customer_phone) }}" class="text-sm text-maroon-500 hover:text-gold-600 transition">{{ $order->customer_phone }}</a>
                         </div>
                     </div>

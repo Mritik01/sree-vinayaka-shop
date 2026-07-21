@@ -1,7 +1,7 @@
 {{-- "Deliver to <address>" selector — $headerAddresses comes from navbar.blade.php's @php block.
      Logged-in: shows the default address, dropdown switches it via the existing
      addresses.set-default endpoint. Guest: opens the auth modal. --}}
-<div x-data='deliverTo(@json($headerAddresses), {{ Auth::check() ? 'true' : 'false' }}, @json(['empty' => __('Add your address'), 'guest' => __('Thuthibari & nearby')]))' @click.outside="open = false" class="relative">
+<div x-data='deliverTo(@json($headerAddresses), {{ Auth::check() ? 'true' : 'false' }}, @json(['empty' => __('Add your address'), 'guest' => __('Siswa Bazar & nearby')]))' @click.outside="open = false" class="relative">
     <button type="button" @click="isLoggedIn && addresses.length > 0 ? open = !open : handleEmpty()"
             class="w-full flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-maroon-900/5 transition text-left min-w-0">
         <svg class="w-5 h-5 text-maroon-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.6">

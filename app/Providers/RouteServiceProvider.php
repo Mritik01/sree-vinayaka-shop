@@ -36,7 +36,14 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('otp-verify', function (Request $request) {
-            return Limit::perMinute(10)->by('otp-verify-ip:'.$request->ip());
+            return [
+                Limit::perMinute(10)->by('otp-verify-ip:'.$request->ip()),
+                // without this, cycling source IPs against one phone number bypasses the IP
+                // limit above entirely — the per-OTP 5-attempt cap in the controller is the real
+                // backstop, but this closes the gap for anyone trying to burn through many OTPs
+                // (each with its own 5 attempts) against a single number from different IPs
+                Limit::perMinute(10)->by('otp-verify-phone:'.$request->input('phone')),
+            ];
         });
 
         RateLimiter::for('auth-otp-send', function (Request $request) {
@@ -47,7 +54,10 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('auth-otp-verify', function (Request $request) {
-            return Limit::perMinute(10)->by('auth-otp-verify-ip:'.$request->ip());
+            return [
+                Limit::perMinute(10)->by('auth-otp-verify-ip:'.$request->ip()),
+                Limit::perMinute(10)->by('auth-otp-verify-phone:'.$request->input('phone')),
+            ];
         });
 
         RateLimiter::for('auth-complete-signup', function (Request $request) {
