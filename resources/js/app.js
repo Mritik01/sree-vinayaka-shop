@@ -1277,6 +1277,7 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
         paymentMethod: Alpine.store('shop').codEnabled ? 'cod' : 'razorpay',
 
         checkoutError: '',
+        checkoutErrorProgress: 100,
         checkingOut: false,
         locationStatus: 'idle', // idle | checking | inside | outside | denied
         locationDistanceKm: null,
@@ -1298,6 +1299,43 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                 } else if (remaining > 0) {
                     this.crossedFreeDeliveryThreshold = false;
                 }
+            });
+
+            this.lastRestricted = Alpine.store('shop').restricted;
+            if (this.lastRestricted && this.showNewAddressForm) this.checkDeliveryArea(true);
+            // reacts live if the admin flips the delivery-area toggle while this page is open
+            Alpine.effect(() => {
+                const restricted = Alpine.store('shop').restricted;
+                if (restricted !== this.lastRestricted) {
+                    this.lastRestricted = restricted;
+                    if (restricted) {
+                        if (this.showNewAddressForm) this.checkDeliveryArea(true);
+                    } else {
+                        this.locationStatus = 'idle';
+                        this.locationDistanceKm = null;
+                        this.checkoutError = '';
+                    }
+                }
+            });
+
+            // auto-dismiss the mobile error toast after 5s, with a progress bar counting it down
+            let errorTimeout = null;
+            let errorRaf = null;
+            const AUTO_DISMISS_MS = 5000;
+            this.$watch('checkoutError', (value) => {
+                clearTimeout(errorTimeout);
+                cancelAnimationFrame(errorRaf);
+                if (!value) return;
+
+                const start = performance.now();
+                this.checkoutErrorProgress = 100;
+                const tick = (now) => {
+                    const elapsed = now - start;
+                    this.checkoutErrorProgress = Math.max(0, 100 - (elapsed / AUTO_DISMISS_MS) * 100);
+                    if (elapsed < AUTO_DISMISS_MS) errorRaf = requestAnimationFrame(tick);
+                };
+                errorRaf = requestAnimationFrame(tick);
+                errorTimeout = setTimeout(() => { this.checkoutError = ''; }, AUTO_DISMISS_MS);
             });
         },
         subtotal() {
@@ -1421,25 +1459,6 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                 this.selectedAddressId = this.addresses[0]?.id ?? null;
                 if (!this.addresses.length) this.showNewAddressForm = true;
             }
-        },
-
-        init() {
-            this.lastRestricted = Alpine.store('shop').restricted;
-            if (this.lastRestricted && this.showNewAddressForm) this.checkDeliveryArea(true);
-            // reacts live if the admin flips the delivery-area toggle while this page is open
-            Alpine.effect(() => {
-                const restricted = Alpine.store('shop').restricted;
-                if (restricted !== this.lastRestricted) {
-                    this.lastRestricted = restricted;
-                    if (restricted) {
-                        if (this.showNewAddressForm) this.checkDeliveryArea(true);
-                    } else {
-                        this.locationStatus = 'idle';
-                        this.locationDistanceKm = null;
-                        this.checkoutError = '';
-                    }
-                }
-            });
         },
         async checkDeliveryArea(auto = false) {
             if (!Alpine.store('shop').restricted || this.locationStatus === 'checking') return;

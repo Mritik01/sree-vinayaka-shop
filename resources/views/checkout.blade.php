@@ -358,10 +358,10 @@
                         <p class="text-xs text-maroon-400 text-center mt-3" x-show="paymentMethod === 'razorpay'" x-cloak>{{ __('You\'ll be redirected to a secure Razorpay checkout to complete payment.') }}</p>
                     </div>
 
-                    {{-- mobile: error/COD/Razorpay notes still show inline, right above where the
-                         floating bar sits, so they're not hidden inside an offscreen button --}}
+                    {{-- mobile: COD/Razorpay notes still show inline here; the error message itself
+                         moved to a floating toast above the fixed CTA bar (below) so it's visible
+                         no matter how far down the page the user has scrolled --}}
                     <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop'" x-cloak class="lg:hidden">
-                        <p x-show="checkoutError" x-cloak x-transition class="text-xs text-red-600 mt-4" x-text="checkoutError"></p>
                         <p class="text-xs text-maroon-400 text-center mt-4" x-show="paymentMethod === 'cod'">{{ __("Pay in cash when your sweets arrive. We'll call you if we need directions.") }}</p>
                         <p class="text-xs text-maroon-400 text-center mt-4" x-show="paymentMethod === 'razorpay'" x-cloak>{{ __('You\'ll be redirected to a secure Razorpay checkout to complete payment.') }}</p>
                     </div>
@@ -387,8 +387,21 @@
             <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop'" x-cloak
                  x-transition:enter="transition ease-out duration-400" x-transition:enter-start="opacity-0 translate-y-8 scale-95" x-transition:enter-end="opacity-100 translate-y-0 scale-100"
                  x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 scale-100" x-transition:leave-end="opacity-0 translate-y-8 scale-95"
-                 class="lg:hidden fixed inset-x-0 z-[55] px-4 pointer-events-none"
+                 class="lg:hidden fixed inset-x-0 z-[55] px-4 pointer-events-none flex flex-col items-stretch gap-2"
                  style="bottom: calc(5rem + env(safe-area-inset-bottom));">
+                {{-- floating error toast — sits right above the CTA regardless of scroll position,
+                     so an error (e.g. "choose a delivery address") is never hidden below the fold.
+                     Auto-dismisses after 5s; the shrinking bar makes that countdown visible. --}}
+                <div x-show="checkoutError" x-cloak
+                     x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2 scale-95" x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                     x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 scale-100" x-transition:leave-end="opacity-0 translate-y-2 scale-95"
+                     class="pointer-events-auto rounded-xl bg-red-600 text-cream shadow-2xl shadow-maroon-900/25 overflow-hidden">
+                    <p class="text-sm font-medium text-center px-4 py-3" x-text="checkoutError"></p>
+                    <div class="h-1 bg-black/20">
+                        <div class="h-full bg-white" :style="`width: ${checkoutErrorProgress}%`"></div>
+                    </div>
+                </div>
+
                 <button type="button" @click="checkout()"
                         :disabled="checkingOut || items.length === 0 || (showNewAddressForm && $store.shop.restricted && locationStatus === 'outside') || (!showNewAddressForm && selectedAddress && $store.shop.restricted && !selectedAddress.within_range)"
                         :class="checkingOut && 'cursor-wait'"
