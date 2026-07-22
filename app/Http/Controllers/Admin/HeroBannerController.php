@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\HeroBanner;
+use App\Support\ImageCompressor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -135,6 +136,11 @@ class HeroBannerController extends Controller
         if ($binary === false || @getimagesizefromstring($binary) === false) {
             return null;
         }
+
+        // uploads at/above 400KB get re-encoded down toward 150KB — see ImageCompressor. Applied
+        // before generateMobileVariant() below too, so that companion image starts from the
+        // already-compressed source.
+        $binary = ImageCompressor::compressToJpeg($binary);
 
         $filename = 'banner-'.Str::random(10).'.jpg';
         $directory = public_path('images/hero');

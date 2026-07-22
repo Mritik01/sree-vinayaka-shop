@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ShopSetting;
+use App\Support\ImageCompressor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -140,25 +141,35 @@ class CustomizationController extends Controller
 
         if ($width <= self::MAX_STORED_DIMENSION && $height <= self::MAX_STORED_DIMENSION) {
             imagesavealpha($src, true);
-            imagepng($src, $destPath, 6);
+            ob_start();
+            imagepng($src, null, 6);
+            $out = ob_get_clean();
             imagedestroy($src);
-            return;
+        } else {
+            $scale = self::MAX_STORED_DIMENSION / max($width, $height);
+            $targetWidth = (int) round($width * $scale);
+            $targetHeight = (int) round($height * $scale);
+
+            $dst = imagecreatetruecolor($targetWidth, $targetHeight);
+            imagealphablending($dst, false);
+            imagesavealpha($dst, true);
+            $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+            imagefill($dst, 0, 0, $transparent);
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
+
+            ob_start();
+            imagepng($dst, null, 6);
+            $out = ob_get_clean();
+
+            imagedestroy($src);
+            imagedestroy($dst);
         }
 
-        $scale = self::MAX_STORED_DIMENSION / max($width, $height);
-        $targetWidth = (int) round($width * $scale);
-        $targetHeight = (int) round($height * $scale);
+        // uploads still at/above 400KB after the dimension cap above get shrunk further toward
+        // 150KB, resize-only so the logo's transparency survives — see ImageCompressor
+        $out = ImageCompressor::compressPngPreservingAlpha($out);
 
-        $dst = imagecreatetruecolor($targetWidth, $targetHeight);
-        imagealphablending($dst, false);
-        imagesavealpha($dst, true);
-        $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
-        imagefill($dst, 0, 0, $transparent);
-        imagecopyresampled($dst, $src, 0, 0, 0, 0, $targetWidth, $targetHeight, $width, $height);
-        imagepng($dst, $destPath, 6);
-
-        imagedestroy($src);
-        imagedestroy($dst);
+        file_put_contents($destPath, $out);
     }
 
     // SVG can't go through Cropper.js/GD at all — it's XML text, not a raster format either can

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Admin\Concerns\PaginatesAdminLists;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Support\ImageCompressor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -121,6 +122,9 @@ class CategoryController extends Controller
         if ($binary === false || @getimagesizefromstring($binary) === false) {
             return null;
         }
+
+        // uploads at/above 400KB get re-encoded down toward 150KB — see ImageCompressor
+        $binary = ImageCompressor::compressToJpeg($binary);
 
         $filename = 'category-'.Str::random(10).'.jpg';
         $directory = public_path('images/categories');

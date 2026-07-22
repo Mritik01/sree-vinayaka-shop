@@ -19,8 +19,8 @@
         <div x-show="$store.cart.items.length === 0" x-cloak class="flex-1 flex flex-col items-center justify-center text-center px-6">
             <p class="text-5xl mb-4">🛍️</p>
             <p class="text-maroon-700 font-display text-lg">Your cart is empty</p>
-            <p class="text-maroon-500 mt-2 text-sm max-w-xs">Add a few sweets from Siswa Bazar's Favourites and they'll show up here.</p>
-            <a href="/#bestsellers" @click="$store.cart.open = false" class="btn-gold inline-block mt-6">Explore Our Sweets</a>
+            <p class="text-maroon-500 mt-2 text-sm max-w-xs">Add a few items from Siswa Bazar's Favourites and they'll show up here.</p>
+            <a href="/#bestsellers" @click="$store.cart.open = false" class="btn-gold inline-block mt-6">Explore Our Products</a>
         </div>
 
         {{-- item list --}}

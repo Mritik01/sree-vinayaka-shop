@@ -442,6 +442,14 @@
             </div>
         </div>
 
+        {{-- sidebar — wrapped as a single grid item (matching the space-y-5 left column above)
+             so these three cards stack top-to-bottom in the 320px column; previously each was
+             its own direct grid child, which left the grid to auto-place them via its implicit
+             row-then-column flow — Account Status landed in the sidebar slot as intended, but
+             Delivery Addresses then got auto-placed back into the LEFT column's row (there being
+             no sidebar row left to put it in) and Coupons landed stranded far down in whatever
+             row came after that, nowhere near Account Status above it. --}}
+        <div class="space-y-5">
         {{-- account status — current block state + permanent audit trail, see CustomerBlockService --}}
         <div class="bg-white rounded-2xl border border-gold-200/60 p-5 animate-fade-up">
             <div class="flex items-center justify-between mb-3">
@@ -553,6 +561,7 @@
             @error('coupon_id')
                 <p class="text-xs text-red-600 mt-2.5">{{ $message }}</p>
             @enderror
+        </div>
         </div>
     </div>
 

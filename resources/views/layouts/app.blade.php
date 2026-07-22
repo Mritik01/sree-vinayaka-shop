@@ -170,7 +170,7 @@
                     </div>
                     <div class="flex-1 min-w-0" x-show="!($store.shop.deliveryFeeStrategy === 'free_above_minimum' && $store.shop.deliveryFreeMinOrder > 0)">
                         <p class="text-xs sm:text-sm font-semibold text-maroon-800 truncate">
-                            {{ __('Your sweets are waiting') }} 🍬
+                            {{ __('Your cart is waiting') }} 🛒
                         </p>
                     </div>
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AnnouncementSetting;
+use App\Support\ImageCompressor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -50,8 +51,20 @@ class AnnouncementController extends Controller
                 @unlink(public_path($announcement->image_path));
             }
             $file = $request->file('image');
-            $filename = 'announcement-'.Str::random(8).'.'.($file->extension() ?: 'jpg');
-            $file->move(public_path('images/announcements'), $filename);
+            $original = file_get_contents($file->getRealPath());
+            // uploads at/above 400KB get re-encoded down toward 150KB — see ImageCompressor
+            $compressed = ImageCompressor::compressToJpeg($original);
+            $wasCompressed = $compressed !== $original;
+
+            $extension = $wasCompressed ? 'jpg' : ($file->extension() ?: 'jpg');
+            $filename = 'announcement-'.Str::random(8).'.'.$extension;
+            $directory = public_path('images/announcements');
+
+            if (!is_dir($directory)) {
+                mkdir($directory, 0755, true);
+            }
+
+            file_put_contents($directory.'/'.$filename, $compressed);
             $data['image_path'] = 'images/announcements/'.$filename;
         } elseif ($request->boolean('remove_image')) {
             if ($announcement->image_path) {

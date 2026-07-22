@@ -28,8 +28,8 @@
             <div x-show="items.length === 0" x-cloak class="text-center py-20">
                 <p class="text-5xl mb-4">🛍️</p>
                 <p class="text-maroon-700 font-display text-xl">{{ __('Your cart is empty') }}</p>
-                <p class="text-maroon-500 mt-2 max-w-sm mx-auto">{{ __("Add a few sweets from Siswa Bazar's Favourites and they'll show up here.") }}</p>
-                <a href="/#bestsellers" class="btn-gold inline-block mt-8">{{ __('Explore Our Sweets') }}</a>
+                <p class="text-maroon-500 mt-2 max-w-sm mx-auto">{{ __("Add a few items from Siswa Bazar's Favourites and they'll show up here.") }}</p>
+                <a href="/#bestsellers" class="btn-gold inline-block mt-8">{{ __('Explore Our Products') }}</a>
             </div>
 
             <div x-show="items.length > 0" class="grid lg:grid-cols-[1fr_380px] gap-8 mt-8 items-start">

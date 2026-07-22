@@ -221,7 +221,17 @@
                         <span class="block h-1 w-36 mx-auto mt-2 rounded-full text-white/70 animate-track-road"></span>
                     </div>
                     <p class="relative font-display font-bold text-2xl text-white mt-4">{{ __('Out for Delivery!') }}</p>
-                    <p class="relative text-white/90 mt-1.5 font-medium">{{ __('Your order is on its way to you.') }} 💵 {{ __('Keep') }} ₹{{ number_format($order->balanceDueOnDelivery()) }} {{ __('ready.') }}</p>
+                    {{-- was a static server-rendered amount, computed once from $order at page
+                         load — if the admin added items (or otherwise changed the total) while
+                         a customer already had this page open, it stayed frozen at the stale
+                         figure forever, since the live poll below only ever updates the reactive
+                         `order` object, never this plain interpolated text. x-text against the
+                         same order.balance_due the poll already sends (see order.total/balance_due
+                         usage in the order-summary sidebar) keeps it in sync like everything else. --}}
+                    <p class="relative text-white/90 mt-1.5 font-medium">
+                        {{ __('Your order is on its way to you.') }} 💵
+                        <span x-text="@js(__('Keep')) + ' ₹' + order.balance_due.toLocaleString('en-IN') + ' ' + @js(__('ready.'))"></span>
+                    </p>
                     <p x-show="etaText()" class="relative inline-block bg-white/25 backdrop-blur-sm text-white text-sm font-semibold px-4 py-1.5 rounded-full mt-4">
                         🕐 {{ __('Arriving') }} <span x-text="etaText()"></span>
                     </p>

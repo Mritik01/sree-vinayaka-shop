@@ -224,7 +224,7 @@
                                     <p class="text-4xl mb-3 inline-block animate-gift-sway">🧾</p>
                                     <p class="text-maroon-700 font-display">No orders yet</p>
                                     <p class="text-maroon-400 text-sm mt-1 max-w-sm mx-auto">When you place an order, it'll show up here with its live status.</p>
-                                    <a href="/#bestsellers" class="btn-gold inline-block mt-6 text-sm px-6 py-2.5">Explore Our Sweets</a>
+                                    <a href="/#bestsellers" class="btn-gold inline-block mt-6 text-sm px-6 py-2.5">Explore Our Products</a>
                                 </div>
                             @else
                                 <div class="space-y-3">
@@ -324,7 +324,7 @@
                             <p class="text-4xl mb-3 inline-block animate-gift-sway">🤍</p>
                             <p class="text-maroon-700 font-display">No favorites yet</p>
                             <p class="text-maroon-400 text-sm mt-1 max-w-sm mx-auto">Tap the heart icon on any sweet to save it here.</p>
-                            <a href="/#bestsellers" class="btn-gold inline-block mt-6 text-sm px-6 py-2.5">Explore Our Sweets</a>
+                            <a href="/#bestsellers" class="btn-gold inline-block mt-6 text-sm px-6 py-2.5">Explore Our Products</a>
                         </div>
                     @else
                         {{-- driven by the live `favorites` array, so un-hearting the last item swaps this in immediately --}}
@@ -332,7 +332,7 @@
                             <p class="text-4xl mb-3 inline-block animate-gift-sway">🤍</p>
                             <p class="text-maroon-700 font-display">No favorites yet</p>
                             <p class="text-maroon-400 text-sm mt-1 max-w-sm mx-auto">Tap the heart icon on any sweet to save it here.</p>
-                            <a href="/#bestsellers" class="btn-gold inline-block mt-6 text-sm px-6 py-2.5">Explore Our Sweets</a>
+                            <a href="/#bestsellers" class="btn-gold inline-block mt-6 text-sm px-6 py-2.5">Explore Our Products</a>
                         </div>
 
                         <div x-show="favorites.length > 0" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">

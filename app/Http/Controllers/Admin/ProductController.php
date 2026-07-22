@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductTag;
+use App\Support\ImageCompressor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -242,8 +243,22 @@ class ProductController extends Controller
         }
 
         $file = $request->file('image');
-        $filename = Str::slug($request->input('name')).'-'.Str::random(6).'.'.($file->extension() ?: 'jpg');
-        $file->move(public_path('images/products'), $filename);
+        $original = file_get_contents($file->getRealPath());
+        // uploads at/above 400KB get re-encoded down toward 150KB (see ImageCompressor) — output
+        // is always a JPEG once compressed, so the extension has to follow suit even if the
+        // admin uploaded a PNG/WEBP/GIF; untouched (already-small) uploads keep their own format
+        $compressed = ImageCompressor::compressToJpeg($original);
+        $wasCompressed = $compressed !== $original;
+
+        $extension = $wasCompressed ? 'jpg' : ($file->extension() ?: 'jpg');
+        $filename = Str::slug($request->input('name')).'-'.Str::random(6).'.'.$extension;
+        $directory = public_path('images/products');
+
+        if (!is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        file_put_contents($directory.'/'.$filename, $compressed);
 
         return 'images/products/'.$filename;
     }

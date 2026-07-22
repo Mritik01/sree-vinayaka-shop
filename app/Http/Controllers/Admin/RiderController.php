@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Rider;
+use App\Support\ImageCompressor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -146,6 +147,9 @@ class RiderController extends Controller
         if ($binary === false || @getimagesizefromstring($binary) === false) {
             return null;
         }
+
+        // uploads at/above 400KB get re-encoded down toward 150KB — see ImageCompressor
+        $binary = ImageCompressor::compressToJpeg($binary);
 
         $filename = 'rider-'.Str::random(10).'.jpg';
         $directory = public_path('images/riders');

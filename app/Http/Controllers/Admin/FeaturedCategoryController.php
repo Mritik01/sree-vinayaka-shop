@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\FeaturedCategory;
 use App\Models\ProductTag;
+use App\Support\ImageCompressor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -130,6 +131,10 @@ class FeaturedCategoryController extends Controller
         if ($binary === false || @getimagesizefromstring($binary) === false) {
             return null;
         }
+
+        // uploads at/above 400KB get re-encoded down toward 150KB — resize-only, since this stays
+        // PNG to keep the icon's transparency (see class comment above)
+        $binary = ImageCompressor::compressPngPreservingAlpha($binary);
 
         $filename = 'featured-'.Str::random(10).'.png';
         $directory = public_path('images/featured-categories');
