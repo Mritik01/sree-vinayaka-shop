@@ -12,7 +12,7 @@
     $onColor = $luminance > 0.55 ? '#3a0b12' : '#fdf6e9';
 @endphp
 
-<div x-data="productPage({{ Auth::check() ? 'true' : 'false' }}, {{ $isFavorited ? 'true' : 'false' }}, {{ $product->id }}, {{ $product->isLoose() ? 'true' : 'false' }}, {{ $product->discountedBasePrice() }}, {{ Illuminate\Support\Js::from($product->portions ?? []) }}, {{ $product->hasDiscount() ? 'true' : 'false' }}, {{ $product->price }})">
+<div x-data="productPage({{ Auth::check() ? 'true' : 'false' }}, {{ $isFavorited ? 'true' : 'false' }}, {{ $product->id }}, {{ $product->isLoose() ? 'true' : 'false' }}, {{ $product->discountedBasePrice() }}, {{ Illuminate\Support\Js::from($product->portions ?? []) }}, {{ $product->hasDiscount() ? 'true' : 'false' }}, {{ $product->price }}, {{ Illuminate\Support\Js::from($product->discount_type) }}, {{ (int) $product->discount_value }}, {{ Illuminate\Support\Js::from($product->portion_prices ?? (object) []) }})">
 
     <div class="max-w-[1600px] mx-auto px-4 sm:px-6 pt-6">
         <nav class="animate-rise-in text-sm text-maroon-500 flex items-center gap-2 flex-wrap">

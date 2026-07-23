@@ -72,7 +72,7 @@
                 {{-- mobile: a 2-row × N-column scrolling grid so 4 cards (2×2) are visible at
                      once instead of a single scrolling row of ~2 — same card size, just paired
                      into columns via grid-flow-col; sm+ resets back to the normal static grid --}}
-                <div class="grid grid-rows-2 sm:grid-rows-none grid-flow-col sm:grid-flow-row sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory pb-2 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div x-ref="grid-top-picks" class="grid grid-rows-2 sm:grid-rows-none grid-flow-col sm:grid-flow-row sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory pb-2 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     @foreach ($products as $product)
                         @include('partials.product-card-mini', ['product' => $product])
                     @endforeach
@@ -95,7 +95,7 @@
                 {{-- mobile: a 2-row × N-column scrolling grid so 4 cards (2×2) are visible at
                      once instead of a single scrolling row of ~2 — same card size, just paired
                      into columns via grid-flow-col; sm+ resets back to the normal static grid --}}
-                <div class="grid grid-rows-2 sm:grid-rows-none grid-flow-col sm:grid-flow-row sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory pb-2 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div x-ref="grid-{{ $tabKey }}" class="grid grid-rows-2 sm:grid-rows-none grid-flow-col sm:grid-flow-row sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory pb-2 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     @foreach ($tab['products'] as $product)
                         @include('partials.product-card-mini', ['product' => $product])
                     @endforeach

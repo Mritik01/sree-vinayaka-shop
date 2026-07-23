@@ -585,11 +585,15 @@ window.featuredCategoryRow = function () {
 // grid is already in the DOM, see the home route's $categoryTabs). The tab strip reuses the same
 // overflow-arrow behavior as categoryRow() above.
 window.categoryShop = function (isLoggedIn, initialFavorites) {
+    const base = scrollArrows(220);
+
     return {
-        ...scrollArrows(220),
+        ...base,
         activeTab: 'top-picks',
         isLoggedIn,
         favorites: initialFavorites || [],
+        autoScrollTimer: null,
+        autoScrollStopped: false,
         isFavorited(id) {
             return this.favorites.includes(id);
         },
@@ -605,6 +609,31 @@ window.categoryShop = function (isLoggedIn, initialFavorites) {
             } catch (e) {
                 this.favorites = wasFavorited ? [...this.favorites, id] : this.favorites.filter((f) => f !== id);
             }
+        },
+
+        // mobile only — auto-advances the *currently active tab's* product row (each tab has its
+        // own pre-rendered grid, see the blade comment above) one "page" at a time, looping back
+        // to the start at the end. Stops for good the moment the shopper touches anything in this
+        // section — tapping a tab counts too, not just the grid itself — since at that point
+        // they're clearly driving it themselves and an auto-jump would just fight their scroll.
+        init() {
+            base.init.call(this);
+            this.$el.addEventListener('touchstart', () => { this.autoScrollStopped = true; }, { passive: true, once: true });
+            this.autoScrollTimer = setInterval(() => {
+                if (this.autoScrollStopped || window.innerWidth >= 640) return;
+                const grid = this.$refs['grid-' + this.activeTab];
+                if (!grid) return;
+                const maxScroll = grid.scrollWidth - grid.clientWidth;
+                if (maxScroll <= 4) return;
+                if (grid.scrollLeft >= maxScroll - 4) {
+                    grid.scrollTo({ left: 0, behavior: 'smooth' });
+                } else {
+                    grid.scrollBy({ left: Math.round(grid.clientWidth * 0.85), behavior: 'smooth' });
+                }
+            }, 2800);
+        },
+        destroy() {
+            clearInterval(this.autoScrollTimer);
         },
     };
 };
@@ -937,7 +966,7 @@ window.favoritesList = function (isLoggedIn, initialFavorites) {
     };
 };
 
-window.productPage = function (isLoggedIn, initialFavorited, productId, isLoose = false, basePrice = 0, portions = [], hasDiscount = false, originalBasePrice = 0) {
+window.productPage = function (isLoggedIn, initialFavorited, productId, isLoose = false, basePrice = 0, portions = [], hasDiscount = false, originalBasePrice = 0, discountType = null, discountValue = 0, portionPrices = {}) {
     return {
         isLoggedIn,
         favorited: initialFavorited,
@@ -951,15 +980,30 @@ window.productPage = function (isLoggedIn, initialFavorited, productId, isLoose 
         basePrice,
         hasDiscount,
         originalBasePrice,
+        discountType,
+        discountValue,
+        // per-portion price overrides (see Product::portionOverridePrice()) — a pre-packaged
+        // item's pack sizes aren't always a clean multiple of the 250g price, so a portion with
+        // its own admin-set price here wins over the basePrice*ratio math below
+        portionPrices,
         portionOptions: (portions || []).map((g) => ({ grams: g, label: window.portionLabel(g) })),
         selectedPortion: isLoose ? Math.min(...(portions && portions.length ? portions : [250])) : null,
 
+        applyDiscount(p) {
+            if (!this.hasDiscount) return p;
+            if (this.discountType === 'percentage') return Math.round(p * (1 - Math.min(this.discountValue, 100) / 100));
+            return Math.max(0, p - this.discountValue);
+        },
         unitPrice() {
             if (!this.isLoose) return this.basePrice;
+            const override = this.portionPrices[this.selectedPortion];
+            if (override !== undefined && override !== null) return this.applyDiscount(override);
             return Math.round(this.basePrice * (this.selectedPortion / 250));
         },
         originalUnitPrice() {
             if (!this.isLoose) return this.originalBasePrice;
+            const override = this.portionPrices[this.selectedPortion];
+            if (override !== undefined && override !== null) return override;
             return Math.round(this.originalBasePrice * (this.selectedPortion / 250));
         },
 

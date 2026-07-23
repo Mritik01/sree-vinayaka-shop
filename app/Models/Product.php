@@ -22,6 +22,7 @@ class Product extends Model
         'discount_value',
         'type',
         'portions',
+        'portion_prices',
         'weight',
         'tag',
         'search_tags',
@@ -39,6 +40,7 @@ class Product extends Model
         'is_festival_special' => 'boolean',
         'is_out_of_stock' => 'boolean',
         'portions' => 'array',
+        'portion_prices' => 'array',
         'search_tags' => 'array',
     ];
 
@@ -131,15 +133,7 @@ class Product extends Model
     // to the cart/checkout/order total automatically without touching that pricing code
     public function discountedBasePrice(): int
     {
-        if (!$this->hasDiscount()) {
-            return (int) $this->price;
-        }
-
-        if ($this->discount_type === 'percentage') {
-            return (int) round($this->price * (1 - min($this->discount_value, 100) / 100));
-        }
-
-        return max(0, (int) $this->price - (int) $this->discount_value);
+        return $this->applyDiscountTo((int) $this->price);
     }
 
     // "20% OFF" / "₹50 OFF" — shown as a corner badge on the product card/page
@@ -154,12 +148,21 @@ class Product extends Model
             : '₹'.number_format($this->discount_value).' OFF';
     }
 
-    // loose products are priced per 250g; every configured portion is an exact
-    // multiple of that base price (500g=2x, 750g=3x, 1kg=4x). Discount is applied to
-    // the base unit price first, then the portion multiplier — so a "20% off" loose
-    // product is 20% off at every portion, not just the 250g one.
+    // loose products are normally priced per 250g, with every configured portion an exact
+    // multiple of that base price (500g=2x, 750g=3x, 1kg=4x) — this fits genuinely bulk items
+    // where price truly is proportional to weight (loose mithai, namkeen sold by the gram).
+    // A pre-packaged item with its own fixed pack sizes (Surf Excel 500g/750g/1kg) usually
+    // isn't a clean multiple like that, so portion_prices lets a specific portion override the
+    // formula with its own real price instead — see portionOverridePrice(). Discount is applied
+    // to whichever base value is in play (the 250g price, or the portion's own override) first,
+    // then any remaining ratio — so a "20% off" loose product is 20% off at every portion either
+    // way, not just the 250g one.
     public function priceForPortion(?int $grams): int
     {
+        if ($this->isLoose() && $grams && ($override = $this->portionOverridePrice($grams)) !== null) {
+            return $this->applyDiscountTo($override);
+        }
+
         $basePrice = $this->discountedBasePrice();
 
         if (!$this->isLoose() || !$grams) {
@@ -173,11 +176,37 @@ class Product extends Model
     // "was ₹X" display alongside priceForPortion()'s discounted price
     public function originalPriceForPortion(?int $grams): int
     {
+        if ($this->isLoose() && $grams && ($override = $this->portionOverridePrice($grams)) !== null) {
+            return $override;
+        }
+
         if (!$this->isLoose() || !$grams) {
             return (int) $this->price;
         }
 
         return (int) $this->price * (int) ($grams / 250);
+    }
+
+    // this portion's own admin-set price, if one was given — null falls back to the linear
+    // "price * grams/250" formula in priceForPortion()/originalPriceForPortion() above
+    public function portionOverridePrice(int $grams): ?int
+    {
+        $price = $this->portion_prices[$grams] ?? null;
+
+        return $price !== null && $price !== '' ? (int) $price : null;
+    }
+
+    private function applyDiscountTo(int $price): int
+    {
+        if (!$this->hasDiscount()) {
+            return $price;
+        }
+
+        if ($this->discount_type === 'percentage') {
+            return (int) round($price * (1 - min($this->discount_value, 100) / 100));
+        }
+
+        return max(0, $price - (int) $this->discount_value);
     }
 
     // smallest configured portion — used when a compact UI (product card) adds

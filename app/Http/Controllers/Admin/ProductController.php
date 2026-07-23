@@ -171,6 +171,10 @@ class ProductController extends Controller
             'weight' => 'required_if:type,piece|nullable|string|max:50',
             'portions' => 'required_if:type,loose|array|min:1',
             'portions.*' => 'integer|in:'.$portionOptions,
+            // optional per-portion price override (see Product::portionOverridePrice()) — a
+            // blank entry just means "use the linear price * grams/250 formula for this one"
+            'portion_prices' => 'nullable|array',
+            'portion_prices.*' => 'nullable|integer|min:1',
             'discount_enabled' => 'sometimes|boolean',
             'discount_type' => 'required_if:discount_enabled,1|nullable|in:percentage,flat',
             'discount_value' => [
@@ -211,8 +215,16 @@ class ProductController extends Controller
             $data['portions'] = array_map('intval', $data['portions']);
             sort($data['portions']);
             $data['weight'] = implode('/', array_map(fn ($g) => Product::portionLabel($g), $data['portions']));
+
+            // keep only overrides for portions that are actually checked, with a real value —
+            // a blank price input just falls back to the linear formula (see the model)
+            $data['portion_prices'] = collect($data['portion_prices'] ?? [])
+                ->filter(fn ($price, $grams) => $price !== null && in_array((int) $grams, $data['portions'], true))
+                ->mapWithKeys(fn ($price, $grams) => [(int) $grams => (int) $price])
+                ->all() ?: null;
         } else {
             $data['portions'] = null;
+            $data['portion_prices'] = null;
         }
 
         if (preg_match('/^(\d{1,3})%\s*(\d{1,3})%$/', $data['image_position'] ?? '', $m)) {

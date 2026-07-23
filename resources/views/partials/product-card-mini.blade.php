@@ -24,9 +24,27 @@
      x-data="{
          portionOpen: false, selPortion: {{ $miniPortion }},
          basePrice: {{ $product->discountedBasePrice() }}, rawPrice: {{ $product->price }}, hasDiscount: {{ $product->hasDiscount() ? 'true' : 'false' }},
+         discountType: {{ Illuminate\Support\Js::from($product->discount_type) }}, discountValue: {{ (int) $product->discount_value }},
+         // per-portion price overrides (see Product::portionOverridePrice()) — a pre-packaged
+         // item's pack sizes aren't always a clean multiple of the 250g price, so a portion with
+         // its own admin-set price here wins over the basePrice*ratio math below
+         portionPrices: {{ Illuminate\Support\Js::from($product->portion_prices ?? (object) []) }},
          menuStyle: '',
-         selectedPrice() { return Math.round(this.basePrice * (this.selPortion / 250)); },
-         selectedOriginalPrice() { return Math.round(this.rawPrice * (this.selPortion / 250)); },
+         applyDiscount(p) {
+             if (!this.hasDiscount) return p;
+             if (this.discountType === 'percentage') return Math.round(p * (1 - Math.min(this.discountValue, 100) / 100));
+             return Math.max(0, p - this.discountValue);
+         },
+         selectedPrice() {
+             const override = this.portionPrices[this.selPortion];
+             if (override !== undefined && override !== null) return this.applyDiscount(override);
+             return Math.round(this.basePrice * (this.selPortion / 250));
+         },
+         selectedOriginalPrice() {
+             const override = this.portionPrices[this.selPortion];
+             if (override !== undefined && override !== null) return override;
+             return Math.round(this.rawPrice * (this.selPortion / 250));
+         },
          openPicker(anchorEl) {
              const ci = window.cartItem({{ $product->id }});
              if (ci) { this.selPortion = ci.portion; }
@@ -88,13 +106,15 @@
         <p class="text-xs text-maroon-400 mt-0.5">{{ $miniWeight }}</p>
     @endif
 
-    @if ($miniAvg !== null)
-        <p class="flex items-center gap-1 mt-1 text-[11px] text-maroon-500">
-            <span class="text-gold-500 leading-none">★</span>
-            <span class="font-semibold">{{ $miniAvg }}</span>
-            <span class="text-maroon-300">({{ $product->reviews_count }})</span>
-        </p>
-    @endif
+    {{-- always rendered (just hidden via `invisible` when there's no rating yet) so every card
+         reserves the same vertical space here — otherwise a rated product's card ends up taller
+         than an unrated one right next to it in the same grid row, throwing the price/add-button
+         row below out of alignment across the row --}}
+    <p class="flex items-center gap-1 mt-1 text-[11px] text-maroon-500 {{ $miniAvg === null ? 'invisible' : '' }}">
+        <span class="text-gold-500 leading-none">★</span>
+        <span class="font-semibold">{{ $miniAvg ?? '0' }}</span>
+        <span class="text-maroon-300">({{ $product->reviews_count }})</span>
+    </p>
 
     @if ($hasMultiplePortions)
         {{-- teleported so the card's overflow-hidden image corners never clip the popover --}}

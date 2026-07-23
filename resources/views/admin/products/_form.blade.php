@@ -1,6 +1,7 @@
 <div x-data="{
         type: '{{ old('type', $product->type ?? 'piece') }}',
         portions: {{ json_encode(old('portions', $product->portions ?? [])) }},
+        portionPrices: {{ json_encode(old('portion_prices', $product->portion_prices ?? (object) [])) }},
         name: {{ Illuminate\Support\Js::from(old('name', $product->name ?? '')) }},
         category: {{ Illuminate\Support\Js::from(old('category', $product->category ?? $categories[0])) }},
         price: {{ Illuminate\Support\Js::from(old('price', $product->price ?? '')) }},
@@ -36,21 +37,34 @@
         },
         discountedUnitPrice() {
             const p = parseInt(this.price) || 0;
+            return this.applyDiscount(p);
+        },
+        applyDiscount(p) {
             if (!this.discountEnabled || !this.discountValue) return p;
             if (this.discountType === 'percentage') {
                 return Math.round(p * (1 - Math.min(this.discountValue, 100) / 100));
             }
             return Math.max(0, p - parseInt(this.discountValue));
         },
+        // the portion's own override price, if one was entered — null falls back to the
+        // linear price*grams/250 formula, mirroring Product::portionOverridePrice() in PHP
+        portionOverride(grams) {
+            const v = this.portionPrices[grams];
+            return v !== undefined && v !== null && v !== '' ? parseInt(v) : null;
+        },
         previewOriginalPrice() {
-            const p = parseInt(this.price) || 0;
-            if (this.type !== 'loose') return p;
-            return Math.round(p * (this.defaultPortionGrams() / 250));
+            const grams = this.defaultPortionGrams();
+            if (this.type !== 'loose') return parseInt(this.price) || 0;
+            const override = this.portionOverride(grams);
+            if (override !== null) return override;
+            return Math.round((parseInt(this.price) || 0) * (grams / 250));
         },
         previewPrice() {
-            const p = this.discountedUnitPrice();
-            if (this.type !== 'loose') return p;
-            return Math.round(p * (this.defaultPortionGrams() / 250));
+            const grams = this.defaultPortionGrams();
+            if (this.type !== 'loose') return this.discountedUnitPrice();
+            const override = this.portionOverride(grams);
+            if (override !== null) return this.applyDiscount(override);
+            return Math.round(this.discountedUnitPrice() * (grams / 250));
         },
         discountBadge() {
             if (!this.discountEnabled || !this.discountValue) return '';
@@ -192,15 +206,30 @@
 
             <div x-show="type === 'loose'" class="md:col-span-2">
                 <label class="block text-sm font-medium text-maroon-700 mb-1.5">Available Portions</label>
-                <div class="flex flex-wrap gap-4">
+                <p class="text-xs text-maroon-400 mb-2.5">
+                    Each portion's price is calculated from the 250g price above by default (500g = 2×, 1kg = 4×, etc).
+                    For a pre-packaged item where that doesn't hold — e.g. a 1kg pack that costs less per gram than a 250g one —
+                    set that portion's own price to override the calculation just for it.
+                </p>
+                <div class="space-y-2">
                     @foreach (\App\Models\Product::PORTION_OPTIONS as $grams)
-                        <label class="flex items-center gap-2 text-sm text-maroon-700">
-                            <input type="checkbox" name="portions[]" value="{{ $grams }}"
-                                   :checked="portions.includes({{ $grams }})"
-                                   @change="$event.target.checked ? portions.push({{ $grams }}) : portions = portions.filter(g => g !== {{ $grams }})"
-                                   class="w-4 h-4 rounded border-gold-300/70 text-gold-600 focus:ring-gold-400">
-                            {{ \App\Models\Product::portionLabel($grams) }}
-                        </label>
+                        <div class="flex items-center gap-3 flex-wrap">
+                            <label class="flex items-center gap-2 text-sm text-maroon-700 w-20 shrink-0">
+                                <input type="checkbox" name="portions[]" value="{{ $grams }}"
+                                       :checked="portions.includes({{ $grams }})"
+                                       @change="$event.target.checked ? portions.push({{ $grams }}) : portions = portions.filter(g => g !== {{ $grams }})"
+                                       class="w-4 h-4 rounded border-gold-300/70 text-gold-600 focus:ring-gold-400">
+                                {{ \App\Models\Product::portionLabel($grams) }}
+                            </label>
+                            <div x-show="portions.includes({{ $grams }})" x-cloak class="flex items-center gap-1.5">
+                                <span class="text-sm text-maroon-500">₹</span>
+                                <input type="number" name="portion_prices[{{ $grams }}]" min="1"
+                                       x-model.number="portionPrices[{{ $grams }}]"
+                                       :placeholder="'auto ₹' + Math.round((parseInt(price) || 0) * ({{ $grams }} / 250))"
+                                       class="w-28 rounded-lg border border-gold-300/70 px-2.5 py-1.5 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                <span class="text-xs text-maroon-400">optional override</span>
+                            </div>
+                        </div>
                     @endforeach
                 </div>
             </div>
