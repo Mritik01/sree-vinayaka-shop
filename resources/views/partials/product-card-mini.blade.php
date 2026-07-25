@@ -10,7 +10,7 @@
      $fixedWidth (default true): the homepage's horizontal-scroll rows need the card's own width
      to define each column (they use grid-flow-col, not an explicit column count) — pass false
      when reusing this inside a real CSS grid (/products, related products, favorites) so the
-     card stretches to fill its grid cell instead of sitting at a fixed 160px. --}}
+     card stretches to fill its grid cell instead of sitting at a fixed width. --}}
 @php
     $miniPortion = $product->defaultPortion();
     $miniWeight = $product->isLoose() ? \App\Models\Product::portionLabel($miniPortion) : $product->weight;
@@ -19,7 +19,11 @@
     $fixedWidth = $fixedWidth ?? true;
 @endphp
 
-<div class="{{ $fixedWidth ? 'snap-start shrink-0 w-40 sm:w-auto' : 'w-full' }} bg-white rounded-2xl border border-gold-200/60 shadow-sm hover:shadow-md transition p-3 flex flex-col"
+{{-- h-full (non-fixed-width usages only): /products, favorites etc. wrap this card in their
+     own grid-item div (for fade-in animation classes) — CSS Grid stretches THAT wrapper to
+     match its row, but without h-full here the actual bordered card stayed shrink-wrapped to
+     its own content inside it, so shorter cards visibly ended higher than their row-mates. --}}
+<div class="{{ $fixedWidth ? 'snap-start shrink-0 w-40 sm:w-auto' : 'w-full h-full' }} bg-white rounded-2xl border border-gold-200/60 shadow-sm hover:shadow-md transition p-3 flex flex-col"
      @if ($hasMultiplePortions)
      x-data="{
          portionOpen: false, selPortion: {{ $miniPortion }},
@@ -88,7 +92,10 @@
     </div>
 
     <a href="{{ route('products.show', $product) }}" class="block">
-        <p class="mt-2.5 text-sm font-semibold text-maroon-800 leading-snug line-clamp-2">{{ $product->name }}</p>
+        {{-- min-h reserves 2 lines' worth of height even when the name is short — line-clamp-2
+             only caps the max, it doesn't guarantee a matching minimum, so a 1-line name would
+             otherwise leave its card shorter than a 2-line name right next to it in the grid. --}}
+        <p class="mt-2.5 min-h-[2.5rem] text-sm font-semibold text-maroon-800 leading-snug line-clamp-2 break-words">{{ $product->name }}</p>
     </a>
 
     {{-- weight lives outside the <a> once it becomes interactive — a <button> nested inside a
@@ -102,15 +109,14 @@
                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
         </button>
-    @else
+    @elseif ($miniWeight)
         <p class="text-xs text-maroon-400 mt-0.5">{{ $miniWeight }}</p>
     @endif
 
-    {{-- always rendered (just hidden via `invisible` when there's no rating yet) so every card
-         reserves the same vertical space here — otherwise a rated product's card ends up taller
-         than an unrated one right next to it in the same grid row, throwing the price/add-button
-         row below out of alignment across the row --}}
-    <p class="flex items-center gap-1 mt-1 text-[11px] text-maroon-500 {{ $miniAvg === null ? 'invisible' : '' }}">
+    {{-- always shown, "0 (0)" and all, for an unrated product — matches how every other product
+         on the site displays its rating, and keeps every card's structure identical so grid
+         stretch + mt-auto (see product-card-mini's h-full) line the price rows up cleanly. --}}
+    <p class="flex items-center gap-1 mt-1 text-[11px] text-maroon-500">
         <span class="text-gold-500 leading-none">★</span>
         <span class="font-semibold">{{ $miniAvg ?? '0' }}</span>
         <span class="text-maroon-300">({{ $product->reviews_count }})</span>
@@ -159,7 +165,11 @@
             </span>
         @else
         <template x-if="cartQty({{ $product->id }}) === 0">
-            <button type="button" @click="addProductToCart({{ $product->id }}, 1, false, {{ $hasMultiplePortions ? 'selPortion' : ($miniPortion ?? 'null') }})"
+            {{-- multi-portion loose products: the round add button opens the same weight picker
+                 as the chevron above (Amazon/Blinkit-style) instead of silently adding whatever
+                 portion happened to be selected — a first-time shopper never chose a size yet. --}}
+            <button type="button"
+                    @click="{{ $hasMultiplePortions ? 'openPicker($el)' : "addProductToCart({$product->id}, 1, false, " . ($miniPortion ?? 'null') . ')' }}"
                     aria-label="Add {{ $product->name }} to cart"
                     class="w-8 h-8 rounded-full bg-maroon-800 hover:bg-maroon-700 text-cream flex items-center justify-center shrink-0 shadow transition hover:scale-105">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.4">

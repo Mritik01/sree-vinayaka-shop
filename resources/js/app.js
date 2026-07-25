@@ -594,6 +594,8 @@ window.categoryShop = function (isLoggedIn, initialFavorites) {
         favorites: initialFavorites || [],
         autoScrollTimer: null,
         autoScrollStopped: false,
+        gridCanLeft: false,
+        gridCanRight: false,
         isFavorited(id) {
             return this.favorites.includes(id);
         },
@@ -618,6 +620,8 @@ window.categoryShop = function (isLoggedIn, initialFavorites) {
         // they're clearly driving it themselves and an auto-jump would just fight their scroll.
         init() {
             base.init.call(this);
+            this.$nextTick(() => this.updateGridArrows());
+            window.addEventListener('resize', () => this.updateGridArrows());
             this.$el.addEventListener('touchstart', () => { this.autoScrollStopped = true; }, { passive: true, once: true });
             this.autoScrollTimer = setInterval(() => {
                 if (this.autoScrollStopped || window.innerWidth >= 640) return;
@@ -634,6 +638,20 @@ window.categoryShop = function (isLoggedIn, initialFavorites) {
         },
         destroy() {
             clearInterval(this.autoScrollTimer);
+        },
+
+        // desktop-only prev/next arrows for whichever tab's product row is currently visible
+        // (each tab has its own grid ref, but only one is on-screen at a time so a single pair of
+        // booleans is enough — re-measured on tab switch, resize, and the row's own scroll event).
+        updateGridArrows() {
+            const el = this.$refs['grid-' + this.activeTab];
+            if (!el) { this.gridCanLeft = false; this.gridCanRight = false; return; }
+            this.gridCanLeft = el.scrollLeft > 4;
+            this.gridCanRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+        },
+        gridScrollBy(direction) {
+            const el = this.$refs['grid-' + this.activeTab];
+            el?.scrollBy({ left: direction * el.clientWidth, behavior: 'smooth' });
         },
     };
 };

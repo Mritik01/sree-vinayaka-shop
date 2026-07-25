@@ -165,7 +165,7 @@ class ProductController extends Controller
         $data = $request->validate([
             'name' => 'required|string|max:150',
             'category' => 'required|string|in:'.implode(',', $this->categoryOptions()),
-            'description' => 'nullable|string',
+            'description' => 'nullable|string|max:5000',
             'type' => 'required|in:piece,loose',
             'price' => 'required|integer|min:1',
             'weight' => 'required_if:type,piece|nullable|string|max:50',

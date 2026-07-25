@@ -44,7 +44,7 @@ class Product extends Model
         'search_tags' => 'array',
     ];
 
-    public const PORTION_OPTIONS = [250, 500, 750, 1000];
+    public const PORTION_OPTIONS = [200, 250, 400, 500, 750, 800, 1000];
 
     protected static function booted(): void
     {

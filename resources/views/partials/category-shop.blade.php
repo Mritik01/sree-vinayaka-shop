@@ -19,7 +19,7 @@
                  :class="fits() && 'sm:justify-center'"
                  class="flex items-stretch gap-1.5 sm:gap-3 overflow-x-auto scroll-smooth pb-3 mb-3 border-b border-gold-200/60 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {{-- permanent Top Picks tab --}}
-                <button type="button" @click="activeTab = 'top-picks'"
+                <button type="button" @click="activeTab = 'top-picks'; $nextTick(() => updateGridArrows())"
                         class="group flex flex-col items-center gap-1.5 shrink-0 w-20 sm:w-24 pb-2 border-b-2 transition"
                         :class="activeTab === 'top-picks' ? 'border-gold-500' : 'border-transparent'">
                     <span class="w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-xl sm:text-2xl border transition"
@@ -30,7 +30,7 @@
 
                 @foreach ($categoryTabs as $tab)
                     @php $tabKey = $tab['category']->slug; @endphp
-                    <button type="button" @click="activeTab = '{{ $tabKey }}'"
+                    <button type="button" @click="activeTab = '{{ $tabKey }}'; $nextTick(() => updateGridArrows())"
                             class="group flex flex-col items-center gap-1.5 shrink-0 w-20 sm:w-24 pb-2 border-b-2 transition"
                             :class="activeTab === '{{ $tabKey }}' ? 'border-gold-500' : 'border-transparent'">
                         @if ($tab['category']->image_path)
@@ -70,12 +70,33 @@
                 <p class="text-maroon-400 text-sm py-6 text-center">{{ __('Fresh batches coming soon — check back shortly!') }}</p>
             @else
                 {{-- mobile: a 2-row × N-column scrolling grid so 4 cards (2×2) are visible at
-                     once instead of a single scrolling row of ~2 — same card size, just paired
-                     into columns via grid-flow-col; sm+ resets back to the normal static grid --}}
-                <div x-ref="grid-top-picks" class="grid grid-rows-2 sm:grid-rows-none grid-flow-col sm:grid-flow-row sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory pb-2 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    @foreach ($products as $product)
-                        @include('partials.product-card-mini', ['product' => $product])
-                    @endforeach
+                     once, auto-advanced by categoryShop()'s timer — see grid-flow-col below.
+                     sm+: same 2-row idea, but each column is sized to fit 6 full cards with the
+                     7th sliced in half (auto-cols divides the row into 6.5 slots) so it's obvious
+                     there's more to slide to — prev/next arrows page through the rest instead of
+                     the old wrap-everything static grid, which produced walls of rows on wide
+                     screens. --}}
+                <div class="relative">
+                    <button x-show="gridCanLeft" x-cloak @click="gridScrollBy(-1)" aria-label="{{ __('Scroll products left') }}"
+                            class="hidden sm:flex absolute left-1 sm:-left-4 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-white shadow-lg border border-gold-300/50 items-center justify-center text-maroon-700 hover:bg-gold-50 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                        </svg>
+                    </button>
+
+                    <div x-ref="grid-top-picks" @scroll.debounce.100ms="updateGridArrows()"
+                         class="grid grid-rows-2 grid-flow-col sm:auto-cols-[calc((100%-6rem)/6.5)] gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        @foreach ($products as $product)
+                            @include('partials.product-card-mini', ['product' => $product])
+                        @endforeach
+                    </div>
+
+                    <button x-show="gridCanRight" x-cloak @click="gridScrollBy(1)" aria-label="{{ __('Scroll products right') }}"
+                            class="hidden sm:flex absolute right-1 sm:-right-4 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-white shadow-lg border border-gold-300/50 items-center justify-center text-maroon-700 hover:bg-gold-50 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </button>
                 </div>
             @endif
         </div>
@@ -93,12 +114,33 @@
                 </div>
 
                 {{-- mobile: a 2-row × N-column scrolling grid so 4 cards (2×2) are visible at
-                     once instead of a single scrolling row of ~2 — same card size, just paired
-                     into columns via grid-flow-col; sm+ resets back to the normal static grid --}}
-                <div x-ref="grid-{{ $tabKey }}" class="grid grid-rows-2 sm:grid-rows-none grid-flow-col sm:grid-flow-row sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 overflow-x-auto sm:overflow-visible snap-x snap-mandatory pb-2 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    @foreach ($tab['products'] as $product)
-                        @include('partials.product-card-mini', ['product' => $product])
-                    @endforeach
+                     once, auto-advanced by categoryShop()'s timer — see grid-flow-col below.
+                     sm+: same 2-row idea, but each column is sized to fit 6 full cards with the
+                     7th sliced in half (auto-cols divides the row into 6.5 slots) so it's obvious
+                     there's more to slide to — prev/next arrows page through the rest instead of
+                     the old wrap-everything static grid, which produced walls of rows on wide
+                     screens. --}}
+                <div class="relative">
+                    <button x-show="gridCanLeft" x-cloak @click="gridScrollBy(-1)" aria-label="{{ __('Scroll products left') }}"
+                            class="hidden sm:flex absolute left-1 sm:-left-4 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-white shadow-lg border border-gold-300/50 items-center justify-center text-maroon-700 hover:bg-gold-50 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                        </svg>
+                    </button>
+
+                    <div x-ref="grid-{{ $tabKey }}" @scroll.debounce.100ms="updateGridArrows()"
+                         class="grid grid-rows-2 grid-flow-col sm:auto-cols-[calc((100%-6rem)/6.5)] gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-2 sm:pb-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        @foreach ($tab['products'] as $product)
+                            @include('partials.product-card-mini', ['product' => $product])
+                        @endforeach
+                    </div>
+
+                    <button x-show="gridCanRight" x-cloak @click="gridScrollBy(1)" aria-label="{{ __('Scroll products right') }}"
+                            class="hidden sm:flex absolute right-1 sm:-right-4 top-1/2 -translate-y-1/2 z-10 w-11 h-11 rounded-full bg-white shadow-lg border border-gold-300/50 items-center justify-center text-maroon-700 hover:bg-gold-50 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </button>
                 </div>
             </div>
         @endforeach
