@@ -147,9 +147,11 @@ Route::get('/', function () {
     $categoryTabs = Category::where('is_active', true)->orderBy('sort_order')->get()
         ->map(fn ($category) => [
             'category' => $category,
+            // no limit() here — the grid is a slider now (category-shop.blade.php), not a
+            // static wrap-everything grid, so it needs every product to actually scroll through
             'products' => $category->products()
                 ->withAvg('reviews', 'rating')->withCount('reviews')
-                ->orderBy('sort_order')->limit(12)->get(),
+                ->orderBy('sort_order')->get(),
         ])
         ->filter(fn ($tab) => $tab['products']->isNotEmpty())
         ->values();
