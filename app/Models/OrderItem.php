@@ -66,7 +66,7 @@ class OrderItem extends Model
 
     public function portionLabel(): ?string
     {
-        return $this->portion > 0 ? Product::portionLabel($this->portion) : null;
+        return $this->portion > 0 ? Product::portionLabel($this->portion, $this->product?->unit ?? 'weight') : null;
     }
 
     public function isRemoved(): bool

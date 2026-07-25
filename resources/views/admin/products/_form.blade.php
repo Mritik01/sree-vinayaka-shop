@@ -1,7 +1,13 @@
 <div x-data="{
         type: '{{ old('type', $product->type ?? 'piece') }}',
+        unit: '{{ old('unit', $product->unit ?? 'weight') }}',
         portions: {{ json_encode(old('portions', $product->portions ?? [])) }},
         portionPrices: {{ json_encode(old('portion_prices', $product->portion_prices ?? (object) [])) }},
+        // grams -> preview URL (existing override, or a freshly-picked file read via FileReader
+        // below) — a portion with no entry here just shows the add-photo placeholder and falls
+        // back to the product's main image (see Product::imageForPortion())
+        portionImagePreviews: {{ Illuminate\Support\Js::from(collect($product->portion_images ?? [])->mapWithKeys(fn ($path, $grams) => [(string) $grams => asset($path)])->all()) }},
+        portionImageRemoved: {},
         name: {{ Illuminate\Support\Js::from(old('name', $product->name ?? '')) }},
         category: {{ Illuminate\Support\Js::from(old('category', $product->category ?? $categories[0])) }},
         price: {{ Illuminate\Support\Js::from(old('price', $product->price ?? '')) }},
@@ -33,7 +39,22 @@
             return this.portions.length ? Math.min(...this.portions) : 250;
         },
         portionLabel(g) {
-            return g >= 1000 ? (g / 1000) + 'kg' : g + 'g';
+            const big = this.unit === 'volume' ? 'L' : 'kg';
+            const small = this.unit === 'volume' ? 'ml' : 'g';
+            return g >= 1000 ? (g / 1000) + big : g + small;
+        },
+        onPortionImageChange(e, grams) {
+            const file = e.target.files[0];
+            if (!file) return;
+            this.portionImageRemoved[grams] = false;
+            const reader = new FileReader();
+            reader.onload = (ev) => { this.portionImagePreviews[grams] = ev.target.result; };
+            reader.readAsDataURL(file);
+        },
+        removePortionImage(grams, fileInput) {
+            delete this.portionImagePreviews[grams];
+            this.portionImageRemoved[grams] = true;
+            if (fileInput) fileInput.value = '';
         },
         discountedUnitPrice() {
             const p = parseInt(this.price) || 0;
@@ -193,8 +214,16 @@
                 </select>
             </div>
 
+            <div x-show="type === 'loose'" x-cloak class="md:col-span-2">
+                <label class="block text-sm font-medium text-maroon-700 mb-1.5">Unit</label>
+                <select name="unit" x-model="unit" :required="type === 'loose'" class="w-full md:w-64 rounded-lg border border-gold-300/70 px-3.5 py-2.5 text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                    <option value="weight">Weight (g / kg) — bulk items like dal, rice</option>
+                    <option value="volume">Volume (ml / L) — bottled liquids like handwash</option>
+                </select>
+            </div>
+
             <div>
-                <label class="block text-sm font-medium text-maroon-700 mb-1.5" x-text="type === 'loose' ? 'Price for 250g (₹)' : 'Price (₹)'"></label>
+                <label class="block text-sm font-medium text-maroon-700 mb-1.5" x-text="type === 'loose' ? ('Price for 250' + (unit === 'volume' ? 'ml' : 'g') + ' (₹)') : 'Price (₹)'"></label>
                 <input type="number" name="price" min="1" x-model.number="price" required
                        class="w-full rounded-lg border border-gold-300/70 px-3.5 py-2.5 text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
             </div>
@@ -207,31 +236,56 @@
             <div x-show="type === 'loose'" class="md:col-span-2">
                 <label class="block text-sm font-medium text-maroon-700 mb-1.5">Available Portions</label>
                 <p class="text-xs text-maroon-400 mb-2.5">
-                    Each portion's price is calculated from the 250g price above by default (500g = 2×, 1kg = 4×, etc).
+                    Each portion's price is calculated from the base price above by default (2× the size = 2× the price, etc).
                     For a pre-packaged item where that doesn't hold — e.g. a 1kg pack that costs less per gram than a 250g one —
-                    set that portion's own price to override the calculation just for it.
+                    set that portion's own price to override the calculation just for it. A size can also have its own photo
+                    (a 25ml bottle doesn't look like a 1L one) — leave it blank to just use the main product photo above.
                 </p>
-                <div class="space-y-2">
-                    @foreach (\App\Models\Product::PORTION_OPTIONS as $grams)
-                        <div class="flex items-center gap-3 flex-wrap">
-                            <label class="flex items-center gap-2 text-sm text-maroon-700 w-20 shrink-0">
-                                <input type="checkbox" name="portions[]" value="{{ $grams }}"
-                                       :checked="portions.includes({{ $grams }})"
-                                       @change="$event.target.checked ? portions.push({{ $grams }}) : portions = portions.filter(g => g !== {{ $grams }})"
-                                       class="w-4 h-4 rounded border-gold-300/70 text-gold-600 focus:ring-gold-400">
-                                {{ \App\Models\Product::portionLabel($grams) }}
-                            </label>
-                            <div x-show="portions.includes({{ $grams }})" x-cloak class="flex items-center gap-1.5">
-                                <span class="text-sm text-maroon-500">₹</span>
-                                <input type="number" name="portion_prices[{{ $grams }}]" min="1"
-                                       x-model.number="portionPrices[{{ $grams }}]"
-                                       :placeholder="'auto ₹' + Math.round((parseInt(price) || 0) * ({{ $grams }} / 250))"
-                                       class="w-28 rounded-lg border border-gold-300/70 px-2.5 py-1.5 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
-                                <span class="text-xs text-maroon-400">optional override</span>
+                @foreach ([['weight', \App\Models\Product::WEIGHT_PORTION_OPTIONS], ['volume', \App\Models\Product::VOLUME_PORTION_OPTIONS]] as [$u, $options])
+                    <div x-show="unit === '{{ $u }}'" x-cloak class="space-y-2.5">
+                        @foreach ($options as $grams)
+                            <div class="flex items-center gap-3 flex-wrap py-0.5">
+                                <label class="flex items-center gap-2 text-sm text-maroon-700 w-20 shrink-0">
+                                    {{-- weight/volume share overlapping numbers (200, 500, 1000...), and both lists bind
+                                         to the same `portions` array, so without :disabled the hidden list's checkbox for
+                                         a shared value would ALSO end up checked (and, being a real form element, still
+                                         submitted despite being invisible) — silently duplicating that portion on save. --}}
+                                    <input type="checkbox" name="portions[]" value="{{ $grams }}"
+                                           :checked="portions.includes({{ $grams }})"
+                                           :disabled="unit !== '{{ $u }}'"
+                                           @change="$event.target.checked ? portions.push({{ $grams }}) : portions = portions.filter(g => g !== {{ $grams }})"
+                                           class="w-4 h-4 rounded border-gold-300/70 text-gold-600 focus:ring-gold-400">
+                                    {{ \App\Models\Product::portionLabel($grams, $u) }}
+                                </label>
+                                <div x-show="portions.includes({{ $grams }})" x-cloak class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-sm text-maroon-500">₹</span>
+                                    <input type="number" name="portion_prices[{{ $grams }}]" min="1"
+                                           x-model.number="portionPrices[{{ $grams }}]"
+                                           :placeholder="'auto ₹' + Math.round((parseInt(price) || 0) * ({{ $grams }} / 250))"
+                                           class="w-24 rounded-lg border border-gold-300/70 px-2.5 py-1.5 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                    <span class="text-xs text-maroon-400">price override</span>
+
+                                    <label class="relative w-9 h-9 rounded-lg border border-dashed border-gold-300/70 overflow-hidden flex items-center justify-center cursor-pointer hover:border-gold-500 transition shrink-0"
+                                           :class="portionImagePreviews[{{ $grams }}] && '!border-solid'">
+                                        <template x-if="portionImagePreviews[{{ $grams }}]">
+                                            <img :src="portionImagePreviews[{{ $grams }}]" class="absolute inset-0 w-full h-full object-cover">
+                                        </template>
+                                        <template x-if="!portionImagePreviews[{{ $grams }}]">
+                                            <span class="text-gold-400 text-base leading-none">+</span>
+                                        </template>
+                                        <input type="file" name="portion_images[{{ $grams }}]" accept="image/*" class="hidden"
+                                               x-ref="portionImage{{ $grams }}"
+                                               @change="onPortionImageChange($event, {{ $grams }})">
+                                    </label>
+                                    <button type="button" x-show="portionImagePreviews[{{ $grams }}]" x-cloak
+                                            @click="removePortionImage({{ $grams }}, $refs['portionImage{{ $grams }}'])"
+                                            class="text-xs text-maroon-400 hover:text-red-600 transition">photo ×</button>
+                                    <input type="hidden" name="remove_portion_image[{{ $grams }}]" :value="portionImageRemoved[{{ $grams }}] ? '1' : '0'">
+                                </div>
                             </div>
-                        </div>
-                    @endforeach
-                </div>
+                        @endforeach
+                    </div>
+                @endforeach
             </div>
 
             <div class="md:col-span-2 rounded-lg border border-gold-200/70 bg-cream/40 p-4">

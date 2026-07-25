@@ -684,11 +684,13 @@ window.relatedAutoSlider = function (step = 280) {
     };
 };
 
-// grams -> "250g" / "1kg" — mirrors Product::portionLabel() on the PHP side; keep the two
-// in sync if the format ever changes
-window.portionLabel = function (grams) {
+// grams -> "250g" / "1kg" (or, for a volume product, "250ml" / "1L") — mirrors
+// Product::portionLabel() on the PHP side; keep the two in sync if the format ever changes
+window.portionLabel = function (grams, unit = 'weight') {
     if (!grams) return '';
-    return grams >= 1000 ? (grams / 1000).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + 'kg' : grams + 'g';
+    const bigUnit = unit === 'volume' ? 'L' : 'kg';
+    const smallUnit = unit === 'volume' ? 'ml' : 'g';
+    return grams >= 1000 ? (grams / 1000).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + bigUnit : grams + smallUnit;
 };
 
 // Global helper so any Add-to-Cart button (product cards, product page) can call it
@@ -984,7 +986,7 @@ window.favoritesList = function (isLoggedIn, initialFavorites) {
     };
 };
 
-window.productPage = function (isLoggedIn, initialFavorited, productId, isLoose = false, basePrice = 0, portions = [], hasDiscount = false, originalBasePrice = 0, discountType = null, discountValue = 0, portionPrices = {}) {
+window.productPage = function (isLoggedIn, initialFavorited, productId, isLoose = false, basePrice = 0, portions = [], hasDiscount = false, originalBasePrice = 0, discountType = null, discountValue = 0, portionPrices = {}, portionImages = {}, unit = 'weight', mainImage = '') {
     return {
         isLoggedIn,
         favorited: initialFavorited,
@@ -1004,8 +1006,17 @@ window.productPage = function (isLoggedIn, initialFavorited, productId, isLoose 
         // item's pack sizes aren't always a clean multiple of the 250g price, so a portion with
         // its own admin-set price here wins over the basePrice*ratio math below
         portionPrices,
-        portionOptions: (portions || []).map((g) => ({ grams: g, label: window.portionLabel(g) })),
+        // per-portion photo overrides (see Product::portionOverrideImage()) — falls back to
+        // mainImage, the product's own photo, when the selected portion has none of its own
+        unit,
+        portionImages,
+        mainImage,
+        portionOptions: (portions || []).map((g) => ({ grams: g, label: window.portionLabel(g, unit) })),
         selectedPortion: isLoose ? Math.min(...(portions && portions.length ? portions : [250])) : null,
+
+        selectedImage() {
+            return this.portionImages[this.selectedPortion] ?? this.mainImage;
+        },
 
         applyDiscount(p) {
             if (!this.hasDiscount) return p;

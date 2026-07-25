@@ -109,6 +109,10 @@ class ProductController extends Controller
         $data = $this->validateData($request);
         $data['image'] = $this->storeImage($request);
 
+        if ($data['type'] === 'loose') {
+            $data['portion_images'] = $this->storePortionImages($request, $data['portions']);
+        }
+
         $product = Product::create($data);
         $product->categories()->sync($request->input('categories', []));
         $product->tags()->sync($request->input('tags', []));
@@ -139,6 +143,15 @@ class ProductController extends Controller
             }
         }
 
+        if ($data['type'] === 'loose') {
+            $data['portion_images'] = $this->storePortionImages($request, $data['portions'], $product->portion_images ?? []);
+        } else {
+            foreach ($product->portion_images ?? [] as $path) {
+                @unlink(public_path($path));
+            }
+            $data['portion_images'] = null;
+        }
+
         $product->update($data);
         $product->categories()->sync($request->input('categories', []));
         $product->tags()->sync($request->input('tags', []));
@@ -150,6 +163,10 @@ class ProductController extends Controller
     {
         if ($product->image) {
             @unlink(public_path($product->image));
+        }
+
+        foreach ($product->portion_images ?? [] as $path) {
+            @unlink(public_path($path));
         }
 
         $product->delete();
@@ -167,6 +184,7 @@ class ProductController extends Controller
             'category' => 'required|string|in:'.implode(',', $this->categoryOptions()),
             'description' => 'nullable|string|max:5000',
             'type' => 'required|in:piece,loose',
+            'unit' => 'required_if:type,loose|nullable|in:weight,volume',
             'price' => 'required|integer|min:1',
             'weight' => 'required_if:type,piece|nullable|string|max:50',
             'portions' => 'required_if:type,loose|array|min:1',
@@ -175,6 +193,12 @@ class ProductController extends Controller
             // blank entry just means "use the linear price * grams/250 formula for this one"
             'portion_prices' => 'nullable|array',
             'portion_prices.*' => 'nullable|integer|min:1',
+            // optional per-portion photo override (see Product::portionOverrideImage()) — a
+            // size left without its own upload just falls back to the product's main image
+            'portion_images' => 'nullable|array',
+            'portion_images.*' => 'nullable|image|mimes:jpeg,jpg,png,webp,gif|max:4096',
+            'remove_portion_image' => 'nullable|array',
+            'remove_portion_image.*' => 'nullable|boolean',
             'discount_enabled' => 'sometimes|boolean',
             'discount_type' => 'required_if:discount_enabled,1|nullable|in:percentage,flat',
             'discount_value' => [
@@ -214,7 +238,7 @@ class ProductController extends Controller
             // so downstream strict comparisons (in_array(..., true) in CartController etc.) work
             $data['portions'] = array_map('intval', $data['portions']);
             sort($data['portions']);
-            $data['weight'] = implode('/', array_map(fn ($g) => Product::portionLabel($g), $data['portions']));
+            $data['weight'] = implode('/', array_map(fn ($g) => Product::portionLabel($g, $data['unit']), $data['portions']));
 
             // keep only overrides for portions that are actually checked, with a real value —
             // a blank price input just falls back to the linear formula (see the model)
@@ -223,9 +247,15 @@ class ProductController extends Controller
                 ->mapWithKeys(fn ($price, $grams) => [(int) $grams => (int) $price])
                 ->all() ?: null;
         } else {
+            $data['unit'] = 'weight';
             $data['portions'] = null;
             $data['portion_prices'] = null;
         }
+
+        // portion photo uploads are handled separately (storePortionImages()) since they need
+        // $request->file(), not the validated array — drop the raw upload/removal-flag input so
+        // it doesn't get passed to Product::create()/update() as-is
+        unset($data['portion_images'], $data['remove_portion_image']);
 
         if (preg_match('/^(\d{1,3})%\s*(\d{1,3})%$/', $data['image_position'] ?? '', $m)) {
             $data['image_position'] = max(0, min(100, (int) $m[1])).'% '.max(0, min(100, (int) $m[2])).'%';
@@ -254,7 +284,41 @@ class ProductController extends Controller
             return null;
         }
 
-        $file = $request->file('image');
+        return $this->compressAndStore($request->file('image'), $request->input('name'));
+    }
+
+    // one photo per checked portion (see Product::portionOverrideImage()) — a size left without
+    // its own upload just keeps whatever it already had ($existing), so re-saving the form
+    // without touching a size's photo doesn't wipe it. Ticking "remove" for a size, or
+    // unchecking the portion itself, deletes its file and drops the override entirely.
+    private function storePortionImages(Request $request, array $portions, array $existing = []): ?array
+    {
+        $images = $existing;
+
+        foreach ($portions as $grams) {
+            if ($request->hasFile("portion_images.$grams")) {
+                if (!empty($images[$grams])) {
+                    @unlink(public_path($images[$grams]));
+                }
+                $images[$grams] = $this->compressAndStore($request->file("portion_images.$grams"), $request->input('name').'-'.$grams);
+            } elseif ($request->boolean("remove_portion_image.$grams") && !empty($images[$grams])) {
+                @unlink(public_path($images[$grams]));
+                unset($images[$grams]);
+            }
+        }
+
+        foreach (array_keys($images) as $grams) {
+            if (!in_array((int) $grams, $portions, true)) {
+                @unlink(public_path($images[$grams]));
+                unset($images[$grams]);
+            }
+        }
+
+        return $images ?: null;
+    }
+
+    private function compressAndStore($file, string $name): string
+    {
         $original = file_get_contents($file->getRealPath());
         // uploads at/above 400KB get re-encoded down toward 150KB (see ImageCompressor) — output
         // is always a JPEG once compressed, so the extension has to follow suit even if the
@@ -263,7 +327,7 @@ class ProductController extends Controller
         $wasCompressed = $compressed !== $original;
 
         $extension = $wasCompressed ? 'jpg' : ($file->extension() ?: 'jpg');
-        $filename = Str::slug($request->input('name')).'-'.Str::random(6).'.'.$extension;
+        $filename = Str::slug($name).'-'.Str::random(6).'.'.$extension;
         $directory = public_path('images/products');
 
         if (!is_dir($directory)) {

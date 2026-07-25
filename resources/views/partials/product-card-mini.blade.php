@@ -13,7 +13,8 @@
      card stretches to fill its grid cell instead of sitting at a fixed width. --}}
 @php
     $miniPortion = $product->defaultPortion();
-    $miniWeight = $product->isLoose() ? \App\Models\Product::portionLabel($miniPortion) : $product->weight;
+    $miniWeight = $product->isLoose() ? \App\Models\Product::portionLabel($miniPortion, $product->unit) : $product->weight;
+    $miniImage = $product->imageForPortion($miniPortion);
     $miniAvg = $product->reviews_avg_rating ? round($product->reviews_avg_rating, 1) : null;
     $hasMultiplePortions = $product->isLoose() && count($product->portions ?? []) > 1;
     $fixedWidth = $fixedWidth ?? true;
@@ -27,12 +28,20 @@
      @if ($hasMultiplePortions)
      x-data="{
          portionOpen: false, selPortion: {{ $miniPortion }},
+         unit: {{ Illuminate\Support\Js::from($product->unit) }},
          basePrice: {{ $product->discountedBasePrice() }}, rawPrice: {{ $product->price }}, hasDiscount: {{ $product->hasDiscount() ? 'true' : 'false' }},
          discountType: {{ Illuminate\Support\Js::from($product->discount_type) }}, discountValue: {{ (int) $product->discount_value }},
          // per-portion price overrides (see Product::portionOverridePrice()) — a pre-packaged
          // item's pack sizes aren't always a clean multiple of the 250g price, so a portion with
          // its own admin-set price here wins over the basePrice*ratio math below
          portionPrices: {{ Illuminate\Support\Js::from($product->portion_prices ?? (object) []) }},
+         // per-portion photo overrides (see Product::portionOverrideImage()) — falls back to the
+         // product's main image, same as the server-rendered <img> below starts out showing
+         portionImages: {{ Illuminate\Support\Js::from(collect($product->portion_images ?? [])->mapWithKeys(fn ($path, $grams) => [(string) $grams => asset($path)])->all()) }},
+         mainImage: {{ Illuminate\Support\Js::from(asset($product->image)) }},
+         selectedImage() {
+             return this.portionImages[this.selPortion] ?? this.mainImage;
+         },
          menuStyle: '',
          applyDiscount(p) {
              if (!this.hasDiscount) return p;
@@ -68,7 +77,8 @@
          lives outside the link once it becomes interactive) --}}
     <div class="relative rounded-xl overflow-hidden aspect-square bg-cream/60">
         <a href="{{ route('products.show', $product) }}" class="absolute inset-0 z-0" aria-label="View {{ $product->name }}">
-            <img src="{{ asset($product->image) }}" alt="{{ $product->name }}" loading="lazy"
+            <img src="{{ asset($miniImage) }}" alt="{{ $product->name }}" loading="lazy"
+                 @if ($hasMultiplePortions) :src="selectedImage()" @endif
                  class="absolute inset-0 w-full h-full object-cover {{ $product->is_out_of_stock ? 'grayscale opacity-60' : '' }}" style="object-position: {{ $product->image_position ?? '50% 50%' }};">
         </a>
         @if ($product->is_out_of_stock)
@@ -104,7 +114,7 @@
         <button type="button" @click="portionOpen ? (portionOpen = false) : openPicker($el)"
                 class="flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 -ml-1.5 mt-0.5 rounded-md transition self-start"
                 :class="portionOpen ? 'text-maroon-800 bg-gold-50' : 'text-maroon-400 hover:text-maroon-700'">
-            <span x-text="window.portionLabel(selPortion)"></span>
+            <span x-text="window.portionLabel(selPortion, unit)"></span>
             <svg class="w-3 h-3 transition-transform duration-200" :class="portionOpen && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
             </svg>
@@ -129,14 +139,14 @@
                  x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
                  :style="menuStyle"
                  class="z-[60] rounded-xl border border-gold-200/70 bg-white shadow-xl p-2.5">
-                <p class="text-[10px] font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">{{ __('Select Weight') }}</p>
+                <p class="text-[10px] font-semibold text-maroon-500 uppercase tracking-wide mb-1.5">{{ __('Select Size') }}</p>
                 <div class="flex flex-wrap gap-1.5">
                     @foreach (collect($product->portions)->sort()->values() as $grams)
                         <button type="button"
                                 @click="selPortion = {{ $grams }}; addProductToCart({{ $product->id }}, 1, false, selPortion).then(() => portionOpen = false)"
                                 class="text-xs font-semibold px-2.5 py-1.5 rounded-full border-2 transition"
                                 :class="selPortion === {{ $grams }} ? 'bg-maroon-700 border-maroon-700 text-cream' : 'bg-white border-gold-300/70 text-maroon-700 hover:border-maroon-400'">
-                            {{ \App\Models\Product::portionLabel($grams) }}
+                            {{ \App\Models\Product::portionLabel($grams, $product->unit) }}
                         </button>
                     @endforeach
                 </div>

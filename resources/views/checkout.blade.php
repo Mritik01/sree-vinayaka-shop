@@ -35,7 +35,7 @@
                                     <img :src="item.image" :alt="item.name" class="w-12 h-12 sm:w-14 sm:h-14 rounded-lg object-cover border border-gold-200/60 shrink-0">
                                     <div class="flex-1 min-w-0">
                                         <p class="text-maroon-800 font-medium truncate text-sm sm:text-base" x-text="item.name"></p>
-                                        <p class="text-xs text-maroon-400" x-text="(item.type === 'loose' ? portionLabel(item.portion) : item.weight) + ' × ' + item.quantity"></p>
+                                        <p class="text-xs text-maroon-400" x-text="(item.type === 'loose' ? portionLabel(item.portion, item.unit) : item.weight) + ' × ' + item.quantity"></p>
                                     </div>
                                     <p class="text-maroon-800 font-semibold shrink-0 text-sm sm:text-base">₹<span x-text="item.price * item.quantity"></span></p>
                                 </div>

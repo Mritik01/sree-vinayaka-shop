@@ -37,7 +37,7 @@
                         <template x-if="item.is_out_of_stock">
                             <span class="inline-block mt-0.5 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">Out of Stock</span>
                         </template>
-                        <p class="text-xs text-maroon-400 mt-0.5">Size: <span x-text="item.type === 'loose' ? portionLabel(item.portion) : item.weight"></span></p>
+                        <p class="text-xs text-maroon-400 mt-0.5">Size: <span x-text="item.type === 'loose' ? portionLabel(item.portion, item.unit) : item.weight"></span></p>
                         <p class="font-display font-semibold text-sm mt-1" :style="`color: ${item.color}`">₹<span x-text="item.price"></span></p>
 
                         <div class="flex items-center gap-3 mt-2.5">

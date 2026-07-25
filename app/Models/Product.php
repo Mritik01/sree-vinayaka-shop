@@ -21,8 +21,10 @@ class Product extends Model
         'discount_type',
         'discount_value',
         'type',
+        'unit',
         'portions',
         'portion_prices',
+        'portion_images',
         'weight',
         'tag',
         'search_tags',
@@ -41,10 +43,19 @@ class Product extends Model
         'is_out_of_stock' => 'boolean',
         'portions' => 'array',
         'portion_prices' => 'array',
+        'portion_images' => 'array',
         'search_tags' => 'array',
     ];
 
-    public const PORTION_OPTIONS = [200, 250, 400, 500, 750, 800, 1000];
+    // shown to the admin as two separate checkbox groups (see admin/products/_form.blade.php),
+    // filtered by whichever unit the product is set to — grams for a bulk/loose item like dal,
+    // ml for a bottled liquid like handwash. Same set of sizes for both, just labeled differently
+    // (portionLabel() renders this list as g/kg for weight, ml/L for volume) — PORTION_OPTIONS is
+    // kept as a separate alias for readability wherever validation only needs "is this a
+    // plausible portion value" (CartController etc.) without caring which unit it belongs to.
+    public const WEIGHT_PORTION_OPTIONS = [25, 50, 100, 150, 200, 250, 400, 500, 650, 750, 800, 1000];
+    public const VOLUME_PORTION_OPTIONS = [25, 50, 100, 150, 200, 250, 400, 500, 650, 750, 800, 1000];
+    public const PORTION_OPTIONS = [25, 50, 100, 150, 200, 250, 400, 500, 650, 750, 800, 1000];
 
     protected static function booted(): void
     {
@@ -169,7 +180,10 @@ class Product extends Model
             return $basePrice;
         }
 
-        return $basePrice * (int) ($grams / 250);
+        // round(), not (int) cast — a plain cast truncates toward zero, so any portion smaller
+        // than the 250 base (100ml, 125ml, 200g...) priced out to ₹0 unless it had its own
+        // override. Matters a lot more now that most volume sizes (25ml-200ml) are under 250.
+        return (int) round($basePrice * $grams / 250);
     }
 
     // the pre-discount price for the same portion — used for the struck-through
@@ -184,7 +198,7 @@ class Product extends Model
             return (int) $this->price;
         }
 
-        return (int) $this->price * (int) ($grams / 250);
+        return (int) round($this->price * $grams / 250);
     }
 
     // this portion's own admin-set price, if one was given — null falls back to the linear
@@ -194,6 +208,26 @@ class Product extends Model
         $price = $this->portion_prices[$grams] ?? null;
 
         return $price !== null && $price !== '' ? (int) $price : null;
+    }
+
+    // this portion's own admin-set photo, if one was given — same idea as
+    // portionOverridePrice() above, just for the image (a 25ml bottle doesn't look like a 1L
+    // one). Returns a raw storage path, not asset()-wrapped — see imageForPortion() for that.
+    public function portionOverrideImage(int $grams): ?string
+    {
+        return $this->portion_images[$grams] ?? null;
+    }
+
+    // the photo to show for a given portion — that portion's own override if it has one,
+    // otherwise the product's normal image. Pass null for a non-loose product or when no
+    // portion is selected yet.
+    public function imageForPortion(?int $grams): string
+    {
+        if ($grams !== null && $this->isLoose() && ($override = $this->portionOverrideImage($grams))) {
+            return $override;
+        }
+
+        return $this->image;
     }
 
     private function applyDiscountTo(int $price): int
@@ -219,14 +253,18 @@ class Product extends Model
 
         $options = $this->portions ?? [];
 
-        return $options ? min($options) : self::PORTION_OPTIONS[0];
+        return $options ? min($options) : ($this->unit === 'volume' ? self::VOLUME_PORTION_OPTIONS[0] : self::WEIGHT_PORTION_OPTIONS[0]);
     }
 
-    // "250g" / "500g" / "1kg" — the one place grams-to-label conversion lives on
-    // the PHP side; window.portionLabel() in app.js mirrors this for Alpine contexts
-    public static function portionLabel(int $grams): string
+    // "250g" / "500g" / "1kg" (or, for a volume product, "250ml" / "500ml" / "1L") — the one
+    // place grams/ml-to-label conversion lives on the PHP side; window.portionLabel() in app.js
+    // mirrors this for Alpine contexts
+    public static function portionLabel(int $value, string $unit = 'weight'): string
     {
-        return $grams >= 1000 ? rtrim(rtrim(number_format($grams / 1000, 2), '0'), '.').'kg' : $grams.'g';
+        $bigUnit = $unit === 'volume' ? 'L' : 'kg';
+        $smallUnit = $unit === 'volume' ? 'ml' : 'g';
+
+        return $value >= 1000 ? rtrim(rtrim(number_format($value / 1000, 2), '0'), '.').$bigUnit : $value.$smallUnit;
     }
 
     // every buyable variant of this product as {portion, label, price} — a loose product
@@ -243,12 +281,12 @@ class Product extends Model
             ]];
         }
 
-        $options = $this->portions ?: [self::PORTION_OPTIONS[0]];
+        $options = $this->portions ?: [$this->defaultPortion()];
         sort($options);
 
         return array_map(fn ($grams) => [
             'portion' => (int) $grams,
-            'label' => self::portionLabel((int) $grams),
+            'label' => self::portionLabel((int) $grams, $this->unit),
             'price' => $this->priceForPortion((int) $grams),
         ], $options);
     }
@@ -262,11 +300,12 @@ class Product extends Model
             'id' => $this->id,
             'slug' => $this->slug,
             'name' => $this->name,
-            'image' => asset($this->image),
+            'image' => asset($this->imageForPortion($portion ?: null)),
             'weight' => $this->weight,
             'tag' => $this->tag,
             'color' => $this->color,
             'type' => $this->type,
+            'unit' => $this->unit,
             'portions' => $this->portions ?? [],
             'portion' => $portion,
             'price' => $this->priceForPortion($portion ?: null),

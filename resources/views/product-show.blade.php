@@ -12,7 +12,7 @@
     $onColor = $luminance > 0.55 ? '#3a0b12' : '#fdf6e9';
 @endphp
 
-<div x-data="productPage({{ Auth::check() ? 'true' : 'false' }}, {{ $isFavorited ? 'true' : 'false' }}, {{ $product->id }}, {{ $product->isLoose() ? 'true' : 'false' }}, {{ $product->discountedBasePrice() }}, {{ Illuminate\Support\Js::from($product->portions ?? []) }}, {{ $product->hasDiscount() ? 'true' : 'false' }}, {{ $product->price }}, {{ Illuminate\Support\Js::from($product->discount_type) }}, {{ (int) $product->discount_value }}, {{ Illuminate\Support\Js::from($product->portion_prices ?? (object) []) }})">
+<div x-data="productPage({{ Auth::check() ? 'true' : 'false' }}, {{ $isFavorited ? 'true' : 'false' }}, {{ $product->id }}, {{ $product->isLoose() ? 'true' : 'false' }}, {{ $product->discountedBasePrice() }}, {{ Illuminate\Support\Js::from($product->portions ?? []) }}, {{ $product->hasDiscount() ? 'true' : 'false' }}, {{ $product->price }}, {{ Illuminate\Support\Js::from($product->discount_type) }}, {{ (int) $product->discount_value }}, {{ Illuminate\Support\Js::from($product->portion_prices ?? (object) []) }}, {{ Illuminate\Support\Js::from(collect($product->portion_images ?? [])->mapWithKeys(fn ($path, $grams) => [(string) $grams => asset($path)])->all()) }}, {{ Illuminate\Support\Js::from($product->unit) }}, {{ Illuminate\Support\Js::from(asset($product->image)) }})">
 
     <div class="max-w-[1600px] mx-auto px-4 sm:px-6 pt-6">
         <nav class="animate-rise-in text-sm text-maroon-500 flex items-center gap-2 flex-wrap">
@@ -32,12 +32,12 @@
                     <div class="hidden sm:flex flex-col gap-3 shrink-0">
                         <button type="button" aria-label="{{ $product->name }} photo" aria-current="true"
                             class="w-16 h-16 md:w-20 md:h-20 rounded-xl overflow-hidden border-2 border-maroon-700 shadow-sm shrink-0">
-                            <img src="{{ asset($product->image) }}" alt="" style="object-position: {{ $product->image_position ?? '50% 50%' }};" class="w-full h-full object-cover">
+                            <img src="{{ asset($product->imageForPortion($product->defaultPortion())) }}" alt="" :src="selectedImage()" style="object-position: {{ $product->image_position ?? '50% 50%' }};" class="w-full h-full object-cover">
                         </button>
                     </div>
 
                     <div class="relative rounded-2xl overflow-hidden aspect-square shadow-md border border-gold-200/60 w-full sm:w-[400px] md:w-[450px] shrink-0">
-                        <img src="{{ asset($product->image) }}" alt="{{ $product->name }}" style="object-position: {{ $product->image_position ?? '50% 50%' }};"
+                        <img src="{{ asset($product->imageForPortion($product->defaultPortion())) }}" alt="{{ $product->name }}" :src="selectedImage()" style="object-position: {{ $product->image_position ?? '50% 50%' }};"
                              class="absolute inset-0 w-full h-full object-cover transition duration-500 hover:scale-105 {{ $product->is_out_of_stock ? 'grayscale opacity-60' : '' }}">
                         @if ($product->is_out_of_stock)
                             <div class="absolute inset-0 z-[5] bg-maroon-950/35 flex items-center justify-center pointer-events-none">

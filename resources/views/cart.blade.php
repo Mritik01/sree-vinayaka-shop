@@ -52,7 +52,7 @@
                                         <select @change="changePortion(item, parseInt($event.target.value))"
                                             class="text-xs font-medium px-2 py-0.5 rounded-md border border-gold-300/60 text-maroon-600 bg-white focus:outline-none focus:ring-1 focus:ring-gold-400">
                                             <template x-for="g in item.portions" :key="g">
-                                                <option :value="g" :selected="g === item.portion" x-text="portionLabel(g)"></option>
+                                                <option :value="g" :selected="g === item.portion" x-text="portionLabel(g, item.unit)"></option>
                                             </template>
                                         </select>
                                     </template>
