@@ -17,8 +17,11 @@
          x-transition:enter-start="opacity-0 -translate-y-1"
          x-transition:enter-end="opacity-100 translate-y-0"
          class="absolute left-0 right-0 top-full mt-2 rounded-2xl bg-white border border-gold-200/70 shadow-2xl overflow-hidden z-[70]">
+        {{-- clicking any suggestion goes to the full listing filtered by what was actually typed
+             (not that one product's own page) — so "Harpic" surfaces every Harpic variant/size
+             instead of dropping the shopper straight onto whichever single SKU they clicked. --}}
         <template x-for="p in results" :key="p.url">
-            <a :href="p.url" class="flex items-center gap-3 px-4 py-2.5 hover:bg-cream/70 transition">
+            <a :href="'/products?q=' + encodeURIComponent(q)" class="flex items-center gap-3 px-4 py-2.5 hover:bg-cream/70 transition">
                 <img :src="p.image" :alt="p.name" class="w-10 h-10 rounded-lg object-cover border border-gold-100 shrink-0">
                 <span class="min-w-0 flex-1">
                     <span class="block text-sm font-medium text-maroon-800 truncate" x-text="p.name"></span>

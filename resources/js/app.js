@@ -898,8 +898,26 @@ window.productListing = function (isLoggedIn, initialFavorites, products, priceB
             const p = this.products.find((x) => x.id === id);
             return p ? this.matches(p) : true;
         },
+        // exact name match > name starts with the query > name just contains it > only matched
+        // via category/tags — used by sorted() below to put the closest matches first while
+        // searching, without disturbing sort_order for every other case (empty query, or the
+        // shopper explicitly picked a different sort)
+        relevance(p, q) {
+            const name = p.name.toLowerCase();
+            if (name === q) return 3;
+            if (name.startsWith(q)) return 2;
+            if (name.includes(q)) return 1;
+            return 0;
+        },
         sorted() {
             const arr = [...this.products];
+            const q = this.filters.q.trim().toLowerCase().replace(/\s+/g, ' ');
+            if (this.sort === 'recommended' && q) {
+                // Array#sort is stable, so anything tied on relevance keeps its original
+                // sort_order — this only reorders relative to the search query, nothing else
+                arr.sort((a, b) => this.relevance(b, q) - this.relevance(a, q));
+                return arr;
+            }
             switch (this.sort) {
                 case 'price_asc': arr.sort((a, b) => a.price - b.price); break;
                 case 'price_desc': arr.sort((a, b) => b.price - a.price); break;
@@ -936,6 +954,12 @@ window.productListing = function (isLoggedIn, initialFavorites, products, priceB
         clearTagFilter() {
             this.filters.tagIds = [];
             this.stripParamFromUrl('featured_category');
+        },
+        // same idea again, for the search-query chip (?q=, whether from a header search
+        // suggestion or typed directly into the on-page search box)
+        clearSearchFilter() {
+            this.filters.q = '';
+            this.stripParamFromUrl('q');
         },
         stripParamFromUrl(param) {
             const url = new URL(window.location.href);

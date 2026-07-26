@@ -53,7 +53,13 @@
         <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
                 <p class="text-gold-600 tracking-[0.3em] uppercase text-xs font-semibold mb-1.5">✦ {{ __('Fresh Every Morning') }} ✦</p>
-                <h1 class="font-display text-3xl sm:text-4xl font-bold text-maroon-800">{{ __('Our Products') }}</h1>
+                {{-- filters.q pre-seeds from ?q= (see productListing() in app.js) — arriving from a
+                     header search suggestion or typing directly in the on-page search box below
+                     both land here, so this heading reacts to either the same way. --}}
+                <h1 class="font-display text-3xl sm:text-4xl font-bold text-maroon-800">
+                    <span x-show="!filters.q.trim()">{{ __('Our Products') }}</span>
+                    <span x-show="filters.q.trim()" x-cloak>{{ __('Search Results for') }} "<span x-text="filters.q"></span>"</span>
+                </h1>
             </div>
             <p class="text-sm text-maroon-400">
                 {{ __('Showing') }} <span class="font-semibold text-maroon-700" x-text="visibleCount()"></span> {{ __('of') }} {{ $products->count() }} {{ __('products') }}
@@ -78,6 +84,15 @@
                         class="w-5 h-5 rounded-full bg-white/70 hover:bg-white text-maroon-500 hover:text-maroon-800 transition flex items-center justify-center text-xs leading-none">✕</button>
             </div>
         @endif
+
+        {{-- active search query — from a header search suggestion, "See all results", or typed
+             directly into the on-page search box below; same chip pattern as the category/featured
+             chips above, just keyed off filters.q instead of a server-resolved model --}}
+        <div x-show="filters.q.trim()" x-cloak class="mt-4 inline-flex items-center gap-2 bg-gold-100 border border-gold-300/60 text-maroon-700 text-sm font-semibold rounded-full pl-4 pr-2 py-1.5">
+            {{ __('Searching for') }}: "<span x-text="filters.q"></span>"
+            <button type="button" @click="clearSearchFilter()" aria-label="{{ __('Clear search') }}"
+                    class="w-5 h-5 rounded-full bg-white/70 hover:bg-white text-maroon-500 hover:text-maroon-800 transition flex items-center justify-center text-xs leading-none">✕</button>
+        </div>
 
         {{-- toolbar: search + sort --}}
         <div class="flex items-center gap-3 mt-6 mb-8">
@@ -121,12 +136,24 @@
                     @endforeach
                 </div>
 
-                {{-- empty state --}}
+                {{-- empty state — worded differently for an unmatched search vs. just filters, so a
+                     search that comes up empty isn't a dead end (clearAll() resets everything,
+                     landing back on the full catalog rather than a blank grid) --}}
                 <div x-show="visibleCount() === 0" x-cloak class="text-center py-20"
                      x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
                     <p class="text-5xl mb-4">🍬</p>
-                    <p class="text-maroon-700 font-display text-xl">{{ __('No sweets match those filters') }}</p>
-                    <p class="text-maroon-500 mt-2 max-w-sm mx-auto">{{ __('Try removing a filter or two — the good stuff is hiding just behind them.') }}</p>
+                    <template x-if="filters.q.trim()">
+                        <div>
+                            <p class="text-maroon-700 font-display text-xl">{{ __('No products found for') }} "<span x-text="filters.q"></span>"</p>
+                            <p class="text-maroon-500 mt-2 max-w-sm mx-auto">{{ __("We couldn't find an exact match — clear the search to browse everything we've got instead.") }}</p>
+                        </div>
+                    </template>
+                    <template x-if="!filters.q.trim()">
+                        <div>
+                            <p class="text-maroon-700 font-display text-xl">{{ __('No sweets match those filters') }}</p>
+                            <p class="text-maroon-500 mt-2 max-w-sm mx-auto">{{ __('Try removing a filter or two — the good stuff is hiding just behind them.') }}</p>
+                        </div>
+                    </template>
                     <button type="button" @click="clearAll()" class="btn-gold mt-8">{{ __('Clear All Filters') }}</button>
                 </div>
             </div>
