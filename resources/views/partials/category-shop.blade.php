@@ -89,6 +89,19 @@
                         @foreach ($products as $product)
                             @include('partials.product-card-mini', ['product' => $product])
                         @endforeach
+                        {{-- one more Top Pick than fits on this slider means there's more to see —
+                             $homepageGridLimit (30, in the '/' route) is even so this always lands
+                             in a fresh, fully-empty column (row-span-2), never a half-filled one. --}}
+                        @if ($topPicksTotal > $products->count())
+                            <a href="{{ route('products.index') }}"
+                               class="row-span-2 snap-start shrink-0 w-40 sm:w-auto bg-gold-50 hover:bg-gold-100 border-2 border-dashed border-gold-300 rounded-2xl flex flex-col items-center justify-center gap-2 p-3 text-center transition group">
+                                <span class="w-10 h-10 rounded-full bg-white border border-gold-300 flex items-center justify-center text-maroon-700 group-hover:translate-x-0.5 transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+                                </span>
+                                <span class="text-sm font-semibold text-maroon-800">{{ __('View All') }}</span>
+                                <span class="text-xs text-maroon-500">+{{ $topPicksTotal - $products->count() }} {{ __('more') }}</span>
+                            </a>
+                        @endif
                     </div>
 
                     <button x-show="gridCanRight" x-cloak @click="gridScrollBy(1)" aria-label="{{ __('Scroll products right') }}"
@@ -133,6 +146,17 @@
                         @foreach ($tab['products'] as $product)
                             @include('partials.product-card-mini', ['product' => $product])
                         @endforeach
+                        {{-- see the matching comment on the Top Picks grid above --}}
+                        @if ($tab['total'] > $tab['products']->count())
+                            <a href="{{ route('products.index', ['category' => $tab['category']->slug]) }}"
+                               class="row-span-2 snap-start shrink-0 w-40 sm:w-auto bg-gold-50 hover:bg-gold-100 border-2 border-dashed border-gold-300 rounded-2xl flex flex-col items-center justify-center gap-2 p-3 text-center transition group">
+                                <span class="w-10 h-10 rounded-full bg-white border border-gold-300 flex items-center justify-center text-maroon-700 group-hover:translate-x-0.5 transition">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+                                </span>
+                                <span class="text-sm font-semibold text-maroon-800">{{ __('View All') }}</span>
+                                <span class="text-xs text-maroon-500">+{{ $tab['total'] - $tab['products']->count() }} {{ __('more') }}</span>
+                            </a>
+                        @endif
                     </div>
 
                     <button x-show="gridCanRight" x-cloak @click="gridScrollBy(1)" aria-label="{{ __('Scroll products right') }}"

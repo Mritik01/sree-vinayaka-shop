@@ -140,19 +140,29 @@ Route::get('/delivery-check', function (Illuminate\Http\Request $request) {
 })->name('delivery.check');
 
 Route::get('/', function () {
+    // homepage grids are capped at 30 — shipping an entire category's catalog into every page
+    // load doesn't scale, and the "View all" tile at the end of each slider (see
+    // category-shop.blade.php) covers anything beyond that. 30 is deliberately even: paired with
+    // grid-rows-2, it always fills whole columns with no dangling half-empty one at the end —
+    // same reasoning the tile itself uses to decide its own row-span.
+    $homepageGridLimit = 30;
+
     // powers the homepage's category-tabbed shop section (partials/category-shop.blade.php):
     // one bucket per active category that actually has products — pre-rendered server-side and
     // toggled client-side via x-show, same "render every bucket, no fetch" approach the old
     // shop-by-range/product-slider filter already used on this page
     $categoryTabs = Category::where('is_active', true)->orderBy('sort_order')->get()
-        ->map(fn ($category) => [
-            'category' => $category,
-            // no limit() here — the grid is a slider now (category-shop.blade.php), not a
-            // static wrap-everything grid, so it needs every product to actually scroll through
-            'products' => $category->products()
+        ->map(function ($category) use ($homepageGridLimit) {
+            $query = $category->products()
                 ->withAvg('reviews', 'rating')->withCount('reviews')
-                ->orderBy('sort_order')->get(),
-        ])
+                ->orderBy('sort_order');
+
+            return [
+                'category' => $category,
+                'total' => (clone $query)->count(),
+                'products' => $query->limit($homepageGridLimit)->get(),
+            ];
+        })
         ->filter(fn ($tab) => $tab['products']->isNotEmpty())
         ->values();
 
@@ -166,10 +176,14 @@ Route::get('/', function () {
         ->filter(fn ($fc) => $fc->tags->sum('products_count') > 0)
         ->values();
 
+    $topPicksQuery = Product::where('is_bestseller', true)
+        ->withAvg('reviews', 'rating')->withCount('reviews')
+        ->orderBy('sort_order');
+    $topPicksTotal = (clone $topPicksQuery)->count();
+
     return view('home', [
-        'products' => Product::where('is_bestseller', true)
-            ->withAvg('reviews', 'rating')->withCount('reviews')
-            ->orderBy('sort_order')->get(),
+        'products' => $topPicksQuery->limit($homepageGridLimit)->get(),
+        'topPicksTotal' => $topPicksTotal,
         'festivalProducts' => Product::where('is_festival_special', true)->orderBy('sort_order')->get(),
         'heroBanners' => HeroBanner::active()->get(),
         'categoryTabs' => $categoryTabs,
