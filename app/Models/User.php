@@ -170,6 +170,16 @@ class User extends Authenticatable
         return $this->hasMany(Order::class);
     }
 
+    // orders.user_id cascades on delete (unlike most of this table's other relations), so
+    // hard-deleting a customer with any order history would silently wipe it — and
+    // customer_block_history.user_id has no cascade at all (permanent audit ledger, see that
+    // migration's docblock), so a previously blocked/unblocked customer can't be deleted anyway.
+    // Used to gate Admin\CustomerController::destroy() before it ever reaches the database.
+    public function isDeletable(): bool
+    {
+        return !$this->orders()->exists() && !$this->blockHistory()->exists();
+    }
+
     public function latestOrder(): HasOne
     {
         return $this->hasOne(Order::class)->latestOfMany();

@@ -791,4 +791,25 @@ class OrderController extends Controller
 
         return back()->with('status', $statusMessage);
     }
+
+    // super-admin only (see admin.super in routes/web.php) — a hard, permanent delete, not a
+    // status change. Order::isDeletable() blocks any order that already has a platform income
+    // record (i.e. was ever delivered), since that ledger is append-only and the FK constraint
+    // has no cascade — cancel an order instead if it just needs to stop being active.
+    public function destroy(Order $order)
+    {
+        if (!$order->isDeletable()) {
+            return back()->with('status', "Order {$order->orderNumber()} has a permanent income record and can't be deleted — cancel it instead if it needs to be removed from active view.");
+        }
+
+        $orderNumber = $order->orderNumber();
+
+        try {
+            $order->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return back()->with('status', "Order {$orderNumber} couldn't be deleted — other records still reference it.");
+        }
+
+        return redirect()->route('admin.orders.index')->with('status', "Order {$orderNumber} deleted.");
+    }
 }

@@ -199,6 +199,28 @@ class CustomerController extends Controller
         return back()->with('status', "{$user->name} has been unblocked and regains normal access immediately.");
     }
 
+    // super-admin only (see admin.super in routes/web.php) — a hard, permanent delete, not a
+    // block. User::isDeletable() restricts this to customers with no order history at all
+    // (orders.user_id cascades on delete, so deleting a customer who has ordered would silently
+    // wipe that order/revenue history too) and no block history (that audit ledger's FK has no
+    // cascade). Block the customer instead if they have either.
+    public function destroy(User $user)
+    {
+        if (!$user->isDeletable()) {
+            return back()->with('status', "{$user->name} can't be deleted — they have order or block history. Block the account instead if it needs to be restricted.");
+        }
+
+        $name = $user->name;
+
+        try {
+            $user->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return back()->with('status', "{$name} couldn't be deleted — other records still reference this account.");
+        }
+
+        return redirect()->route('admin.customers.index')->with('status', "{$name} deleted.");
+    }
+
     // "attach a coupon to just this customer" — the moment a coupon has any row here, Coupon::isRestricted()
     // flips true and it stops being redeemable by anyone else (see CouponController::apply()).
     public function attachCoupon(Request $request, User $user)

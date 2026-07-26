@@ -128,6 +128,20 @@ class Order extends Model
         return $this->hasOne(RiderRating::class);
     }
 
+    public function platformIncomeRecord(): HasOne
+    {
+        return $this->hasOne(PlatformIncomeRecord::class);
+    }
+
+    // platform_income_records.order_id has no cascade/null-on-delete (see that migration's
+    // docblock — it's a permanent, append-only ledger), so a delivered order can never be hard
+    // deleted without either violating that constraint or destroying real income history. Used
+    // to gate Admin\OrderController::destroy() before it ever reaches the database.
+    public function isDeletable(): bool
+    {
+        return !$this->platformIncomeRecord()->exists();
+    }
+
     public function isCustomerCancellable(): bool
     {
         return in_array($this->status, self::CUSTOMER_CANCELLABLE_STATUSES)

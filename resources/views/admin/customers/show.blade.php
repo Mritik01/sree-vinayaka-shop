@@ -111,6 +111,25 @@
                                 🚫 Block Customer
                             </button>
                         @endif
+                        {{-- super-admin only, and only when User::isDeletable() — no order or block
+                             history to lose. A customer who has ordered or been blocked before
+                             can only be Blocked, never hard-deleted (see the model comment). --}}
+                        @if (Auth::guard('admin')->user()?->isSuperAdmin())
+                            @if ($customer->isDeletable())
+                                <form method="POST" action="{{ route('admin.customers.destroy', $customer) }}"
+                                      onsubmit="return confirm('Permanently delete {{ $customer->name }}? This cannot be undone.');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="text-sm px-4 py-2 rounded-full border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition font-medium inline-flex items-center gap-1.5">
+                                        🗑️ Delete Customer
+                                    </button>
+                                </form>
+                            @else
+                                <span class="text-xs text-maroon-400 max-w-[10rem]" title="Has order or block history — block the account instead of deleting it.">
+                                    Can't delete — has order/block history
+                                </span>
+                            @endif
+                        @endif
                     </div>
                 </div>
 

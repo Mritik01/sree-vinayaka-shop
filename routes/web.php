@@ -490,6 +490,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::delete('/orders/{order}/items/{item}', [AdminOrderController::class, 'removeItem'])->name('orders.items.remove');
         Route::post('/orders/{order}/items', [AdminOrderController::class, 'addItems'])->name('orders.items.add');
         Route::patch('/orders/{order}/note-decision', [AdminOrderController::class, 'respondToNote'])->name('orders.note-decision');
+        // super-admin only (see EnsureSuperAdmin) — a permanent delete, not a status change;
+        // Order::isDeletable() also blocks this in the controller for any delivered order
+        Route::delete('/orders/{order}', [AdminOrderController::class, 'destroy'])->middleware('admin.super')->name('orders.destroy');
 
         Route::get('/products', [AdminProductController::class, 'index'])->name('products.index');
         // live JSON product search for the "add product to order" modal — admin equivalent of the
@@ -588,6 +591,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::post('/customers/{user}/notify', [AdminCustomerController::class, 'notify'])->name('customers.notify');
         Route::post('/customers/{user}/coupons', [AdminCustomerController::class, 'attachCoupon'])->name('customers.coupons.attach');
         Route::delete('/customers/{user}/coupons/{coupon}', [AdminCustomerController::class, 'detachCoupon'])->name('customers.coupons.detach');
+        // super-admin only (see EnsureSuperAdmin) — a permanent delete, not a block;
+        // User::isDeletable() also blocks this in the controller for anyone with order/block history
+        Route::delete('/customers/{user}', [AdminCustomerController::class, 'destroy'])->middleware('admin.super')->name('customers.destroy');
 
         // "Login as Customer" — super-admin only (see EnsureSuperAdmin); stop is reachable by any
         // logged-in admin since it just ends whatever impersonation their own session started

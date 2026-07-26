@@ -19,12 +19,34 @@
         $removalReasons = \App\Models\OrderItem::REMOVAL_REASONS;
     @endphp
 
-    {{-- real browser-history back (so arriving here from a customer's page returns there, not
-         always to the Orders list) — falls back to the Orders list only when there's nowhere
-         to go back to (e.g. this page was opened directly in a new tab) --}}
-    <a href="{{ route('admin.orders.index') }}"
-       onclick="if (window.history.length > 1) { event.preventDefault(); window.history.back(); }"
-       class="text-sm text-maroon-500 hover:text-maroon-700 transition">← {{ __('Back') }}</a>
+    <div class="flex items-center justify-between gap-3">
+        {{-- real browser-history back (so arriving here from a customer's page returns there, not
+             always to the Orders list) — falls back to the Orders list only when there's nowhere
+             to go back to (e.g. this page was opened directly in a new tab) --}}
+        <a href="{{ route('admin.orders.index') }}"
+           onclick="if (window.history.length > 1) { event.preventDefault(); window.history.back(); }"
+           class="text-sm text-maroon-500 hover:text-maroon-700 transition">← {{ __('Back') }}</a>
+
+        {{-- super-admin only, and only when Order::isDeletable() — no permanent income record to
+             lose. A delivered order can only be viewed/cancelled, never hard-deleted (that ledger
+             is append-only — see the model comment). --}}
+        @if (Auth::guard('admin')->user()?->isSuperAdmin())
+            @if ($order->isDeletable())
+                <form method="POST" action="{{ route('admin.orders.destroy', $order) }}"
+                      onsubmit="return confirm('Permanently delete order {{ $order->orderNumber() }}? This cannot be undone.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="text-sm px-4 py-2 rounded-full border-2 border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition font-medium inline-flex items-center gap-1.5">
+                        🗑️ {{ __('Delete Order') }}
+                    </button>
+                </form>
+            @else
+                <span class="text-xs text-maroon-400" title="This order has a permanent income record — cancel it instead if it needs to be removed from active view.">
+                    {{ __("Can't delete — has an income record") }}
+                </span>
+            @endif
+        @endif
+    </div>
 
     <div class="space-y-5 mt-4" x-data='adminOrderShowPage(@json($orderForJs), {{ $order->id }}, @json($cancelledReasons))'>
         @if ($order->is_gift_order)
