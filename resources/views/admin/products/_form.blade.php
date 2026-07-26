@@ -242,17 +242,21 @@
                     (a 25ml bottle doesn't look like a 1L one) — leave it blank to just use the main product photo above.
                 </p>
                 @foreach ([['weight', \App\Models\Product::WEIGHT_PORTION_OPTIONS], ['volume', \App\Models\Product::VOLUME_PORTION_OPTIONS]] as [$u, $options])
-                    <div x-show="unit === '{{ $u }}'" x-cloak class="space-y-2.5">
+                    {{-- weight and volume share the exact same 12 numbers, so every field name here
+                         (portions[], portion_prices[N], portion_images[N]) exists TWICE in the DOM —
+                         once per unit list. A plain x-show'd <div> still submits its hidden fields
+                         (browsers don't exclude display:none inputs), and for a duplicate name the
+                         LAST one in the DOM silently wins in PHP's request parsing — so an upload
+                         picked in the weight list could get clobbered by the untouched, hidden
+                         volume-list file input for that same size. <fieldset disabled> excludes
+                         every field inside it from submission, which a plain :disabled on each
+                         input can't do in one place. --}}
+                    <fieldset x-show="unit === '{{ $u }}'" x-cloak :disabled="unit !== '{{ $u }}'" class="space-y-2.5 border-0 p-0 m-0">
                         @foreach ($options as $grams)
                             <div class="flex items-center gap-3 flex-wrap py-0.5">
                                 <label class="flex items-center gap-2 text-sm text-maroon-700 w-20 shrink-0">
-                                    {{-- weight/volume share overlapping numbers (200, 500, 1000...), and both lists bind
-                                         to the same `portions` array, so without :disabled the hidden list's checkbox for
-                                         a shared value would ALSO end up checked (and, being a real form element, still
-                                         submitted despite being invisible) — silently duplicating that portion on save. --}}
                                     <input type="checkbox" name="portions[]" value="{{ $grams }}"
                                            :checked="portions.includes({{ $grams }})"
-                                           :disabled="unit !== '{{ $u }}'"
                                            @change="$event.target.checked ? portions.push({{ $grams }}) : portions = portions.filter(g => g !== {{ $grams }})"
                                            class="w-4 h-4 rounded border-gold-300/70 text-gold-600 focus:ring-gold-400">
                                     {{ \App\Models\Product::portionLabel($grams, $u) }}
@@ -284,7 +288,7 @@
                                 </div>
                             </div>
                         @endforeach
-                    </div>
+                    </fieldset>
                 @endforeach
             </div>
 
