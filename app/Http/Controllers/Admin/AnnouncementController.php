@@ -12,8 +12,15 @@ class AnnouncementController extends Controller
 {
     public function edit()
     {
+        $announcement = AnnouncementSetting::current();
+
         return view('admin.announcement.edit', [
-            'announcement' => AnnouncementSetting::current(),
+            'announcement' => $announcement,
+            // already ordered by announcement_products.sort_order (AnnouncementSetting::products())
+            // — kept even while a different mode is active, so switching back to "Custom Selected
+            // Products" later restores the last picks instead of starting from an empty list
+            'selectedProducts' => $announcement->products,
+            'discountedCount' => \App\Models\Product::whereNotNull('discount_type')->where('discount_value', '>', 0)->count(),
         ]);
     }
 
@@ -35,6 +42,12 @@ class AnnouncementController extends Controller
             'auto_close_seconds' => 'nullable|integer|min:3|max:120',
             'image' => 'nullable|image|mimes:jpeg,jpg,png,webp,gif|max:4096',
             'remove_image' => 'sometimes|boolean',
+            'landing_page_mode' => 'required|in:'.implode(',', AnnouncementSetting::LANDING_PAGE_MODES),
+            // order in the array IS the display order — see the sync() call below. Not required:
+            // an admin can pick "Custom Selected Products" and simply not have added any yet,
+            // same "let it be empty rather than block the save" latitude coupons/tags etc get.
+            'product_ids' => 'nullable|array',
+            'product_ids.*' => 'integer|exists:products,id',
         ], [
             'button_url.regex' => 'The button link must start with http://, https://, or /.',
         ]);
@@ -44,7 +57,8 @@ class AnnouncementController extends Controller
         $data['is_enabled'] = $request->boolean('is_enabled');
         $data['show_close_button'] = $request->boolean('show_close_button');
         $data['description'] = $this->sanitizeDescription($data['description'] ?? null);
-        unset($data['image'], $data['remove_image']);
+        $productIds = $data['product_ids'] ?? [];
+        unset($data['image'], $data['remove_image'], $data['product_ids']);
 
         if ($request->hasFile('image')) {
             if ($announcement->image_path) {
@@ -74,6 +88,14 @@ class AnnouncementController extends Controller
         }
 
         $announcement->update($data);
+
+        // sync() diffs against the existing pivot rows itself (no manual detach/attach needed);
+        // array order here is what the admin's drag-reorder picker produced (product_ids[] was
+        // submitted in that order), stamped onto sort_order so AnnouncementSetting::products()
+        // can play it back in the same order on the actual landing page
+        $announcement->products()->sync(
+            collect($productIds)->values()->mapWithKeys(fn ($id, $i) => [$id => ['sort_order' => $i]])->all()
+        );
 
         return redirect()->route('admin.announcement.edit')->with('status', 'Announcement banner updated.');
     }

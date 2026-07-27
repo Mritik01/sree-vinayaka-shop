@@ -2123,6 +2123,76 @@ window.announcementForm = function (initial) {
         showClose: initial.showClose,
         removeImageFlag: false,
 
+        // Landing Page (Promo page /offer — see PromoLandingController, AnnouncementSetting)
+        landingPageMode: initial.landingPageMode || 'none',
+        discountedCount: initial.discountedCount || 0,
+        previewUrl: initial.previewUrl || '/offer',
+        // {id, name, image}[] — order here IS the display order (see dragStart/drop below);
+        // submitted as hidden product_ids[] inputs in this same order, see the Blade template
+        selectedProducts: initial.selectedProducts || [],
+        productQuery: '',
+        productResults: [],
+        searchingProducts: false,
+        productDragIndex: null,
+        productOverIndex: null,
+
+        async searchProducts() {
+            const q = this.productQuery.trim();
+            if (q.length < 2) {
+                this.productResults = [];
+                return;
+            }
+            this.searchingProducts = true;
+            try {
+                const res = await fetch(`/admin/products/search?q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' } });
+                const data = res.ok ? await res.json() : { products: [] };
+                if (this.productQuery.trim() === q) this.productResults = data.products || [];
+            } catch (e) {
+                this.productResults = [];
+            } finally {
+                this.searchingProducts = false;
+            }
+        },
+        addProduct(product) {
+            if (!this.selectedProducts.some((p) => p.id === product.id)) {
+                this.selectedProducts.push({ id: product.id, name: product.name, image: product.image });
+            }
+            this.productQuery = '';
+            this.productResults = [];
+        },
+        removeProduct(id) {
+            this.selectedProducts = this.selectedProducts.filter((p) => p.id !== id);
+        },
+        // same drag-and-drop idiom as window.adminNavMenu (sidebar reordering) — kept as its own
+        // copy rather than a shared helper since the two operate on differently-shaped arrays
+        // and this one has no localStorage persistence step
+        productDragStart(index, event) {
+            this.productDragIndex = index;
+            event.dataTransfer.effectAllowed = 'move';
+        },
+        productDragOver(index, event) {
+            event.preventDefault();
+            this.productOverIndex = index;
+        },
+        productDragLeave(index) {
+            if (this.productOverIndex === index) this.productOverIndex = null;
+        },
+        productDrop(index) {
+            if (this.productDragIndex === null || this.productDragIndex === index) {
+                this.productDragIndex = null;
+                this.productOverIndex = null;
+                return;
+            }
+            const moved = this.selectedProducts.splice(this.productDragIndex, 1)[0];
+            this.selectedProducts.splice(index, 0, moved);
+            this.productDragIndex = null;
+            this.productOverIndex = null;
+        },
+        productDragEnd() {
+            this.productDragIndex = null;
+            this.productOverIndex = null;
+        },
+
         get bg() {
             const presets = { maroon: '#7a1622', gold: '#c8962e', pista: '#3d7a52', dark: '#241f1f' };
             return this.theme === 'custom' ? (this.backgroundColor || '#7a1622') : presets[this.theme];

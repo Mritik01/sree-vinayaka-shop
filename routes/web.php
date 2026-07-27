@@ -37,6 +37,7 @@ use App\Http\Controllers\ConsentController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\LegalController;
+use App\Http\Controllers\PromoLandingController;
 use App\Http\Controllers\LocaleController;
 use App\Http\Controllers\NewsletterController;
 use App\Http\Controllers\NotificationController;
@@ -286,6 +287,10 @@ Route::get('/account', function () {
 Route::get('/orders', function () {
     return redirect()->route('account', ['tab' => 'orders']);
 })->name('orders');
+
+// where the Announcement Banner's "Shop Now" sends visitors once a Landing Page Mode is
+// configured (see AnnouncementSetting::hasLandingPage(), Admin\AnnouncementController)
+Route::get('/offer', [PromoLandingController::class, 'show'])->name('promo.landing');
 
 Route::get('/terms', [LegalController::class, 'terms'])->name('legal.terms');
 Route::get('/privacy', [LegalController::class, 'privacy'])->name('legal.privacy');

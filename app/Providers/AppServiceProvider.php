@@ -104,7 +104,11 @@ class AppServiceProvider extends ServiceProvider
                         'headline' => $setting->headline,
                         'description' => $setting->description,
                         'buttonText' => $setting->button_text,
-                        'buttonUrl' => $setting->button_url,
+                        // a configured Landing Page Mode always wins over the manual link — see
+                        // AnnouncementSetting::hasLandingPage(). This is the ONLY place that
+                        // decision is made; the banner's own Blade/JS never need to know a
+                        // landing page exists at all, they just follow whatever URL they're given.
+                        'buttonUrl' => $setting->hasLandingPage() ? route('promo.landing') : $setting->button_url,
                         'image' => $setting->image_path ? asset($setting->image_path) : null,
                         'theme' => $setting->theme,
                         'backgroundColor' => $setting->background_color,

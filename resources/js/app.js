@@ -109,6 +109,12 @@ window.announcementBanner = function (data) {
         bg: '',
         text: '',
         timer: null,
+        // swipe-to-dismiss (mobile bottom-sheet only) — the handle/image strip in
+        // announcement-banner.blade.php owns the touch events; see onDragStart/Move/End below
+        dragging: false,
+        dragDeltaY: 0,
+        dragStartY: 0,
+        snapping: false,
 
         init() {
             const presets = {
@@ -151,6 +157,35 @@ window.announcementBanner = function (data) {
         dismiss() {
             clearTimeout(this.timer);
             this.open = false;
+        },
+
+        // touchstart fires on the handle/image strip only (see the Blade partial) — the browser
+        // keeps routing touchmove/touchend to that same element for the rest of this touch even
+        // once the finger moves off it, so no .window listeners are needed
+        onDragStart(e) {
+            this.dragging = true;
+            this.snapping = false;
+            this.dragStartY = e.touches[0].clientY;
+        },
+        onDragMove(e) {
+            if (!this.dragging) return;
+            // downward only — an upward drag would fight the sheet's own resting position
+            this.dragDeltaY = Math.max(0, e.touches[0].clientY - this.dragStartY);
+        },
+        onDragEnd() {
+            if (!this.dragging) return;
+            this.dragging = false;
+            if (this.dragDeltaY > 90) {
+                this.dragDeltaY = 0; // clear before dismiss() so the leave transition isn't fighting a leftover inline transform
+                this.dismiss();
+                return;
+            }
+            // didn't clear the threshold — animate back to resting position. snapping (not
+            // dragDeltaY) is what gates the inline transition in the Blade partial, since
+            // dragDeltaY hitting 0 is exactly what's being animated *to*.
+            this.snapping = true;
+            requestAnimationFrame(() => { this.dragDeltaY = 0; });
+            setTimeout(() => { this.snapping = false; }, 240);
         },
     };
 };
