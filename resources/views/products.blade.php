@@ -43,7 +43,11 @@
         <div class="absolute bottom-10 -right-12 w-80 h-80 rounded-full bg-maroon-400/10 blur-3xl"></div>
     </div>
 
-    <div class="relative max-w-7xl mx-auto px-4 sm:px-6">
+    {{-- max-w-[1760px] matches the wide container used sitewide (see homepage sections) — this
+         page was still capped at the old, much narrower max-w-7xl (1280px), leaving large unused
+         margins on wide desktop screens even though everything else on the site already goes
+         wider. Doesn't affect mobile: the cap only kicks in once the viewport exceeds it. --}}
+    <div class="relative max-w-[1760px] mx-auto px-4 sm:px-8 lg:px-12">
         <nav class="text-sm text-maroon-500 flex items-center gap-2 mb-5">
             <a href="/" class="hover:text-gold-600 transition">{{ __('Home') }}</a>
             <span class="text-gold-400">✦</span>
@@ -125,7 +129,10 @@
 
             {{-- product grid --}}
             <div class="flex-1 min-w-0">
-                <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                {{-- extra column tiers (xl/2xl) are what actually use the wider container above —
+                     without them the same 3 columns would just stretch into oversized cards
+                     instead of showing more products per row --}}
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
                     @foreach ($products as $product)
                         <div x-show="visible({{ $product->id }})" :style="`order: ${orderOf({{ $product->id }})}`"
                              x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
