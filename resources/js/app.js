@@ -3300,6 +3300,33 @@ window.notificationsBell = function () {
     };
 };
 
+// top announcement strip (partials/navbar.blade.php) — rotates through a few taglines with a
+// split-flap/flip-clock style transition instead of sitting on one static line forever. `messages`
+// arrives already translated from Blade (@lang, same as every other string in that partial) so
+// this stays localizable — the one delivery-time message carries a literal "{time}" token instead
+// of a baked-in number, swapped for the live $store.shop.deliveryTimeMinutes value (kept fresh by
+// pollShopStatus()) in render() below, so it never goes stale like a value baked in at page load.
+window.announcementFlip = function (messages) {
+    return {
+        index: 0,
+        timer: null,
+        messages: messages || [],
+
+        init() {
+            if (this.messages.length < 2) return; // nothing to rotate to
+            this.timer = setInterval(() => {
+                this.index = (this.index + 1) % this.messages.length;
+            }, 4000);
+        },
+        destroy() {
+            clearInterval(this.timer);
+        },
+        render(message) {
+            return (message || '').replace('{time}', Alpine.store('shop').deliveryTimeMinutes || 20);
+        },
+    };
+};
+
 // single source of truth for the logged-in customer's display name, so editing it on the account
 // page (accountPage().saveName()) updates the navbar dropdown too, without a page reload
 Alpine.store('user', {

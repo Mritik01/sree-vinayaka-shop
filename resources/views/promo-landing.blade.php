@@ -4,11 +4,11 @@
     // rich-text HTML meant for the popup reads oddly as a hero subtitle (stray links, formatting
     // baked in for a small card) — strip it down to plain text here, same idea as
     // LegalController's meta-description treatment
-    $heroSubtitle = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($announcement->description ?? ''))));
-    $eyebrow = $announcement->landing_page_mode === 'discounted' ? __('🔥 Today\'s Best Deals') : __('✨ Handpicked For You');
+    $heroSubtitle = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags($announcementSetting->description ?? ''))));
+    $eyebrow = $announcementSetting->landing_page_mode === 'discounted' ? __('🔥 Today\'s Best Deals') : __('✨ Handpicked For You');
 @endphp
 
-@section('title', ($announcement->headline ?: __('Special Offer')).' — Shree Vinayak Family Shop')
+@section('title', ($announcementSetting->headline ?: __('Special Offer')).' — Shree Vinayak Family Shop')
 @section('description', $heroSubtitle ?: __('Explore our specially curated offers.'))
 
 @section('content')
@@ -26,8 +26,8 @@
             </nav>
 
             <div class="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-maroon-900 h-[280px] sm:h-[360px] lg:h-[440px] shadow-lg">
-                @if ($announcement->image_path)
-                    <img src="{{ asset($announcement->image_path) }}" alt="{{ $announcement->headline }}"
+                @if ($announcementSetting->image_path)
+                    <img src="{{ asset($announcementSetting->image_path) }}" alt="{{ $announcementSetting->headline }}"
                          fetchpriority="high" class="absolute inset-0 w-full h-full object-cover animate-kenburns">
                 @endif
                 <div class="absolute inset-0 bg-gradient-to-r from-maroon-900/90 via-maroon-900/55 to-transparent"></div>
@@ -38,7 +38,7 @@
                             {{ $eyebrow }}
                         </p>
                         <h1 class="animate-fade-up [animation-delay:250ms] font-display text-2xl sm:text-4xl lg:text-5xl font-bold text-cream leading-tight drop-shadow-md mb-2 sm:mb-4">
-                            {{ $announcement->headline ?: __('Special Offer') }}
+                            {{ $announcementSetting->headline ?: __('Special Offer') }}
                         </h1>
                         @if ($heroSubtitle)
                             <p class="animate-fade-up [animation-delay:400ms] text-sm sm:text-lg text-gold-100/90 mb-1">

@@ -15,13 +15,21 @@ class PromoLandingController extends Controller
 {
     public function show()
     {
-        $announcement = AnnouncementSetting::current();
+        $setting = AnnouncementSetting::current();
 
-        abort_unless($announcement->hasLandingPage(), 404);
+        abort_unless($setting->hasLandingPage(), 404);
 
         return view('promo-landing', [
-            'announcement' => $announcement,
-            'products' => $announcement->landingProducts(),
+            // NOT 'announcement' — AppServiceProvider does View::share('announcement', [camelCase
+            // array]) globally, for the site-wide popup partial (partials/announcement-banner.blade.php)
+            // included via the layout on every page, this one included. A same-named key passed to
+            // a specific view() call overrides the shared one for that whole render tree, which
+            // silently broke the popup here: its JS reads buttonText/image/showClose (camelCase),
+            // none of which exist on this raw model (button_text/image_path/show_close_button,
+            // snake_case) — headline/description happened to survive by pure name coincidence,
+            // everything else silently went undefined.
+            'announcementSetting' => $setting,
+            'products' => $setting->landingProducts(),
             'favoritedIds' => Auth::check() ? Auth::user()->favorites()->pluck('products.id')->all() : [],
         ]);
     }

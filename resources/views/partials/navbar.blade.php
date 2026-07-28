@@ -1,6 +1,30 @@
-{{-- Announcement bar --}}
-<div x-show="$store.shop.accepting" x-cloak class="bg-maroon-900 text-gold-100 text-xs sm:text-sm text-center py-2 px-4 font-medium tracking-wide">
-    ✨ {{ __('Fresh groceries delivered daily in Siswa Bazar — order online, pay cash on delivery') }}<span x-show="$store.shop.restricted" x-cloak> · 📍 {{ __('delivering within') }} <span x-text="$store.shop.radiusKm"></span> {{ __('km of Siswa Bazar only') }}</span>
+{{-- Announcement bar — rotates through a few taglines with a flip-clock style transition (see
+     window.announcementFlip in app.js). Messages are translated here, not in JS, so this stays
+     localizable like the rest of the page; the delivery-time one carries a literal "{time}" token
+     swapped client-side for the live $store.shop.deliveryTimeMinutes value. --}}
+<div x-data="announcementFlip([
+        {{ Illuminate\Support\Js::from('✨ '.__('Fresh groceries delivered daily in Siswa Bazar — order online, pay cash on delivery')) }},
+        {{ Illuminate\Support\Js::from('📦 '.__('Hundreds of products, fresh to your door — delivered in {time} mins')) }},
+        {{ Illuminate\Support\Js::from('💳 '.__('Order online or pay cash on delivery — your choice')) }},
+        {{ Illuminate\Support\Js::from('🛒 '.__('Groceries, snacks, dairy & household essentials — all in one place')) }},
+        {{ Illuminate\Support\Js::from('🚴 '.__('Fast local delivery, straight from Siswa Bazar')) }},
+     ])"
+     x-show="$store.shop.accepting" x-cloak
+     class="bg-maroon-900 text-gold-100 text-xs sm:text-sm text-center py-2 px-4 font-medium tracking-wide">
+    <span class="relative inline-flex h-8 sm:h-5 w-full items-center justify-center overflow-hidden align-middle" style="perspective: 400px;">
+        <template x-for="(msg, i) in messages" :key="i">
+            <span x-show="i === index" x-cloak
+                  x-transition:enter="transition duration-500 ease-out"
+                  x-transition:enter-start="opacity-0 [transform:rotateX(-100deg)]"
+                  x-transition:enter-end="opacity-100 [transform:rotateX(0deg)]"
+                  x-transition:leave="transition duration-500 ease-in"
+                  x-transition:leave-start="opacity-100 [transform:rotateX(0deg)]"
+                  x-transition:leave-end="opacity-0 [transform:rotateX(100deg)]"
+                  class="absolute inset-0 flex items-center justify-center px-2 text-center leading-snug sm:whitespace-nowrap [backface-visibility:hidden]"
+                  x-text="render(msg)"></span>
+        </template>
+    </span>
+    <span x-show="$store.shop.restricted" x-cloak> · 📍 {{ __('delivering within') }} <span x-text="$store.shop.radiusKm"></span> {{ __('km of Siswa Bazar only') }}</span>
 </div>
 <div x-show="!$store.shop.accepting" x-cloak class="bg-red-700 text-white text-xs sm:text-sm text-center py-2 px-4 font-semibold tracking-wide">
     🚫 {{ __("We're not accepting online orders right now — please check back soon. You can still browse our store!") }}

@@ -108,7 +108,14 @@ class AppServiceProvider extends ServiceProvider
                         // AnnouncementSetting::hasLandingPage(). This is the ONLY place that
                         // decision is made; the banner's own Blade/JS never need to know a
                         // landing page exists at all, they just follow whatever URL they're given.
-                        'buttonUrl' => $setting->hasLandingPage() ? route('promo.landing') : $setting->button_url,
+                        //
+                        // NOT route('promo.landing') — this provider is registered (config/app.php)
+                        // BEFORE RouteServiceProvider, so routes/web.php hasn't been loaded yet the
+                        // moment this boot() runs and route() throws RouteNotFoundException. That
+                        // got silently swallowed by the catch below, which hid the ENTIRE banner on
+                        // every request, not just the landing-page link — a plain literal path has
+                        // no such dependency and matches the /offer route registered in web.php.
+                        'buttonUrl' => $setting->hasLandingPage() ? '/offer' : $setting->button_url,
                         'image' => $setting->image_path ? asset($setting->image_path) : null,
                         'theme' => $setting->theme,
                         'backgroundColor' => $setting->background_color,
