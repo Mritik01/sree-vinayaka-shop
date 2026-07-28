@@ -24,7 +24,7 @@
                        class="group flex flex-col items-center gap-2 shrink-0 w-[74px] sm:w-24">
                         @if ($category->image_path)
                             <span class="w-[68px] h-[68px] sm:w-[88px] sm:h-[88px] rounded-full overflow-hidden bg-white border border-gold-200/70 shadow-sm group-hover:shadow-md group-hover:scale-105 transition duration-200">
-                                <img src="{{ asset($category->image_path) }}" alt="{{ $category->name }}" loading="lazy" class="w-full h-full object-cover">
+                                <img src="{{ asset($category->image_path) }}" alt="{{ $category->name }}" class="w-full h-full object-cover">
                             </span>
                         @else
                             <span class="w-[68px] h-[68px] sm:w-[88px] sm:h-[88px] rounded-full bg-gold-100 border border-gold-300/60 shadow-sm flex items-center justify-center font-display font-bold text-2xl text-gold-600 group-hover:shadow-md group-hover:scale-105 transition duration-200">

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Checkout — Shree Vinayak Family Shop')
+@section('title', 'Checkout — Shri Vinayak Family Shop')
 
 @section('content')
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>

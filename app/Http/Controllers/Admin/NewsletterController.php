@@ -11,7 +11,7 @@ class NewsletterController extends Controller
 {
     use PaginatesAdminLists;
 
-    // read-only list of emails captured by the homepage "Join the Shree Vinayak Parivaar" form
+    // read-only list of emails captured by the homepage "Join the Shri Vinayak Parivaar" form
     public function index(Request $request)
     {
         $query = NewsletterSubscriber::latest();

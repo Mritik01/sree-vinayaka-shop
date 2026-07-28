@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
-@section('title', 'Contact Us — Shree Vinayak Family Shop')
-@section('description', "Get in touch with Shree Vinayak Family Shop, Siswa Bazar's favourite grocery store — phone, WhatsApp, email, opening hours, and directions to our outlet.")
+@section('title', 'Contact Us — Shri Vinayak Family Shop')
+@section('description', "Get in touch with Shri Vinayak Family Shop, Siswa Bazar's favourite grocery store — phone, WhatsApp, email, opening hours, and directions to our outlet.")
 
 @php
     // same IST-hours logic as partials/visit-us.blade.php, kept in sync deliberately since both
@@ -25,7 +25,7 @@
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-start mt-10">
             <div class="mithai-frame relative overflow-hidden h-64 sm:h-80">
-                <img src="{{ asset('images/outlet/storefront.jpg') }}" alt="{{ __('Shree Vinayak Family Shop storefront in Siswa Bazar') }}" loading="lazy"
+                <img src="{{ asset('images/outlet/storefront.jpg') }}" alt="{{ __('Shri Vinayak Family Shop storefront in Siswa Bazar') }}" loading="lazy"
                      class="absolute inset-0 w-full h-full object-cover">
             </div>
 

@@ -43,9 +43,9 @@
         <tr>
             <td style="width: 60%; vertical-align: top;">
                 @if ($invoiceLogoDataUri)
-                    <img src="{{ $invoiceLogoDataUri }}" alt="Shree Vinayak Family Shop" style="height: 44px; margin-bottom: 6px;">
+                    <img src="{{ $invoiceLogoDataUri }}" alt="Shri Vinayak Family Shop" style="height: 44px; margin-bottom: 6px;">
                 @endif
-                <p class="shop-name">Shree Vinayak Family Shop</p>
+                <p class="shop-name">Shri Vinayak Family Shop</p>
                 <p class="shop-meta">
                     Roadways Bus Stand, Nichlaul Road, Siswa Bazar, Maharajganj, UP 273163<br>
                     @if ($businessPhone)
@@ -141,9 +141,9 @@
 
     <div class="footer-note">
         @if ($businessPhone)
-            Thank you for ordering from Shree Vinayak Family Shop! For any questions about this order, call us at {{ $businessPhone['display'] }}.<br>
+            Thank you for ordering from Shri Vinayak Family Shop! For any questions about this order, call us at {{ $businessPhone['display'] }}.<br>
         @else
-            Thank you for ordering from Shree Vinayak Family Shop!<br>
+            Thank you for ordering from Shri Vinayak Family Shop!<br>
         @endif
         This is a system-generated invoice and does not require a signature.
     </div>

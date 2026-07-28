@@ -16,7 +16,7 @@ class AdminSeeder extends Seeder
         Admin::updateOrCreate(
             ['username' => 'admin'],
             [
-                'name' => 'Shree Vinayak Admin',
+                'name' => 'Shri Vinayak Admin',
                 'email' => 'admin@vinayakfamilyshop.com',
                 'password' => Hash::make('admin123'),
                 'is_super_admin' => true,

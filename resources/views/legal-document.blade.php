@@ -3,7 +3,7 @@
 {{-- @section('name', $value) already runs $value through e() internally (see Laravel's
      ManagesLayouts::startSection()) — do NOT escape here or in the layout's @yield/yieldContent,
      or entities double-encode (confirmed: & became &amp;amp; before this was caught). --}}
-@section('title', $title.' — Shree Vinayak Family Shop')
+@section('title', $title.' — Shri Vinayak Family Shop')
 @section('description', $metaDescription)
 
 @section('content')

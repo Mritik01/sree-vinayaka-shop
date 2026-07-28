@@ -38,7 +38,7 @@
 
         {{-- left: image panel (hidden on mobile to keep the modal compact) — crossfades per step --}}
         <div class="hidden md:block relative overflow-hidden">
-            <img src="{{ asset('images/hero/banner-exnIbaGlUE-modal.jpg') }}" alt="Shopping the fresh aisles at Shree Vinayak Family Shop"
+            <img src="{{ asset('images/hero/banner-exnIbaGlUE-modal.jpg') }}" alt="Shopping the fresh aisles at Shri Vinayak Family Shop"
                  x-show="step === 'phone'"
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
@@ -48,7 +48,7 @@
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                  class="absolute inset-0 w-full h-full object-cover">
-            <img src="{{ asset('images/hero/banner-yUpBQHJTcf-modal.jpg') }}" alt="Friendly checkout at Shree Vinayak Family Shop"
+            <img src="{{ asset('images/hero/banner-yUpBQHJTcf-modal.jpg') }}" alt="Friendly checkout at Shri Vinayak Family Shop"
                  x-show="step === 'name'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
@@ -64,8 +64,8 @@
             <div class="relative z-10 h-full flex flex-col justify-end p-8">
                 <template x-if="step === 'phone'">
                     <div>
-                        <img src="{{ $businessLogo }}" alt="Shree Vinayak Family Shop" class="w-10 h-10 rounded-full bg-white/90 p-1 shadow-md mb-3 object-contain">
-                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2">Shree Vinayak Family Shop</p>
+                        <img src="{{ $businessLogo }}" alt="Shri Vinayak Family Shop" class="w-10 h-10 rounded-full bg-white/90 p-1 shadow-md mb-3 object-contain">
+                        <p class="text-gold-300 font-semibold tracking-widest uppercase text-xs mb-2">Shri Vinayak Family Shop</p>
                         <h3 class="font-display text-2xl font-bold text-cream leading-snug">{{ __('Welcome') }}</h3>
                         <p class="text-gold-100/80 text-sm mt-2">{{ __('Sign in or create your account in seconds — no password needed.') }}</p>
                     </div>

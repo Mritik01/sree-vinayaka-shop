@@ -26,7 +26,7 @@
     <table class="header-table">
         <tr>
             <td style="width: 60%; vertical-align: top;">
-                <p class="shop-name">Shree Vinayak Family Shop</p>
+                <p class="shop-name">Shri Vinayak Family Shop</p>
                 <p class="shop-meta">Platform Income Report — Super Admin Only</p>
             </td>
             <td style="width: 40%; vertical-align: top;">
@@ -76,6 +76,6 @@
         </tbody>
     </table>
 
-    <p class="footer-note">Shree Vinayak Family Shop · Internal financial document · Confidential</p>
+    <p class="footer-note">Shri Vinayak Family Shop · Internal financial document · Confidential</p>
 </body>
 </html>

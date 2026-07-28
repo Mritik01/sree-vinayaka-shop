@@ -1,8 +1,8 @@
 <footer id="contact" class="bg-maroon-900 text-cream">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 pt-10 pb-14">
         <div class="flex items-center gap-3 pb-8 border-b border-gold-300/20">
-            <img src="{{ $businessLogo }}" alt="Shree Vinayak Family Shop" class="h-14 w-14 shrink-0 rounded-full object-cover bg-white">
-            <span class="font-display text-2xl font-bold">Shree Vinayak <span class="text-gold-400">Family Shop</span></span>
+            <img src="{{ $businessLogo }}" alt="Shri Vinayak Family Shop" class="h-14 w-14 shrink-0 rounded-full object-cover bg-white">
+            <span class="font-display text-2xl font-bold">Shri Vinayak <span class="text-gold-400">Family Shop</span></span>
         </div>
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-10 pt-10">

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ __('Delivery Login') }} — Shree Vinayak Family Shop</title>
+    <title>{{ __('Delivery Login') }} — Shri Vinayak Family Shop</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -26,7 +26,7 @@
         </div>
 
         <div class="text-center mb-8">
-            <p class="font-display font-bold text-2xl text-cream">Shree Vinayak <span class="text-gold-400">Family Shop</span></p>
+            <p class="font-display font-bold text-2xl text-cream">Shri Vinayak <span class="text-gold-400">Family Shop</span></p>
             <p class="text-gold-200/70 text-sm mt-1">🛵 {{ __('Delivery Login') }}</p>
         </div>
 

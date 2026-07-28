@@ -474,7 +474,7 @@ class CheckoutController extends Controller
                     'order_id' => $razorpayOrder['id'],
                     'amount' => $razorpayOrder['amount'],
                     'currency' => $razorpayOrder['currency'],
-                    'name' => 'Shree Vinayak Family Shop',
+                    'name' => 'Shri Vinayak Family Shop',
                     'description' => $order->orderNumber(),
                     'prefill' => [
                         'name' => $data['customer_name'],

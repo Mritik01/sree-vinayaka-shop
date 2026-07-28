@@ -119,10 +119,10 @@
     <nav class="relative w-full px-3 sm:px-6 lg:px-10 py-2.5 sm:py-3">
         <div class="max-w-[1760px] mx-auto flex items-center justify-between gap-2 lg:gap-4">
         <a href="/" class="flex items-center gap-2 sm:gap-3 z-10 min-w-0 shrink-0">
-            <img src="{{ $businessLogo }}" alt="Shree Vinayak Family Shop" class="h-9 w-9 sm:h-11 sm:w-11 lg:h-12 lg:w-12 shrink-0 rounded-full object-cover bg-white">
+            <img src="{{ $businessLogo }}" alt="Shri Vinayak Family Shop" class="h-9 w-9 sm:h-11 sm:w-11 lg:h-12 lg:w-12 shrink-0 rounded-full object-cover bg-white">
             {{-- desktop-only stacked wordmark — hidden below sm so mobile shows just the logo icon --}}
             <span class="hidden sm:flex flex-col justify-center leading-tight min-w-0">
-                <span class="font-display text-sm lg:text-base font-bold tracking-wide text-gold-600 truncate">Shree Vinayak</span>
+                <span class="font-display text-sm lg:text-base font-bold tracking-wide text-gold-600 truncate">Shri Vinayak</span>
                 <span class="font-display text-sm lg:text-base font-bold tracking-wide text-maroon-800 truncate">{{ __('Family Shop') }}</span>
             </span>
         </a>
@@ -381,7 +381,7 @@
             <div class="absolute -bottom-10 left-8 w-24 h-24 rounded-full bg-gold-500/20 blur-2xl"></div>
             <div class="relative">
                 <p class="text-cream font-display font-bold text-xl">{{ __('Menu') }}</p>
-                <p class="text-cream/80 text-xs mt-0.5">{{ __('Grocery Store') }} · Shree Vinayak</p>
+                <p class="text-cream/80 text-xs mt-0.5">{{ __('Grocery Store') }} · Shri Vinayak</p>
             </div>
             <button @click="open = false" aria-label="Close menu"
                     class="relative w-9 h-9 rounded-full flex items-center justify-center text-cream/80 hover:text-cream bg-white/5 hover:bg-white/15 hover:rotate-90 transition-all duration-300">

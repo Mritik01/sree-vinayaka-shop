@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Admin') — Shree Vinayak Family Shop</title>
+    <title>@yield('title', 'Admin') — Shri Vinayak Family Shop</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
          x-data="adminNotifier({{ $latestOrderId }}, {{ request()->routeIs('admin.orders.index') ? 'true' : 'false' }})">
         <aside class="w-60 shrink-0 h-screen sticky top-0 bg-maroon-800 text-cream flex flex-col overflow-y-auto">
             <div class="px-6 py-6 border-b border-cream/10">
-                <p class="font-display font-bold text-lg">Shree Vinayak <span class="text-gold-400">Family Shop</span></p>
+                <p class="font-display font-bold text-lg">Shri Vinayak <span class="text-gold-400">Family Shop</span></p>
                 <p class="text-cream/50 text-xs mt-0.5">{{ __('Admin Panel') }}</p>
             </div>
             <nav class="flex-1 px-3 py-5 text-sm">

@@ -70,7 +70,7 @@
                 </div>
 
                 @if ($businessPhone)
-                    <a href="https://wa.me/91{{ $businessPhone['digits'] }}?text={{ rawurlencode(__('Hi! I would like to plan a gift box order with Shree Vinayak Family Shop.')) }}"
+                    <a href="https://wa.me/91{{ $businessPhone['digits'] }}?text={{ rawurlencode(__('Hi! I would like to plan a gift box order with Shri Vinayak Family Shop.')) }}"
                        target="_blank" rel="noopener" class="btn-gold mt-8">{{ __('Plan Your Order') }}</a>
                 @else
                     {{-- no contact number configured — fall back to browsing instead of a dead WhatsApp link --}}
@@ -89,7 +89,7 @@
                     <div class="mithai-frame absolute inset-0 bg-gradient-to-br from-maroon-400/40 to-gold-500/30 backdrop-blur-sm flex items-center justify-center overflow-visible">
                         <div class="absolute inset-0 rounded-2xl overflow-hidden">
                             <img src="{{ asset('images/promo/gift-box-showcase.jpg') }}"
-                                 alt="{{ __('Shree Vinayak Family Shop gift boxes with assorted treats') }}"
+                                 alt="{{ __('Shri Vinayak Family Shop gift boxes with assorted treats') }}"
                                  class="w-full h-full object-cover"
                                  loading="lazy">
                         </div>

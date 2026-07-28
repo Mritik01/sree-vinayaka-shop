@@ -8,7 +8,7 @@
     $eyebrow = $announcementSetting->landing_page_mode === 'discounted' ? __('🔥 Today\'s Best Deals') : __('✨ Handpicked For You');
 @endphp
 
-@section('title', ($announcementSetting->headline ?: __('Special Offer')).' — Shree Vinayak Family Shop')
+@section('title', ($announcementSetting->headline ?: __('Special Offer')).' — Shri Vinayak Family Shop')
 @section('description', $heroSubtitle ?: __('Explore our specially curated offers.'))
 
 @section('content')

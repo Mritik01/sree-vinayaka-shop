@@ -16,7 +16,7 @@
             <div class="relative transition-all duration-700 ease-out mb-6 md:mb-0"
                  :class="shown ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-6'">
                 <div class="mithai-frame h-72 sm:h-96 relative overflow-hidden group">
-                    <img src="{{ asset('images/outlet/storefront.jpg') }}" alt="{{ __('Shree Vinayak Family Shop storefront in Siswa Bazar') }}" loading="lazy"
+                    <img src="{{ asset('images/outlet/storefront.jpg') }}" alt="{{ __('Shri Vinayak Family Shop storefront in Siswa Bazar') }}" loading="lazy"
                          class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105">
                     <div class="absolute inset-0 bg-gradient-to-t from-maroon-900/60 via-transparent to-transparent"></div>
                 </div>

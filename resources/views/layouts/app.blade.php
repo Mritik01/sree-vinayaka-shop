@@ -41,12 +41,12 @@
             privacy: @json($privacyDoc ? ['title' => $privacyDoc->title, 'content' => $privacyDoc->content, 'updatedAt' => $privacyDoc->published_at->format('d M Y')] : null),
         };
     </script>
-    <title>@yield('title', 'Shree Vinayak Family Shop — No. 1 Grocery Store in Siswa Bazar')</title>
+    <title>@yield('title', 'Shri Vinayak Family Shop — No. 1 Grocery Store in Siswa Bazar')</title>
     {{-- plain @yield is correct here: @section('name', $value) already runs $value through e()
          internally (Laravel's ManagesLayouts::startSection()), so by the time this yields, a
          literal " in a per-page description is already &quot; — wrapping this in another {{ }}
          would escape it a second time (confirmed: & became &amp;amp; before this was caught). --}}
-    <meta name="description" content="@yield('description', "Shree Vinayak Family Shop, Siswa Bazar's favourite grocery store, now delivering fresh groceries to your doorstep.")">
+    <meta name="description" content="@yield('description', "Shri Vinayak Family Shop, Siswa Bazar's favourite grocery store, now delivering fresh groceries to your doorstep.")">
 
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">

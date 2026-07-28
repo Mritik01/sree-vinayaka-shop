@@ -244,7 +244,7 @@
                     <div class="absolute inset-0 opacity-15" style="background-image: radial-gradient(circle, #fcd34d 1.5px, transparent 1.5px); background-size: 18px 18px;"></div>
                     <span class="relative inline-block text-6xl drop-shadow animate-track-pop">🎉</span>
                     <p class="relative font-display font-bold text-2xl text-gold-300 mt-4">{{ __('Delivered — Enjoy!') }}</p>
-                    <p class="relative text-cream/90 mt-1.5 font-medium">{{ __('Hope every bite tastes like home. Thank you for ordering from Shree Vinayak!') }}</p>
+                    <p class="relative text-cream/90 mt-1.5 font-medium">{{ __('Hope every bite tastes like home. Thank you for ordering from Shri Vinayak!') }}</p>
                     <div class="relative flex items-center justify-center gap-3 mt-5 flex-wrap">
                         {{-- primary CTA — only shows when this order has at least one ratable
                              product (non-removed, still pointing at a live product). Label swaps
@@ -677,7 +677,7 @@
                 <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle, #fcd34d 1.5px, transparent 1.5px); background-size: 16px 16px;"></div>
                 <span class="relative w-10 h-10 shrink-0 rounded-full bg-gold-500 grid place-items-center text-xl shadow-inner">🍬</span>
                 <div class="relative min-w-0 flex-1">
-                    <p class="font-display font-semibold text-cream leading-tight">{{ __('Shree Vinayak Support') }}</p>
+                    <p class="font-display font-semibold text-cream leading-tight">{{ __('Shri Vinayak Support') }}</p>
                     <p class="text-[11px] text-cream/70 truncate">{{ $order->orderNumber() }} · {{ __('we usually reply in a few minutes') }}</p>
                 </div>
                 <div class="relative flex items-center gap-0.5 shrink-0">

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'My Account — Shree Vinayak Family Shop')
+@section('title', 'My Account — Shri Vinayak Family Shop')
 
 @section('content')
 <section class="relative py-8 sm:py-12 bg-ivory min-h-[80vh]">

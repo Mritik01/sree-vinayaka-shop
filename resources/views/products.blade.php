@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Shop All Products — Shree Vinayak Family Shop')
+@section('title', 'Shop All Products — Shri Vinayak Family Shop')
 
 @section('content')
 @php

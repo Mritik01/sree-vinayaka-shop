@@ -111,7 +111,7 @@ class ProductSeeder extends Seeder
             [
                 'name' => 'Kalakand',
                 'category' => 'Sweets',
-                'description' => "Grainy milk-solid fudge set soft and studded with pistachio. Rich, milky and not too sweet — a Shree Vinayak household favourite.",
+                'description' => "Grainy milk-solid fudge set soft and studded with pistachio. Rich, milky and not too sweet — a Shri Vinayak household favourite.",
                 'price' => 300, 'weight' => '300g', 'tag' => 'Milk Cake',
                 'image' => 'images/products/kalakand.jpg', 'color' => '#8a1c2b', 'sort_order' => 11,
             ],

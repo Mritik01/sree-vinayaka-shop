@@ -7,7 +7,7 @@
          x-show="!accepted" x-transition:enter="transition duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100">
         <div class="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-2xl shadow-md">📜</div>
         <h2 class="font-display font-bold text-xl text-maroon-800 mt-4">{{ __("We've updated our policies") }}</h2>
-        <p class="text-maroon-500 text-sm mt-2">{{ __('Please review and accept the latest Terms & Conditions and Privacy Policy to continue using Shree Vinayak Family Shop.') }}</p>
+        <p class="text-maroon-500 text-sm mt-2">{{ __('Please review and accept the latest Terms & Conditions and Privacy Policy to continue using Shri Vinayak Family Shop.') }}</p>
 
         <div class="mt-5 text-left">
             <label class="flex items-start gap-2.5 cursor-pointer">

@@ -17,7 +17,7 @@
             <div class="relative z-10 text-center md:text-left transition-all duration-700 ease-out"
                  :class="shown ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'">
                 <p class="text-gold-600 font-semibold tracking-widest uppercase text-sm mb-3">{{ __('Stay in Touch') }}</p>
-                <h2 class="font-display text-3xl sm:text-5xl font-bold text-maroon-900 leading-tight">{{ __('Join the Shree Vinayak Parivaar') }}</h2>
+                <h2 class="font-display text-3xl sm:text-5xl font-bold text-maroon-900 leading-tight">{{ __('Join the Shri Vinayak Parivaar') }}</h2>
                 <p class="text-maroon-500 mt-4">{{ __('Be the first to hear about new arrivals, special offers, and seasonal treats.') }}</p>
 
                 <form x-data="{
@@ -79,7 +79,7 @@
                 <div class="relative w-56 h-56 sm:w-72 sm:h-72 rotate-2">
                     <div class="absolute inset-0 rounded-[1.75rem] bg-gradient-to-br from-gold-400 to-maroon-600 rotate-3"></div>
                     <div class="absolute inset-0 rounded-[1.75rem] overflow-hidden ring-4 ring-white shadow-xl -rotate-1">
-                        <img src="{{ asset('images/promo/gift-box-showcase.jpg') }}" alt="{{ __('Shree Vinayak gift box') }}" loading="lazy"
+                        <img src="{{ asset('images/promo/gift-box-showcase.jpg') }}" alt="{{ __('Shri Vinayak gift box') }}" loading="lazy"
                              class="w-full h-full object-cover">
                     </div>
                     <span class="absolute -bottom-3 -left-3 w-14 h-14 rounded-full bg-white shadow-lg flex items-center justify-center text-2xl -rotate-6">🎁</span>

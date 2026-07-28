@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', __('Account Restricted') . ' — Shree Vinayak Family Shop')
+@section('title', __('Account Restricted') . ' — Shri Vinayak Family Shop')
 
 @section('content')
     <div class="relative min-h-[75vh] flex items-center justify-center px-5 py-14 overflow-hidden">

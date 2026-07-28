@@ -22,7 +22,7 @@
                        class="group flex flex-col items-center gap-1.5 shrink-0 w-[76px] sm:w-24">
                         <span class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white border border-gold-200/70 shadow-sm flex items-center justify-center p-2 group-hover:shadow-md group-hover:border-gold-300 group-hover:-translate-y-0.5 transition duration-200">
                             @if ($fc->image_path)
-                                <img src="{{ asset($fc->image_path) }}" alt="{{ $fc->name }}" loading="lazy" class="w-full h-full object-contain">
+                                <img src="{{ asset($fc->image_path) }}" alt="{{ $fc->name }}" class="w-full h-full object-contain">
                             @else
                                 <span class="text-xl font-display font-bold text-gold-600">{{ mb_strtoupper(mb_substr($fc->name, 0, 1)) }}</span>
                             @endif

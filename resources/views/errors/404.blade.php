@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ __('Page Not Found') }} — Shree Vinayak Family Shop</title>
+    <title>{{ __('Page Not Found') }} — Shri Vinayak Family Shop</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32x32.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,9 +26,9 @@
          a genuine error page has no business depending on --}}
     <header class="relative z-10 px-5 sm:px-8 py-5">
         <a href="{{ url('/') }}" class="inline-flex items-center gap-2.5">
-            <img src="{{ $businessLogo ?? asset('images/logo-circle.png') }}" alt="Shree Vinayak Family Shop" class="h-9 w-9 sm:h-10 sm:w-10 rounded-full object-cover bg-white">
+            <img src="{{ $businessLogo ?? asset('images/logo-circle.png') }}" alt="Shri Vinayak Family Shop" class="h-9 w-9 sm:h-10 sm:w-10 rounded-full object-cover bg-white">
             <span class="font-display font-bold text-base sm:text-lg">
-                <span class="text-gold-600">Shree Vinayak</span> <span class="text-maroon-800">Family Shop</span>
+                <span class="text-gold-600">Shri Vinayak</span> <span class="text-maroon-800">Family Shop</span>
             </span>
         </a>
     </header>
@@ -88,7 +88,7 @@
         @include('partials.trim', ['fill' => '#3a0b12'])
     </div>
     <footer class="relative bg-maroon-800 text-cream/70 text-center text-xs sm:text-sm py-5 px-5">
-        {{ __('Shree Vinayak Family Shop') }} · {{ __("Siswa Bazar's favourite grocery store since generations") }}
+        {{ __('Shri Vinayak Family Shop') }} · {{ __("Siswa Bazar's favourite grocery store since generations") }}
     </footer>
 </body>
 </html>

@@ -144,7 +144,7 @@
              previewStyle(), never touching the surrounding admin page's own styling --}}
         <div class="mt-5 rounded-xl border border-gold-200/60 overflow-hidden" :style="previewStyle()">
             <div class="px-4 py-3 flex items-center justify-between" style="background-color: rgb(var(--color-maroon-900))">
-                <span class="font-display font-bold text-sm" style="color: rgb(var(--color-gold-400))">Shree Vinayak <span style="color: white">Family Shop</span></span>
+                <span class="font-display font-bold text-sm" style="color: rgb(var(--color-gold-400))">Shri Vinayak <span style="color: white">Family Shop</span></span>
                 <span class="text-xs px-2 py-1 rounded-full" style="background-color: rgb(var(--color-gold-500)); color: rgb(var(--color-maroon-900))">Cart (2)</span>
             </div>
             <div class="p-4" style="background-color: rgb(var(--color-maroon-50))">

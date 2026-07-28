@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $order->orderNumber() . ' — Shree Vinayak Family Shop')
+@section('title', $order->orderNumber() . ' — Shri Vinayak Family Shop')
 
 @section('content')
 <section class="relative py-8 sm:py-14 bg-ivory min-h-[80vh] overflow-hidden">

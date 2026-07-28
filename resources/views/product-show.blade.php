@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $product->name.' — Shree Vinayak Family Shop')
+@section('title', $product->name.' — Shri Vinayak Family Shop')
 
 @section('content')
 @php
