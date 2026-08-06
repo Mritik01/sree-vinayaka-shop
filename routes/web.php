@@ -149,22 +149,16 @@ Route::get('/', function () {
     $homepageGridLimit = 30;
 
     // powers the homepage's category-tabbed shop section (partials/category-shop.blade.php):
-    // one bucket per active category that actually has products — pre-rendered server-side and
-    // toggled client-side via x-show, same "render every bucket, no fetch" approach the old
-    // shop-by-range/product-slider filter already used on this page
-    $categoryTabs = Category::where('is_active', true)->orderBy('sort_order')->get()
-        ->map(function ($category) use ($homepageGridLimit) {
-            $query = $category->products()
-                ->withAvg('reviews', 'rating')->withCount('reviews')
-                ->orderBy('sort_order');
-
-            return [
-                'category' => $category,
-                'total' => (clone $query)->count(),
-                'products' => $query->limit($homepageGridLimit)->get(),
-            ];
-        })
-        ->filter(fn ($tab) => $tab['products']->isNotEmpty())
+    // one tab per active category that actually has products. Only the tab strip (icon + name)
+    // renders here — each tab's product grid is fetched on first click via the '/category-shop/
+    // {category}' route below instead of every category's full grid shipping on every homepage
+    // load (was up to 30 products × every active category, all sitting in the DOM behind
+    // x-show — see categoryShop()'s loadTab() in app.js).
+    $categoryTabs = Category::where('is_active', true)->orderBy('sort_order')
+        ->withCount('products')
+        ->get()
+        ->filter(fn ($category) => $category->products_count > 0)
+        ->map(fn ($category) => ['category' => $category])
         ->values();
 
     // admin-curated Featured Categories shortcut row — dropped automatically if none of a
@@ -193,6 +187,25 @@ Route::get('/', function () {
         'favoritedIds' => Auth::check() ? Auth::user()->favorites()->pluck('products.id')->all() : [],
     ]);
 });
+
+// lazy-loaded product grid for one homepage category tab (see the '/' route above and
+// categoryShop()'s loadTab() in app.js) — same query shape as the Top Picks grid, just scoped to
+// a single category and fetched only the first time a shopper actually opens that tab.
+Route::get('/category-shop/{category:slug}', function (Category $category) {
+    abort_unless($category->is_active, 404);
+
+    $query = $category->products()
+        ->withAvg('reviews', 'rating')->withCount('reviews')
+        ->orderBy('sort_order');
+
+    return view('partials.category-shop-tab-grid', [
+        'tab' => [
+            'category' => $category,
+            'total' => (clone $query)->count(),
+            'products' => $query->limit(30)->get(),
+        ],
+    ]);
+})->name('home.category-shop-tab');
 
 Route::get('/products', function () {
     $products = Product::withAvg('reviews', 'rating')->withCount('reviews')

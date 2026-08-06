@@ -36,24 +36,32 @@
             </svg>
         </button>
 
-        {{-- left: image panel (hidden on mobile to keep the modal compact) — crossfades per step --}}
+        {{-- left: image panel (hidden on mobile to keep the modal compact) — crossfades per step.
+             :src stays unset until imagesRevealed flips true (app.js, on first authOpen) — a
+             plain src here would download all 4 photos on every homepage load for a modal most
+             first-time visitors never open, x-cloak notwithstanding (it only hides the element,
+             it doesn't stop the browser from fetching a real src attribute). --}}
         <div class="hidden md:block relative overflow-hidden">
-            <img src="{{ asset('images/hero/banner-exnIbaGlUE-modal.jpg') }}" alt="Shopping the fresh aisles at Shri Vinayak Family Shop"
+            <img :src="imagesRevealed ? {{ Illuminate\Support\Js::from(asset('images/hero/banner-exnIbaGlUE-modal.jpg')) }} : false" alt="Shopping the fresh aisles at Shri Vinayak Family Shop"
+                 loading="lazy"
                  x-show="step === 'phone'"
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                  class="absolute inset-0 w-full h-full object-cover">
-            <img src="{{ asset('images/hero/banner-sAegtFjyqV-modal.jpg') }}" alt="Fresh grocery delivery at your doorstep"
+            <img :src="imagesRevealed ? {{ Illuminate\Support\Js::from(asset('images/hero/banner-sAegtFjyqV-modal.jpg')) }} : false" alt="Fresh grocery delivery at your doorstep"
+                 loading="lazy"
                  x-show="step === 'otp'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                  class="absolute inset-0 w-full h-full object-cover">
-            <img src="{{ asset('images/hero/banner-yUpBQHJTcf-modal.jpg') }}" alt="Friendly checkout at Shri Vinayak Family Shop"
+            <img :src="imagesRevealed ? {{ Illuminate\Support\Js::from(asset('images/hero/banner-yUpBQHJTcf-modal.jpg')) }} : false" alt="Friendly checkout at Shri Vinayak Family Shop"
+                 loading="lazy"
                  x-show="step === 'name'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
                  class="absolute inset-0 w-full h-full object-cover">
-            <img src="{{ asset('images/hero/banner-tdvBY0SAU3-modal.jpg') }}" alt="Grocery order delivered fresh to your door"
+            <img :src="imagesRevealed ? {{ Illuminate\Support\Js::from(asset('images/hero/banner-tdvBY0SAU3-modal.jpg')) }} : false" alt="Grocery order delivered fresh to your door"
+                 loading="lazy"
                  x-show="step === 'success'" x-cloak
                  x-transition:enter="transition ease-out duration-500" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
                  x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"

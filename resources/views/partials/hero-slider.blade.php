@@ -40,13 +40,30 @@
                             // dark scrim only makes sense when there's actually text sitting on it
                             $hasOverlayText = $banner->eyebrow || $banner->title || $banner->subtitle || $banner->button_text;
                         @endphp
-                        <img src="{{ asset($banner->image_path) }}" alt="{{ $banner->title ?: $banner->eyebrow ?: 'Hero banner' }}"
-                             @if ($hasMobileVariant && $fullSize && $mobileSize)
-                                 srcset="{{ asset($mobilePath) }} {{ $mobileSize[0] }}w, {{ asset($banner->image_path) }} {{ $fullSize[0] }}w"
-                                 sizes="100vw"
-                             @endif
-                             @if ($i === 0) fetchpriority="high" @else loading="lazy" @endif
-                             class="absolute inset-0 w-full h-full object-cover animate-kenburns">
+                        {{-- slide 0 (the LCP element) ships a real src/srcset straight away. Every
+                             other slide withholds its src/srcset until Alpine's revealed[i] flips
+                             true (see heroSlider() in app.js) — a plain :src="false" makes Alpine
+                             drop the attribute entirely, so the browser makes zero requests for
+                             hidden slides on first load instead of a multi-banner carousel
+                             competing with the actual LCP image for bandwidth. --}}
+                        @if ($i === 0)
+                            <img src="{{ asset($banner->image_path) }}" alt="{{ $banner->title ?: $banner->eyebrow ?: 'Hero banner' }}"
+                                 @if ($hasMobileVariant && $fullSize && $mobileSize)
+                                     srcset="{{ asset($mobilePath) }} {{ $mobileSize[0] }}w, {{ asset($banner->image_path) }} {{ $fullSize[0] }}w"
+                                     sizes="100vw"
+                                 @endif
+                                 fetchpriority="high"
+                                 class="absolute inset-0 w-full h-full object-cover animate-kenburns">
+                        @else
+                            <img :src="revealed[{{ $i }}] ? {{ Illuminate\Support\Js::from(asset($banner->image_path)) }} : false"
+                                 alt="{{ $banner->title ?: $banner->eyebrow ?: 'Hero banner' }}"
+                                 @if ($hasMobileVariant && $fullSize && $mobileSize)
+                                     :srcset="revealed[{{ $i }}] ? {{ Illuminate\Support\Js::from(asset($mobilePath).' '.$mobileSize[0].'w, '.asset($banner->image_path).' '.$fullSize[0].'w') }} : false"
+                                     sizes="100vw"
+                                 @endif
+                                 loading="lazy"
+                                 class="absolute inset-0 w-full h-full object-cover animate-kenburns">
+                        @endif
 
                         @if ($hasOverlayText)
                             {{-- warm maroon scrim keeps any uploaded photo legible behind the text —

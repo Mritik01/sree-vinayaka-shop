@@ -27,7 +27,7 @@
 
             {{-- photo --}}
             <div class="relative">
-                <img src="{{ asset('images/promo/wedding-promo.jpg') }}" alt="Newlywed couple presenting a Shri Vinayak Family Shop gift box" class="w-full h-40 sm:h-48 object-cover object-[center_30%]">
+                <img :src="imageRevealed ? {{ Illuminate\Support\Js::from(asset('images/promo/wedding-promo.jpg')) }} : false" alt="Newlywed couple presenting a Shri Vinayak Family Shop gift box" loading="lazy" class="w-full h-40 sm:h-48 object-cover object-[center_30%]">
                 <div class="absolute inset-0 bg-gradient-to-t from-maroon-900/30 to-transparent"></div>
 
                 <button @click="dismiss()" aria-label="Close"

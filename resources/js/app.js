@@ -38,8 +38,17 @@ window.heroSlider = function (slideCount) {
         autoplayMs: 5000,
         timer: null,
         paused: false,
+        // only slide 0's <img> ships a real src/srcset server-side (it's the page's LCP
+        // element) — every other slide withholds its src until revealed here (see the :src
+        // binding in hero-slider.blade.php), so a multi-banner carousel doesn't compete with
+        // the visible slide's image for bandwidth on first load. The upcoming slide is revealed
+        // as soon as we land on the current one, so autoplay's dwell time doubles as a loading
+        // buffer instead of flashing blank on transition; goTo()/prev() reveal on demand since
+        // there's no way to predict which slide a manual click lands on.
+        revealed: { 0: true },
 
         init() {
+            this.revealed[(this.active + 1) % this.slides] = true;
             this.startAutoplay();
         },
         startAutoplay() {
@@ -49,12 +58,16 @@ window.heroSlider = function (slideCount) {
         },
         next() {
             this.active = (this.active + 1) % this.slides;
+            this.revealed[this.active] = true;
+            this.revealed[(this.active + 1) % this.slides] = true;
         },
         prev() {
             this.active = (this.active - 1 + this.slides) % this.slides;
+            this.revealed[this.active] = true;
         },
         goTo(i) {
             this.active = i;
+            this.revealed[this.active] = true;
         },
     };
 };
@@ -202,11 +215,19 @@ window.promoPopup = function () {
         resendCooldown: 0,
         resendTimer: null,
         devOtp: '',
+        // the popup's photo stays unset until promoOpen actually flips true — a plain src would
+        // otherwise fetch it during the same 0-1.4s window the hero image needs uncontested for
+        // LCP, and a returning visitor (mb_promo_dismissed set) never opens this popup at all so
+        // never needs the image in the first place.
+        imageRevealed: false,
 
         init() {
             if (!localStorage.getItem('mb_promo_dismissed')) {
                 setTimeout(() => { this.promoOpen = true; }, 1400);
             }
+            this.$watch('promoOpen', (isOpen) => {
+                if (isOpen) this.imageRevealed = true;
+            });
         },
         dismiss() {
             this.promoOpen = false;
@@ -311,9 +332,15 @@ window.authModal = function () {
         welcomeName: '',
         agreeTerms: false,
         nameSubmitted: false,
+        // the modal's 4 decorative step photos (auth-modal.blade.php) start with no src at all
+        // (x-cloak alone doesn't stop the browser from fetching a plain <img src>, so a modal
+        // most first-time visitors never open was still shipping ~400KB of images on every
+        // homepage load) — revealed once, the first time the modal actually opens.
+        imagesRevealed: false,
 
         init() {
             this.$watch('authOpen', (isOpen) => {
+                if (isOpen) this.imagesRevealed = true;
                 if (!isOpen) this.resetState();
             });
         },
@@ -615,10 +642,11 @@ window.featuredCategoryRow = function () {
     return scrollArrows(240);
 };
 
-// category-tabbed shop section (partials/category-shop.blade.php) — a "Top Picks" tab plus one
-// per category, each with a pre-rendered product grid swapped via activeTab (no fetch; every
-// grid is already in the DOM, see the home route's $categoryTabs). The tab strip reuses the same
-// overflow-arrow behavior as categoryRow() above.
+// category-tabbed shop section (partials/category-shop.blade.php) — a "Top Picks" tab (always
+// pre-rendered — see the home route) plus one per category, each fetched on first click via
+// loadTab() below and cached in loadedTabs for the rest of the visit instead of every category's
+// full grid shipping on every homepage load. The tab strip reuses the same overflow-arrow
+// behavior as categoryRow() above.
 window.categoryShop = function (isLoggedIn, initialFavorites) {
     const base = scrollArrows(220);
 
@@ -631,8 +659,27 @@ window.categoryShop = function (isLoggedIn, initialFavorites) {
         autoScrollStopped: false,
         gridCanLeft: false,
         gridCanRight: false,
+        loadedTabs: new Set(['top-picks']),
         isFavorited(id) {
             return this.favorites.includes(id);
+        },
+        // fetches a category tab's product grid the first time it's opened and swaps it into
+        // its x-ref="tabpanel-{slug}" placeholder (starts out showing a skeleton — see
+        // category-shop.blade.php). Alpine.initTree() is required here: setting innerHTML alone
+        // doesn't hydrate the x-data/@click/x-show bindings on the newly-inserted product cards.
+        loadTab(slug) {
+            if (this.loadedTabs.has(slug)) return;
+            this.loadedTabs.add(slug);
+            const el = this.$refs['tabpanel-' + slug];
+            if (!el) return;
+            fetch(`/category-shop/${slug}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then((r) => (r.ok ? r.text() : Promise.reject()))
+                .then((html) => {
+                    el.innerHTML = html;
+                    Alpine.initTree(el);
+                    this.$nextTick(() => this.updateGridArrows());
+                })
+                .catch(() => this.loadedTabs.delete(slug));
         },
         async toggleFavorite(id) {
             if (!this.isLoggedIn) {
