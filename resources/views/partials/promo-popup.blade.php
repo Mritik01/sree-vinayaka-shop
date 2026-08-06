@@ -61,7 +61,7 @@
                                     </svg>
                                 </span>
                                 <input type="text" x-model="name" required placeholder="Aapka Naam"
-                                    class="w-full rounded-full bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 pl-12 pr-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400">
+                                    class="w-full rounded-full bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 pl-12 pr-4 py-3.5 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-gold-400">
                             </div>
                             <div class="relative">
                                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-maroon-400">
@@ -70,7 +70,7 @@
                                     </svg>
                                 </span>
                                 <input type="tel" x-model="phone" required placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" pattern="[0-9]*"
-                                    class="w-full rounded-full bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 pl-12 pr-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400">
+                                    class="w-full rounded-full bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 pl-12 pr-4 py-3.5 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-gold-400">
                             </div>
 
                             <p x-show="error" x-cloak x-text="error" class="text-xs text-maroon-600 font-medium"></p>

@@ -51,12 +51,12 @@
                             <div>
                                 <label class="block text-sm font-medium text-maroon-700 mb-1.5">{{ __('Name') }}</label>
                                 <input type="text" x-model="customerName" placeholder="{{ __('Who is this order for?') }}"
-                                       class="w-full rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                       class="w-full rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-base sm:text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-maroon-700 mb-1.5">{{ __('Phone') }}</label>
                                 <input type="tel" x-model="customerPhone" maxlength="10" inputmode="numeric" placeholder="{{ __('10-digit mobile number') }}"
-                                       class="w-full rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                       class="w-full rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-base sm:text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
                             </div>
                         </div>
                     </div>
@@ -106,12 +106,12 @@
 
                             <label class="block text-sm font-medium text-maroon-700 mb-1.5">{{ __('Label') }} <span class="text-maroon-400 font-normal">({{ __('optional') }})</span></label>
                             <input type="text" x-model="newAddressLabel" placeholder="{{ __('e.g. Home, Work') }}"
-                                   class="w-full rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                   class="w-full rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-base sm:text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
 
                             <label class="block text-sm font-medium text-maroon-700 mb-1.5 mt-3">{{ __('Delivery Address') }}</label>
                             <textarea x-model="newAddressText" @input="checkoutError = ''" rows="3"
                                       placeholder="{{ __('House / shop, street, landmark, village or town') }}"
-                                      class="w-full rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition"></textarea>
+                                      class="w-full rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-base sm:text-sm text-maroon-800 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition"></textarea>
 
                             {{-- live delivery-area status (only when the Siswa Bazar-only restriction is on) --}}
                             <div x-show="$store.shop.restricted" x-cloak class="mt-3">
@@ -271,7 +271,7 @@
                                 <form @submit.prevent="applyCoupon()" class="flex gap-2">
                                     <input type="text" x-model="couponCode" @input="couponError = ''"
                                            placeholder="{{ __('Coupon code') }}" autocomplete="off"
-                                           class="flex-1 min-w-0 rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-sm text-maroon-800 placeholder-maroon-300 uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                                           class="flex-1 min-w-0 rounded-lg border border-gold-300/70 bg-cream/60 px-3 py-2.5 text-base sm:text-sm text-maroon-800 placeholder-maroon-300 uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
                                     <button type="submit" :disabled="applyingCoupon || !couponCode.trim()"
                                             class="shrink-0 rounded-lg border border-gold-500 text-gold-600 hover:bg-gold-500 hover:text-cream font-semibold text-sm px-4 py-2 transition disabled:opacity-40 disabled:cursor-not-allowed"
                                             x-text='applyingCoupon ? @json(__('Applying…')) : @json(__('Apply'))'></button>

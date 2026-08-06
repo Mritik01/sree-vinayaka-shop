@@ -110,7 +110,7 @@
                         <div>
                             <label class="block text-sm font-medium text-maroon-700 mb-1.5">{{ __('Phone Number') }}</label>
                             <input type="tel" x-model="phone" required maxlength="10" inputmode="numeric" pattern="[0-9]*" placeholder="{{ __('10-digit mobile number') }}" autofocus
-                                class="w-full rounded-xl bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400">
+                                class="w-full rounded-xl bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 px-4 py-3 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-gold-400">
                         </div>
 
                         <p x-show="error" x-cloak x-text="error" class="text-xs text-maroon-600 font-medium"></p>
@@ -174,7 +174,7 @@
                         <div>
                             <label class="block text-sm font-medium text-maroon-700 mb-1.5 text-center">{{ __('What should we call you?') }}</label>
                             <input type="text" x-model="name" required maxlength="100" placeholder="{{ __('Your name') }}" autofocus
-                                class="w-full rounded-xl bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 px-4 py-3 text-sm text-center focus:outline-none focus:ring-2 focus:ring-gold-400">
+                                class="w-full rounded-xl bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 px-4 py-3 text-base sm:text-sm text-center focus:outline-none focus:ring-2 focus:ring-gold-400">
                         </div>
 
                         <div>

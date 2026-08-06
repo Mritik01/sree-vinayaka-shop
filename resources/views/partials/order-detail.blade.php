@@ -391,7 +391,7 @@
                     <div>
                         <textarea x-model="noteDraft" rows="2" maxlength="500"
                                   placeholder="{{ __('e.g. Call when you arrive, less sugar, leave with the neighbour…') }}"
-                                  class="mt-3 w-full rounded-xl border border-gold-300/70 px-3.5 py-2.5 text-sm text-maroon-800 placeholder-maroon-400/50 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition resize-none"></textarea>
+                                  class="mt-3 w-full rounded-xl border border-gold-300/70 px-3.5 py-2.5 text-base sm:text-sm text-maroon-800 placeholder-maroon-400/50 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition resize-none"></textarea>
                         <p x-show="noteError" x-cloak class="text-red-600 text-xs mt-1.5" x-text="noteError"></p>
                         <div class="flex items-center gap-3 mt-2">
                             <button @click="saveNote()" :disabled="savingNote || noteDraft === (order.customer_note || '')" type="button"
@@ -460,7 +460,7 @@
                     <p class="text-sm text-maroon-500 mt-1">{{ __("The sweets won't be prepared and nothing is charged.") }}</p>
                     <label class="block text-xs font-medium text-maroon-500 mt-3 mb-1.5">{{ __('Reason (optional) — helps the shop improve') }}</label>
                     <input type="text" x-model="cancelReason" maxlength="255" placeholder="{{ __('e.g. Ordered by mistake, found it cheaper elsewhere…') }}"
-                           class="w-full rounded-lg border border-gold-300/70 px-3.5 py-2 text-sm text-maroon-800 placeholder-maroon-400/50 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                           class="w-full rounded-lg border border-gold-300/70 px-3.5 py-2 text-base sm:text-sm text-maroon-800 placeholder-maroon-400/50 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
                     <p x-show="cancelError" x-cloak class="text-red-600 text-sm mt-2" x-text="cancelError"></p>
                     <div class="flex items-center gap-3 mt-4">
                         <button @click="cancelOrder()" :disabled="cancelling" type="button"

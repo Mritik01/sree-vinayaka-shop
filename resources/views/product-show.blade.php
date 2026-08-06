@@ -141,20 +141,37 @@
                             </div>
                         </div>
                     @else
-                    <p class="text-sm font-semibold text-maroon-800 mb-2">{{ __('Select Quantity') }}</p>
-                    <div class="flex items-stretch gap-3">
-                        <div class="flex items-center gap-3 bg-white rounded-full border border-gold-300/60 px-3 shadow-sm">
-                            <button @click="decrement()" aria-label="Decrease quantity" class="w-8 h-8 rounded-full hover:bg-gold-50 text-maroon-700 font-bold text-lg transition">−</button>
-                            <span class="w-6 text-center font-semibold text-maroon-800" x-text="quantity"></span>
-                            <button @click="increment()" aria-label="Increase quantity" class="w-8 h-8 rounded-full hover:bg-gold-50 text-maroon-700 font-bold text-lg transition">+</button>
+                    {{-- "Select Quantity" only makes sense before the first Add to Cart — it
+                         picks how many go in on that click. Once the product is in the cart, the
+                         picker has nothing left to feed (the Add to Cart button is gone), so it's
+                         replaced entirely by the live "− N +" stepper used on product cards
+                         sitewide (see product-card-mini.blade.php), driven by the same
+                         cartQty()/stepCartQty() helpers in app.js — reads live off the shared
+                         cart store, and IS the quantity control from that point on. --}}
+                    <template x-if="cartQty({{ $product->id }}) === 0">
+                        <div>
+                            <p class="text-sm font-semibold text-maroon-800 mb-2">{{ __('Select Quantity') }}</p>
+                            <div class="flex items-stretch gap-3">
+                                <div class="flex items-center gap-3 bg-white rounded-full border border-gold-300/60 px-3 shadow-sm">
+                                    <button @click="decrement()" aria-label="Decrease quantity" class="w-8 h-8 rounded-full hover:bg-gold-50 text-maroon-700 font-bold text-lg transition">−</button>
+                                    <span class="w-6 text-center font-semibold text-maroon-800" x-text="quantity"></span>
+                                    <button @click="increment()" aria-label="Increase quantity" class="w-8 h-8 rounded-full hover:bg-gold-50 text-maroon-700 font-bold text-lg transition">+</button>
+                                </div>
+                                <button type="button" @click="addToCart()" :disabled="addingToCart"
+                                   class="flex-1 inline-flex items-center justify-center gap-2 text-sm font-bold rounded-full border-2 border-maroon-700 text-maroon-700 hover:bg-maroon-700 hover:text-cream transition duration-200 disabled:opacity-60">
+                                    <span x-show="!justAddedToCart">{{ __('Add to Cart') }}</span>
+                                    <span x-show="justAddedToCart" x-cloak>{{ __('Added to Cart') }} 🛒</span>
+                                </button>
+                            </div>
                         </div>
-
-                        <button type="button" @click="addToCart()" :disabled="addingToCart"
-                           class="flex-1 inline-flex items-center justify-center gap-2 text-sm font-bold rounded-full border-2 border-maroon-700 text-maroon-700 hover:bg-maroon-700 hover:text-cream transition duration-200 disabled:opacity-60">
-                            <span x-show="!justAddedToCart">{{ __('Add to Cart') }}</span>
-                            <span x-show="justAddedToCart" x-cloak>{{ __('Added to Cart') }} 🛒</span>
-                        </button>
-                    </div>
+                    </template>
+                    <template x-if="cartQty({{ $product->id }}) > 0">
+                        <div class="inline-flex items-center justify-between gap-1 rounded-full bg-maroon-700 text-cream px-1 shadow">
+                            <button type="button" @click="stepCartQty({{ $product->id }}, -1)" aria-label="Decrease quantity" class="w-10 h-10 rounded-full hover:bg-maroon-600 text-lg font-bold transition flex items-center justify-center">−</button>
+                            <span class="font-bold text-base tabular-nums px-2" x-text="cartQty({{ $product->id }})"></span>
+                            <button type="button" @click="stepCartQty({{ $product->id }}, 1)" aria-label="Increase quantity" class="w-10 h-10 rounded-full hover:bg-maroon-600 text-lg font-bold transition flex items-center justify-center">+</button>
+                        </div>
+                    </template>
 
                     <a href="/cart" class="inline-block mt-3 text-sm text-maroon-500 hover:text-gold-600 underline underline-offset-2 transition">
                         {{ __('Go to cart & place your order — Cash on Delivery') }}
@@ -335,7 +352,7 @@
                         </div>
 
                         <textarea x-model="comment" rows="3" maxlength="1000" placeholder="Share your experience (optional)"
-                            class="w-full mt-4 rounded-xl bg-white border border-gold-300/60 px-4 py-3 text-sm text-maroon-700 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400"></textarea>
+                            class="w-full mt-4 rounded-xl bg-white border border-gold-300/60 px-4 py-3 text-base sm:text-sm text-maroon-700 placeholder-maroon-300 focus:outline-none focus:ring-2 focus:ring-gold-400"></textarea>
 
                         {{-- photo attachments --}}
                         <div class="flex flex-wrap gap-3 mt-4">
@@ -439,14 +456,27 @@
         @else
         <div>
             <p class="text-[10px] text-maroon-400 uppercase tracking-wide">{{ __('Total') }}</p>
-            <p class="font-display font-bold text-lg" style="color: {{ $product->color }};">₹<span x-text="quantity * unitPrice()"></span></p>
+            {{-- before it's in the cart, this previews "Select Quantity" × price; once it's in
+                 the cart, "Select Quantity" is gone (see the stepper above), so this switches to
+                 tracking the live cart quantity instead, same source as the stepper's own count --}}
+            <p class="font-display font-bold text-lg" style="color: {{ $product->color }};">₹<span x-text="(cartQty({{ $product->id }}) > 0 ? cartQty({{ $product->id }}) : quantity) * unitPrice()"></span></p>
         </div>
-        <button type="button" @click="addToCart()"
-           class="shrink-0 text-center text-sm font-bold px-6 py-2.5 rounded-full shadow"
-           style="background-color: {{ $product->color }}; color: {{ $onColor }};">
-            <span x-show="!justAddedToCart">{{ __('Add to Cart') }}</span>
-            <span x-show="justAddedToCart" x-cloak>{{ __('Added') }} 🛒</span>
-        </button>
+        <template x-if="cartQty({{ $product->id }}) === 0">
+            <button type="button" @click="addToCart()"
+               class="shrink-0 text-center text-sm font-bold px-6 py-2.5 rounded-full shadow"
+               style="background-color: {{ $product->color }}; color: {{ $onColor }};">
+                <span x-show="!justAddedToCart">{{ __('Add to Cart') }}</span>
+                <span x-show="justAddedToCart" x-cloak>{{ __('Added') }} 🛒</span>
+            </button>
+        </template>
+        <template x-if="cartQty({{ $product->id }}) > 0">
+            <div class="shrink-0 inline-flex items-center justify-between rounded-full px-1 shadow"
+                 style="background-color: {{ $product->color }}; color: {{ $onColor }};">
+                <button type="button" @click="stepCartQty({{ $product->id }}, -1)" aria-label="Decrease quantity" class="w-8 h-8 rounded-full hover:opacity-80 text-lg font-bold transition flex items-center justify-center">−</button>
+                <span class="font-bold text-sm tabular-nums px-1" x-text="cartQty({{ $product->id }})"></span>
+                <button type="button" @click="stepCartQty({{ $product->id }}, 1)" aria-label="Increase quantity" class="w-8 h-8 rounded-full hover:opacity-80 text-lg font-bold transition flex items-center justify-center">+</button>
+            </div>
+        </template>
         @endif
     </div>
 </div>

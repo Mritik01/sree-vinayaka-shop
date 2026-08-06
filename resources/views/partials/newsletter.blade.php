@@ -53,7 +53,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
                             </svg>
                             <input type="email" x-model="email" required placeholder="{{ __('Enter your email') }}"
-                                class="w-full rounded-xl bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 pl-11 pr-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 transition">
+                                class="w-full rounded-xl bg-white border border-gold-300/60 text-maroon-900 placeholder-maroon-400/50 pl-11 pr-5 py-3.5 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-gold-400 transition">
                         </div>
                         <button type="submit" :disabled="loading" class="btn-maroon shrink-0 disabled:opacity-60">
                             <span x-show="!loading">{{ __('Sign Up') }}</span>

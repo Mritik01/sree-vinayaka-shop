@@ -886,10 +886,20 @@ window.productSlider = function (isLoggedIn, initialFavorites, bucketCounts) {
 // Cards are hidden with x-show and reordered via the CSS `order` property, so no DOM
 // is rebuilt and the Blade product-card partial stays the single source of card markup.
 window.productListing = function (isLoggedIn, initialFavorites, products, priceBuckets, activeCategoryName, activeTagIds) {
+    products = products || [];
+    // plain closure variables, not returned Alpine state — keeps them out of Alpine's
+    // reactive Proxy/dependency graph entirely, since they're pure memoization helpers for
+    // visible()/orderOf() below, not template-bound data. products never mutates after load,
+    // so productsById only needs building once. orderCache turns "resort all 429 products
+    // once per card" (429 cards x full sort, on every keystroke/checkbox/sort change) into
+    // "resort once per change, O(1) lookup per card" — see visible()/orderOf().
+    const productsById = new Map(products.map((p) => [p.id, p]));
+    let orderCache = { key: '', map: null };
+
     return {
         isLoggedIn,
         favorites: initialFavorites || [],
-        products: products || [],
+        products,
         priceBuckets: priceBuckets || [],
         // arriving via ?category=slug (the mobile category panel / a shared link) seeds the same
         // `categories` array the sidebar checkboxes use, rather than a separate id-based filter
@@ -930,7 +940,7 @@ window.productListing = function (isLoggedIn, initialFavorites, products, priceB
             return true;
         },
         visible(id) {
-            const p = this.products.find((x) => x.id === id);
+            const p = productsById.get(id);
             return p ? this.matches(p) : true;
         },
         // exact name match > name starts with the query > name just contains it > only matched
@@ -962,7 +972,13 @@ window.productListing = function (isLoggedIn, initialFavorites, products, priceB
             return arr;
         },
         orderOf(id) {
-            return this.sorted().findIndex((p) => p.id === id);
+            const key = JSON.stringify(this.filters) + '|' + this.sort;
+            if (orderCache.key !== key) {
+                const map = new Map();
+                this.sorted().forEach((p, i) => map.set(p.id, i));
+                orderCache = { key, map };
+            }
+            return orderCache.map.get(id) ?? 0;
         },
         visibleCount() {
             return this.products.filter((p) => this.matches(p)).length;
