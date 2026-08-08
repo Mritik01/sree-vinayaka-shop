@@ -1030,6 +1030,96 @@ window.removeItemModal = function (reasons) {
 // trusts this payload. Success reloads the page so the server-rendered item list, totals, and
 // audit chip all refresh in one shot (this admin page is otherwise plain Blade + redirects, same
 // convention as removeItemModal above — no partial-refresh machinery to hook into here).
+// Admin → Products → Bulk Upload (admin/products/import.blade.php). Uses a raw XHR (not fetch)
+// specifically for xhr.upload's 'progress' event — fetch has no equivalent, and that's the only
+// real progress available here: the server side (ProductImportController@store) is one
+// synchronous request with no queue worker to poll a job status from, so once the upload itself
+// reaches 100% this just shows an indeterminate "processing" bar until the JSON response lands.
+window.productImportForm = function (storeUrl) {
+    return {
+        file: null,
+        fileName: '',
+        error: '',
+        uploading: false,
+        phase: '', // 'uploading' | 'processing'
+        progress: 0,
+        done: false,
+        created: 0,
+        failed: 0,
+        results: [],
+
+        onFile(file) {
+            this.error = '';
+            if (!file) return;
+            if (!/\.(xlsx|xls)$/i.test(file.name)) {
+                this.error = 'Please choose an .xlsx or .xls file.';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                this.error = 'That file is larger than 5MB.';
+                return;
+            }
+            this.file = file;
+            this.fileName = file.name;
+        },
+        reset() {
+            this.file = null;
+            this.fileName = '';
+            this.error = '';
+            this.uploading = false;
+            this.phase = '';
+            this.progress = 0;
+            this.done = false;
+            this.results = [];
+        },
+        upload() {
+            if (!this.file) return;
+            this.uploading = true;
+            this.phase = 'uploading';
+            this.progress = 0;
+
+            const csrf = document.querySelector('meta[name=csrf-token]').content;
+            const formData = new FormData();
+            formData.append('file', this.file);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', storeUrl);
+            xhr.setRequestHeader('X-CSRF-TOKEN', csrf);
+            xhr.setRequestHeader('Accept', 'application/json');
+
+            xhr.upload.addEventListener('progress', (e) => {
+                if (!e.lengthComputable) return;
+                this.progress = Math.round((e.loaded / e.total) * 100);
+                if (this.progress >= 100) this.phase = 'processing';
+            });
+
+            xhr.addEventListener('load', () => {
+                this.uploading = false;
+                let data = null;
+                try {
+                    data = JSON.parse(xhr.responseText);
+                } catch (e) {
+                    // fall through to the generic error below
+                }
+                if (data && data.ok) {
+                    this.created = data.created;
+                    this.failed = data.failed;
+                    this.results = data.results;
+                    this.done = true;
+                } else {
+                    this.error = (data && (data.message || data.errors?.file?.[0])) || 'Something went wrong — please try again.';
+                }
+            });
+            xhr.addEventListener('error', () => {
+                this.uploading = false;
+                this.error = 'Network error — please try again.';
+            });
+
+            xhr.send(formData);
+        },
+    };
+};
+
 window.addProductModal = function () {
     return {
         open: false,

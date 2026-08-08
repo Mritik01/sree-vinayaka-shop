@@ -1474,6 +1474,7 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
         checkoutError: '',
         checkoutErrorProgress: 100,
         checkingOut: false,
+        showPaymentConfirm: false,
         locationStatus: 'idle', // idle | checking | inside | outside | denied
         locationDistanceKm: null,
         cachedCoords: null,
@@ -1709,6 +1710,39 @@ window.checkoutPage = function (initialItems, initialCoupon, initialAddresses, d
                     { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
                 );
             });
+        },
+        // both "Place Order" CTAs call this instead of checkout() directly — runs the same
+        // name/address pre-flight checks checkout() itself repeats below (so a call that
+        // somehow bypasses this popup, e.g. a future direct checkout() call, is still guarded),
+        // and only opens the payment-method confirmation popup once those actually pass, so the
+        // popup never appears just to immediately show a "please choose an address" error behind it
+        openPaymentConfirm() {
+            if (this.checkingOut || this.items.length === 0) return;
+            if (Alpine.store('shop').highDemandMode === 'stop') return;
+            if (this.paymentMethod === 'cod' && !Alpine.store('shop').codEnabled) this.paymentMethod = 'razorpay';
+            if (this.paymentMethod === 'razorpay' && !Alpine.store('shop').razorpayEnabled) this.paymentMethod = 'cod';
+            if (!this.customerName.trim()) {
+                this.checkoutError = "Please enter the recipient's name.";
+                return;
+            }
+            if (this.showNewAddressForm) {
+                if (this.newAddressText.trim().length < 10) {
+                    this.checkoutError = 'Please enter a complete delivery address.';
+                    return;
+                }
+            } else if (!this.selectedAddressId) {
+                this.checkoutError = 'Please choose a delivery address.';
+                return;
+            }
+            this.checkoutError = '';
+            this.showPaymentConfirm = true;
+        },
+        // called by tapping a method inside the popup — locks it in, closes the popup, and runs
+        // the real submission below
+        confirmPaymentAndPlaceOrder(method) {
+            this.paymentMethod = method;
+            this.showPaymentConfirm = false;
+            this.checkout();
         },
         async checkout() {
             if (this.checkingOut || this.items.length === 0) return;

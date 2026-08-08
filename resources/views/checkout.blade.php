@@ -344,7 +344,7 @@
                     <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop'" x-cloak class="hidden lg:block">
                         <p x-show="checkoutError" x-cloak x-transition class="text-xs text-red-600 mt-4" x-text="checkoutError"></p>
 
-                        <button @click="checkout()"
+                        <button @click="openPaymentConfirm()"
                                 :disabled="checkingOut || (showNewAddressForm && $store.shop.restricted && locationStatus === 'outside') || (!showNewAddressForm && selectedAddress && $store.shop.restricted && !selectedAddress.within_range)"
                                 type="button"
                                 class="btn-gold w-full text-center mt-4 inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100"
@@ -402,7 +402,7 @@
                     </div>
                 </div>
 
-                <button type="button" @click="checkout()"
+                <button type="button" @click="openPaymentConfirm()"
                         :disabled="checkingOut || items.length === 0 || (showNewAddressForm && $store.shop.restricted && locationStatus === 'outside') || (!showNewAddressForm && selectedAddress && $store.shop.restricted && !selectedAddress.within_range)"
                         :class="checkingOut && 'cursor-wait'"
                         class="pointer-events-auto w-full flex items-center justify-between gap-3 pl-5 pr-2 py-2 rounded-2xl bg-gradient-to-r from-gold-400 to-gold-600 shadow-2xl shadow-maroon-900/25 active:scale-[0.98] transition-transform disabled:opacity-60 disabled:active:scale-100">
@@ -421,6 +421,56 @@
                         </svg>
                     </span>
                 </button>
+            </div>
+
+            {{-- payment-method confirmation popup — both "Place Order" CTAs above open this
+                 instead of submitting straight away (openPaymentConfirm() in app.js), so the
+                 customer explicitly re-confirms Cash on Delivery vs Pay Online as a final step
+                 every time, rather than relying on whichever pill they last happened to tap
+                 while scrolling the page. Tapping a method here calls checkout() directly. --}}
+            <div x-show="showPaymentConfirm" x-cloak class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6">
+                <div x-show="showPaymentConfirm"
+                     x-transition:enter="transition-opacity duration-300 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition-opacity duration-200 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                     @click="showPaymentConfirm = false"
+                     class="absolute inset-0 bg-maroon-900/70 backdrop-blur-sm"></div>
+
+                <div x-show="showPaymentConfirm"
+                     x-transition:enter="transition duration-300 ease-out" x-transition:enter-start="opacity-0 scale-95 translate-y-4" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                     x-transition:leave="transition duration-200 ease-in" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+                     class="relative w-full max-w-sm bg-ivory rounded-2xl shadow-2xl p-6 sm:p-7 text-center">
+                    <button type="button" @click="showPaymentConfirm = false" aria-label="{{ __('Close') }}"
+                            class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/70 hover:bg-white text-maroon-500 hover:text-maroon-800 flex items-center justify-center transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+
+                    <div class="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-3xl shadow-md">💳</div>
+                    <h2 class="font-display font-bold text-xl sm:text-2xl text-maroon-800 mt-4">{{ __('How would you like to pay?') }}</h2>
+                    <p class="text-maroon-500 text-sm mt-1.5 mb-6">{{ __('Tap one to confirm and place your order.') }}</p>
+
+                    <div class="grid gap-3" :class="($store.shop.codEnabled && $store.shop.razorpayEnabled) ? 'grid-cols-2' : 'grid-cols-1'">
+                        <button type="button" x-show="$store.shop.codEnabled" :disabled="checkingOut"
+                                @click="confirmPaymentAndPlaceOrder('cod')"
+                                class="rounded-xl border border-gold-200/60 hover:border-gold-500 hover:bg-gold-50/40 px-4 py-5 text-center transition disabled:opacity-60 disabled:pointer-events-none">
+                            <span class="block text-2xl mb-1.5">💵</span>
+                            <span class="block font-display font-bold text-maroon-800">{{ __('Cash on Delivery') }}</span>
+                            <span class="block text-xs text-maroon-400 mt-0.5">{{ __('Pay when it arrives') }}</span>
+                        </button>
+                        <button type="button" x-show="$store.shop.razorpayEnabled" :disabled="checkingOut"
+                                @click="confirmPaymentAndPlaceOrder('razorpay')"
+                                class="rounded-xl border border-gold-200/60 hover:border-gold-500 hover:bg-gold-50/40 px-4 py-5 text-center transition disabled:opacity-60 disabled:pointer-events-none">
+                            <span class="block text-2xl mb-1.5">📲</span>
+                            <span class="block font-display font-bold text-maroon-800">{{ __('Pay Online') }}</span>
+                            <span class="block text-xs text-maroon-400 mt-0.5">{{ __('Instant & secure') }}</span>
+                        </button>
+                    </div>
+
+                    <button type="button" @click="showPaymentConfirm = false" class="mt-5 text-sm font-semibold text-maroon-400 hover:text-maroon-700 transition">
+                        {{ __('Cancel') }}
+                    </button>
+                </div>
             </div>
         </div>
     </div>

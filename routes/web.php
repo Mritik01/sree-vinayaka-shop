@@ -23,6 +23,7 @@ use App\Http\Controllers\Admin\NewsletterController as AdminNewsletterController
 use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Admin\ProductController as AdminProductController;
+use App\Http\Controllers\Admin\ProductImportController as AdminProductImportController;
 use App\Http\Controllers\Admin\ProductTagController as AdminProductTagController;
 use App\Http\Controllers\Admin\RiderController as AdminRiderController;
 use App\Http\Controllers\Admin\SupportController as AdminSupportController;
@@ -522,6 +523,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::put('/products/{product}', [AdminProductController::class, 'update'])->name('products.update');
         Route::delete('/products/{product}', [AdminProductController::class, 'destroy'])->name('products.destroy');
         Route::patch('/products/{product}/toggle', [AdminProductController::class, 'toggle'])->name('products.toggle');
+
+        // bulk product creation from a spreadsheet — /import/template must stay above any
+        // future /products/{product}-style route so "import" is never swallowed as an id
+        Route::get('/products/import', [AdminProductImportController::class, 'create'])->name('products.import');
+        Route::get('/products/import/template', [AdminProductImportController::class, 'template'])->name('products.import.template');
+        Route::post('/products/import', [AdminProductImportController::class, 'store'])->name('products.import.store');
 
         Route::get('/categories', [AdminCategoryController::class, 'index'])->name('categories.index');
         Route::get('/categories/create', [AdminCategoryController::class, 'create'])->name('categories.create');

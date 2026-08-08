@@ -556,6 +556,14 @@
                             💵 {{ __('Cash on Delivery') }}
                         @endif
                     </p>
+                    {{-- our own shop-branded reference (Order::transactionId(), e.g. "TXID00000005"
+                         — same one the admin order page shows) rather than Razorpay's own opaque
+                         payment id, which means nothing to a customer and isn't shown here --}}
+                    @if ($order->payment_method === 'razorpay' && $order->payment_status === 'paid')
+                        <p class="text-xs text-maroon-400">
+                            {{ __('Transaction Reference ID') }}: <span class="font-mono">{{ $order->transactionId() }}</span>
+                        </p>
+                    @endif
                 </div>
                 <div class="px-5 py-3.5 border-t border-gold-100">
                     <a href="{{ route('orders.invoice', $order->id) }}" target="_blank"

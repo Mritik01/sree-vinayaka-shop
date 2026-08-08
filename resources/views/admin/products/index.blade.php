@@ -21,7 +21,12 @@
             <x-admin.per-page-select :current="request('per_page', 10)" />
             <x-admin.search-box :value="$search" target="products-results" placeholder="Search name, category, tag…" />
         </div>
-        <a href="{{ route('admin.products.create') }}" class="btn-gold">+ Add Product</a>
+        <div class="flex items-center gap-2">
+            <a href="{{ route('admin.products.import') }}" class="inline-flex items-center gap-1.5 bg-pista-500 hover:bg-pista-600 text-white font-semibold rounded-lg px-3.5 py-1.5 text-sm transition">
+                📊 {{ __('Bulk Upload') }}
+            </a>
+            <a href="{{ route('admin.products.create') }}" class="btn-gold">+ Add Product</a>
+        </div>
     </div>
 
     <div id="products-results" class="bg-white rounded-xl border border-gold-200/60 overflow-hidden">

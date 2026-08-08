@@ -653,5 +653,12 @@
     "more": "और",
     "✨ Handpicked For You": "✨ आपके लिए चुने गए",
     "🔥 Today's Best Deals": "🔥 आज के बेस्ट डील्स",
-    ":count product|:count products": ":count उत्पाद|:count उत्पाद"
+    ":count product|:count products": ":count उत्पाद|:count उत्पाद",
+    "How would you like to pay?": "आप भुगतान कैसे करना चाहेंगे?",
+    "Tap one to confirm and place your order.": "अपना ऑर्डर देने के लिए एक विकल्प चुनें।",
+    "Pay Online": "ऑनलाइन भुगतान करें",
+    "Pay when it arrives": "पहुंचने पर भुगतान करें",
+    "Instant & secure": "तुरंत और सुरक्षित",
+    "Transaction ID": "लेन-देन आईडी",
+    "Transaction Reference ID": "लेन-देन संदर्भ आईडी"
 }

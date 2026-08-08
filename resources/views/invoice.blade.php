@@ -137,6 +137,12 @@
                 @endif
             </td>
         </tr>
+        @if ($isPaidOnline)
+            <tr>
+                <td class="label">Transaction Reference ID</td>
+                <td class="value">{{ $order->transactionId() }}</td>
+            </tr>
+        @endif
     </table>
 
     <div class="footer-note">
