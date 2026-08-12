@@ -16,6 +16,11 @@ class Kernel extends ConsoleKernel
         // requires the server's cron to run `php artisan schedule:run` every minute in production
         $schedule->command('orders:cancel-stale')->everyFiveMinutes();
 
+        // nudges users whose cart has sat untouched ~24h — see AbandonedCartReminderService for
+        // the time-window approach (no "already reminded" tracking column by design). Same cron
+        // requirement as orders:cancel-stale above.
+        $schedule->command('carts:remind-abandoned')->hourly();
+
         // proof-of-delivery photos are only kept for 3 days
         $schedule->command('delivery-photos:prune')->daily();
 

@@ -123,6 +123,50 @@
         <p x-show="error" x-cloak x-text="error" class="text-xs text-red-600 font-medium mt-3"></p>
     </div>
 
+    {{-- WhatsApp notifications via AiSensy — a master switch plus one switch per message type, so
+         e.g. abandoned-cart reminders can be turned off without disabling order-status messages.
+         Real campaign/template names + API key live in .env (see config/services.php); these
+         toggles only control whether AiSensyService::send() is allowed to fire at all. --}}
+    <div x-data="settingToggle({{ $settings->aisensy_enabled ? 'true' : 'false' }}, '{{ route('admin.settings.aisensy-enabled') }}')"
+         class="rounded-2xl border border-gold-200/60 bg-white p-5 mb-5">
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <p class="font-display text-maroon-800 flex items-center gap-2">💬 WhatsApp Notifications (AiSensy)</p>
+                <p class="text-sm mt-0.5 text-maroon-500">
+                    <span x-show="on" x-cloak>Master switch for every WhatsApp message below — turn off to stop all sending immediately.</span>
+                    <span x-show="!on" x-cloak>Off — no WhatsApp messages are sent, regardless of the settings below.</span>
+                </p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer shrink-0" :class="updating && 'opacity-60 pointer-events-none'">
+                <input type="checkbox" class="sr-only peer" :checked="on" @change="toggle()">
+                <div class="w-16 h-9 rounded-full transition-colors duration-300 bg-gold-300 peer-checked:bg-pista-500"></div>
+                <div class="absolute left-1 top-1 w-7 h-7 bg-white rounded-full shadow-md transition-transform duration-300 peer-checked:translate-x-7 flex items-center justify-center text-xs"
+                     x-text="on ? '✓' : '✕'"></div>
+            </label>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-3 mt-4 pt-4 border-t border-gold-100" :class="!on && 'opacity-50 pointer-events-none'">
+            @foreach ([
+                ['aisensy-notify-order-confirmed', 'aisensy_notify_order_confirmed', '✅ Order Confirmed'],
+                ['aisensy-notify-out-for-delivery', 'aisensy_notify_out_for_delivery', '🛵 Out for Delivery'],
+                ['aisensy-notify-delivered', 'aisensy_notify_delivered', '📦 Delivered'],
+                ['aisensy-notify-cancelled', 'aisensy_notify_cancelled', '❌ Cancelled'],
+                ['aisensy-notify-abandoned-cart', 'aisensy_notify_abandoned_cart', '🛒 Abandoned Cart Reminder'],
+            ] as [$routeName, $column, $label])
+                <div x-data="settingToggle({{ $settings->{$column} ? 'true' : 'false' }}, '{{ route('admin.settings.'.$routeName) }}')"
+                     class="rounded-xl border p-4 flex items-center justify-between gap-3 transition-colors duration-300"
+                     :class="on ? 'bg-white border-gold-200/60' : 'bg-gold-50 border-gold-300/60'">
+                    <p class="text-sm font-semibold text-maroon-800">{{ $label }}</p>
+                    <label class="relative inline-flex items-center cursor-pointer shrink-0" :class="updating && 'opacity-60 pointer-events-none'">
+                        <input type="checkbox" class="sr-only peer" :checked="on" @change="toggle()">
+                        <div class="w-11 h-6 rounded-full transition-colors duration-300 bg-gold-300 peer-checked:bg-pista-500"></div>
+                        <div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform duration-300 peer-checked:translate-x-5"></div>
+                    </label>
+                </div>
+            @endforeach
+        </div>
+    </div>
+
     {{-- loyalty reward program --}}
     <div class="rounded-2xl border border-pink-200 bg-gradient-to-br from-pink-50 via-white to-gold-50 p-5">
         <div class="flex items-center justify-between gap-4 flex-wrap">

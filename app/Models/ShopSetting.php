@@ -42,6 +42,12 @@ class ShopSetting extends Model
         'business_mobile_number',
         'business_logo_path',
         'customer_theme',
+        'aisensy_enabled',
+        'aisensy_notify_order_confirmed',
+        'aisensy_notify_out_for_delivery',
+        'aisensy_notify_delivered',
+        'aisensy_notify_cancelled',
+        'aisensy_notify_abandoned_cart',
     ];
 
     protected $casts = [
@@ -66,6 +72,12 @@ class ShopSetting extends Model
         'rain_fee_enabled' => 'boolean',
         'rain_fee_amount' => 'integer',
         'high_demand_fee_amount' => 'integer',
+        'aisensy_enabled' => 'boolean',
+        'aisensy_notify_order_confirmed' => 'boolean',
+        'aisensy_notify_out_for_delivery' => 'boolean',
+        'aisensy_notify_delivered' => 'boolean',
+        'aisensy_notify_cancelled' => 'boolean',
+        'aisensy_notify_abandoned_cart' => 'boolean',
     ];
 
     // request-level memoization only — this singleton row is read repeatedly per request (once

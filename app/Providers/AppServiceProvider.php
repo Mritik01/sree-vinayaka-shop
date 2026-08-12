@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Models\AnnouncementSetting;
+use App\Models\Order;
 use App\Models\ShopSetting;
+use App\Observers\OrderObserver;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
@@ -23,6 +25,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // AiSensy WhatsApp sends for the order lifecycle — see App\Observers\OrderObserver.
+        // No DB access at registration time (unlike the Schema::hasTable-guarded blocks below),
+        // so this is safe to register unconditionally.
+        Order::observe(OrderObserver::class);
+
         // guarded so a missing table (first `migrate`) or an unreachable DB doesn't crash every request at boot
         $shopStatus = [
             'accepting' => true, 'restricted' => false, 'radiusKm' => 6.0,

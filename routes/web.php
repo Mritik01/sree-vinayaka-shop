@@ -468,6 +468,12 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/settings/category-row', [AdminDashboardController::class, 'toggleCategoryRow'])->name('settings.category-row');
         Route::patch('/settings/cod-enabled', [AdminDashboardController::class, 'toggleCodEnabled'])->name('settings.cod-enabled');
         Route::patch('/settings/razorpay-enabled', [AdminDashboardController::class, 'toggleRazorpayEnabled'])->name('settings.razorpay-enabled');
+        Route::patch('/settings/aisensy-enabled', [AdminDashboardController::class, 'toggleAisensyEnabled'])->name('settings.aisensy-enabled');
+        Route::patch('/settings/aisensy-notify-order-confirmed', [AdminDashboardController::class, 'toggleAisensyNotifyOrderConfirmed'])->name('settings.aisensy-notify-order-confirmed');
+        Route::patch('/settings/aisensy-notify-out-for-delivery', [AdminDashboardController::class, 'toggleAisensyNotifyOutForDelivery'])->name('settings.aisensy-notify-out-for-delivery');
+        Route::patch('/settings/aisensy-notify-delivered', [AdminDashboardController::class, 'toggleAisensyNotifyDelivered'])->name('settings.aisensy-notify-delivered');
+        Route::patch('/settings/aisensy-notify-cancelled', [AdminDashboardController::class, 'toggleAisensyNotifyCancelled'])->name('settings.aisensy-notify-cancelled');
+        Route::patch('/settings/aisensy-notify-abandoned-cart', [AdminDashboardController::class, 'toggleAisensyNotifyAbandonedCart'])->name('settings.aisensy-notify-abandoned-cart');
         Route::patch('/settings/rewards', [AdminDashboardController::class, 'updateRewardSettings'])->name('settings.rewards');
         Route::patch('/settings/order-limits', [AdminDashboardController::class, 'updateOrderLimits'])->name('settings.order-limits');
         Route::patch('/settings/delivery-time', [AdminDashboardController::class, 'updateDeliveryTimeSettings'])->name('settings.delivery-time');

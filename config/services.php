@@ -56,4 +56,33 @@ return [
         'webhook_secret' => env('RAZORPAY_WEBHOOK_SECRET'),
     ],
 
+    'aisensy' => [
+        'api_key' => env('AISENSY_API_KEY'),
+        'base_url' => env('AISENSY_BASE_URL', 'https://backend.aisensy.com/campaign/t1/api/v2'),
+        // one AiSensy campaign (= one approved WhatsApp template) per event — fill these in with
+        // the real campaign names from the AiSensy dashboard. A blank value for a given event
+        // just means AiSensyService::send() skips that event silently (logs a warning), so it's
+        // safe to configure only some of these to start with. No 'order_placed' campaign on
+        // purpose — the shop only wants one message, sent when the order is confirmed, not a
+        // separate one at checkout too.
+        'campaigns' => [
+            'order_confirmed' => env('AISENSY_CAMPAIGN_ORDER_CONFIRMED'),
+            'out_for_delivery' => env('AISENSY_CAMPAIGN_OUT_FOR_DELIVERY'),
+            'delivered' => env('AISENSY_CAMPAIGN_DELIVERED'),
+            'cancelled' => env('AISENSY_CAMPAIGN_CANCELLED'),
+            'abandoned_cart' => env('AISENSY_CAMPAIGN_ABANDONED_CART'),
+        ],
+
+        // only needed for a template that has an image/document header — AiSensy rejects the
+        // send with "Media URL Missing" otherwise. Leave blank for any event whose template has
+        // no such header; AiSensyService::send() only attaches this when a URL is actually set.
+        'media' => [
+            'order_confirmed' => env('AISENSY_MEDIA_ORDER_CONFIRMED'),
+            'out_for_delivery' => env('AISENSY_MEDIA_OUT_FOR_DELIVERY'),
+            'delivered' => env('AISENSY_MEDIA_DELIVERED'),
+            'cancelled' => env('AISENSY_MEDIA_CANCELLED'),
+            'abandoned_cart' => env('AISENSY_MEDIA_ABANDONED_CART'),
+        ],
+    ],
+
 ];

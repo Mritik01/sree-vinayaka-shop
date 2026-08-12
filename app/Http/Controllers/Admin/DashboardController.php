@@ -155,6 +155,54 @@ class DashboardController extends Controller
         return response()->json(['ok' => true, 'value' => $settings->show_category_row]);
     }
 
+    public function toggleAisensyEnabled(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $settings->update(['aisensy_enabled' => !$settings->aisensy_enabled]);
+
+        return response()->json(['ok' => true, 'value' => $settings->aisensy_enabled]);
+    }
+
+    public function toggleAisensyNotifyOrderConfirmed(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $settings->update(['aisensy_notify_order_confirmed' => !$settings->aisensy_notify_order_confirmed]);
+
+        return response()->json(['ok' => true, 'value' => $settings->aisensy_notify_order_confirmed]);
+    }
+
+    public function toggleAisensyNotifyOutForDelivery(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $settings->update(['aisensy_notify_out_for_delivery' => !$settings->aisensy_notify_out_for_delivery]);
+
+        return response()->json(['ok' => true, 'value' => $settings->aisensy_notify_out_for_delivery]);
+    }
+
+    public function toggleAisensyNotifyDelivered(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $settings->update(['aisensy_notify_delivered' => !$settings->aisensy_notify_delivered]);
+
+        return response()->json(['ok' => true, 'value' => $settings->aisensy_notify_delivered]);
+    }
+
+    public function toggleAisensyNotifyCancelled(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $settings->update(['aisensy_notify_cancelled' => !$settings->aisensy_notify_cancelled]);
+
+        return response()->json(['ok' => true, 'value' => $settings->aisensy_notify_cancelled]);
+    }
+
+    public function toggleAisensyNotifyAbandonedCart(Request $request)
+    {
+        $settings = ShopSetting::current();
+        $settings->update(['aisensy_notify_abandoned_cart' => !$settings->aisensy_notify_abandoned_cart]);
+
+        return response()->json(['ok' => true, 'value' => $settings->aisensy_notify_abandoned_cart]);
+    }
+
     public function updateRewardSettings(Request $request)
     {
         $data = $request->validate([
