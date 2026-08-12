@@ -20,7 +20,11 @@ class CustomizationController extends Controller
     // this app exposes its own size/resolution limits as a setting either
     private const MAX_LOGO_BYTES = 2 * 1024 * 1024; // 2MB
     private const MIN_LOGO_DIMENSION = 200; // px, raster only — SVG is resolution-independent
-    private const MAX_STORED_DIMENSION = 1024; // px — larger raster uploads are downscaled to this
+    // px — larger raster uploads are downscaled to this. The logo is never displayed larger than
+    // ~56px anywhere on the site (see product-card-mini/navbar/install-prompt-banner usages), so
+    // 256px still gives ~4.5x retina headroom without storing/serving a needlessly huge file —
+    // the original 1024px cap meant a typical upload sat around 300KB+ for a 56px icon.
+    private const MAX_STORED_DIMENSION = 256;
 
     // set by storeRasterLogo()/storeSvgLogo() when they return null, so updateLogo() can surface
     // a specific reason instead of one generic message
