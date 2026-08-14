@@ -1,9 +1,10 @@
 import Alpine from 'alpinejs';
-import Chart from 'chart.js/auto';
-import Quill from 'quill';
-import 'quill/dist/quill.snow.css';
-import Cropper from 'cropperjs';
-import 'cropperjs/dist/cropper.css';
+
+// Chart.js, Quill, and Cropper.js are all dynamically imported at their actual point of use
+// (search "await import(" below) instead of statically here — each is only needed on a handful
+// of admin pages (dashboards/analytics, the two rich-text editors, the five photo-crop forms
+// respectively), but a static import here meant every admin page paid for all three on every
+// load. Splits admin.js's ~500KB single bundle into separate chunks fetched on demand.
 
 const palette = {
     maroon: '#7a1622',
@@ -1266,7 +1267,8 @@ window.animateCounter = function (el, end, { duration = 900, prefix = '' } = {})
 
 window.visitorCharts = function (data) {
     return {
-        init() {
+        async init() {
+            const { default: Chart } = await import('chart.js/auto');
             const gridColor = 'rgba(122, 22, 34, 0.08)';
             const tickColor = '#7a1622';
 
@@ -1315,7 +1317,8 @@ window.visitorCharts = function (data) {
 
 window.customersCharts = function (data) {
     return {
-        init() {
+        async init() {
+            const { default: Chart } = await import('chart.js/auto');
             const gridColor = 'rgba(122, 22, 34, 0.08)';
             const tickColor = '#7a1622';
 
@@ -1369,7 +1372,8 @@ window.customersCharts = function (data) {
 
 window.customerSpendChart = function (labels, values) {
     return {
-        init() {
+        async init() {
+            const { default: Chart } = await import('chart.js/auto');
             new Chart(this.$refs.spendChart, {
                 type: 'line',
                 data: {
@@ -1400,9 +1404,10 @@ window.customerSpendChart = function (labels, values) {
 window.customerBehaviourCharts = function (data) {
     return {
         rendered: false,
-        renderCharts() {
+        async renderCharts() {
             if (this.rendered) return; // canvases can't be re-initialized once a Chart is bound to them
             this.rendered = true;
+            const { default: Chart } = await import('chart.js/auto');
             const gridColor = 'rgba(122, 22, 34, 0.08)';
             const tickColor = '#7a1622';
 
@@ -1453,7 +1458,8 @@ window.customerBehaviourCharts = function (data) {
 
 window.adminDashboardCharts = function (data) {
     return {
-        init() {
+        async init() {
+            const { default: Chart } = await import('chart.js/auto');
             const gridColor = 'rgba(122, 22, 34, 0.08)';
             const tickColor = '#7a1622';
 
@@ -1551,7 +1557,8 @@ window.adminDashboardCharts = function (data) {
 // above, so this reads as part of the same design language rather than a bolted-on new page
 window.incomeDashboardCharts = function (data) {
     return {
-        init() {
+        async init() {
+            const { default: Chart } = await import('chart.js/auto');
             const gridColor = 'rgba(122, 22, 34, 0.08)';
             const tickColor = '#7a1622';
 
@@ -2295,7 +2302,8 @@ window.announcementForm = function (initial) {
         // close while editing, the preview pane always stays visible
         dismiss() {},
 
-        initEditor() {
+        async initEditor() {
+            const [{ default: Quill }] = await Promise.all([import('quill'), import('quill/dist/quill.snow.css')]);
             quill = new Quill(this.$refs.editor, {
                 theme: 'snow',
                 placeholder: 'Write your announcement description…',
@@ -2333,7 +2341,8 @@ window.legalDocumentForm = function (initial) {
         // published (see LegalDocumentVersion::published_at); "today" is the honest preview
         updatedAt: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
 
-        initEditor() {
+        async initEditor() {
+            const [{ default: Quill }] = await Promise.all([import('quill'), import('quill/dist/quill.snow.css')]);
             quill = new Quill(this.$refs.editor, {
                 theme: 'snow',
                 placeholder: 'Write the policy content…',
@@ -2378,7 +2387,8 @@ window.categoryImageCropper = function (existingImageUrl) {
             };
             reader.readAsDataURL(file);
         },
-        mountCropper() {
+        async mountCropper() {
+            const [{ default: Cropper }] = await Promise.all([import('cropperjs'), import('cropperjs/dist/cropper.css')]);
             if (cropper) {
                 cropper.destroy();
                 cropper = null;
@@ -2438,7 +2448,8 @@ window.riderPhotoCropper = function (existingImageUrl) {
             };
             reader.readAsDataURL(file);
         },
-        mountCropper() {
+        async mountCropper() {
+            const [{ default: Cropper }] = await Promise.all([import('cropperjs'), import('cropperjs/dist/cropper.css')]);
             if (cropper) {
                 cropper.destroy();
                 cropper = null;
@@ -2495,7 +2506,8 @@ window.heroBannerCropper = function (existingImageUrl, initialTitle) {
             };
             reader.readAsDataURL(file);
         },
-        mountCropper() {
+        async mountCropper() {
+            const [{ default: Cropper }] = await Promise.all([import('cropperjs'), import('cropperjs/dist/cropper.css')]);
             if (cropper) {
                 cropper.destroy();
                 cropper = null;
@@ -2553,7 +2565,8 @@ window.featuredCategoryImageCropper = function (existingImageUrl) {
             };
             reader.readAsDataURL(file);
         },
-        mountCropper() {
+        async mountCropper() {
+            const [{ default: Cropper }] = await Promise.all([import('cropperjs'), import('cropperjs/dist/cropper.css')]);
             if (cropper) {
                 cropper.destroy();
                 cropper = null;
@@ -2666,7 +2679,8 @@ window.logoUploadCard = function (existingLogoUrl, hasError) {
             };
             reader.readAsDataURL(file);
         },
-        mountCropper() {
+        async mountCropper() {
+            const [{ default: Cropper }] = await Promise.all([import('cropperjs'), import('cropperjs/dist/cropper.css')]);
             if (cropper) {
                 cropper.destroy();
                 cropper = null;
