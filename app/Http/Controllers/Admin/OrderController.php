@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
@@ -811,5 +812,34 @@ class OrderController extends Controller
         }
 
         return redirect()->route('admin.orders.index')->with('status', "Order {$orderNumber} deleted.");
+    }
+
+    // super-admin only — the one deliberate exception to platform_income_records being append-only
+    // (see that table's migration docblock: "nothing ever updates or deletes a row here once
+    // written"). Exists for genuine mistakes, e.g. a test/erroneous order that reached 'delivered'
+    // and polluted real income figures. Every Income dashboard/history figure is a live SUM() over
+    // this table (see IncomeController's own docblock), so deleting the record here is the only
+    // step needed for every total to reflect the removal — there's no separate cached total
+    // anywhere else to adjust.
+    public function forceDestroy(Order $order)
+    {
+        $orderNumber = $order->orderNumber();
+        $incomeRecord = $order->platformIncomeRecord;
+        $incomeAmount = $incomeRecord?->total_income;
+
+        try {
+            DB::transaction(function () use ($order, $incomeRecord) {
+                $incomeRecord?->delete();
+                $order->delete();
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            return back()->with('status', "Order {$orderNumber} couldn't be deleted — other records still reference it.");
+        }
+
+        $message = $incomeAmount
+            ? "Order {$orderNumber} and its ₹{$incomeAmount} income record were permanently deleted. Total platform income has been adjusted."
+            : "Order {$orderNumber} deleted.";
+
+        return redirect()->route('admin.orders.index')->with('status', $message);
     }
 }

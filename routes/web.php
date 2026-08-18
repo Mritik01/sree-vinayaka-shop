@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\ActivityTrackingController;
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\Admin\AdminAccountController;
+use App\Http\Controllers\Admin\AnalyticsController as AdminAnalyticsController;
 use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
 use App\Http\Controllers\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Admin\BestsellerController as AdminBestsellerController;
@@ -322,6 +324,16 @@ Route::post('/newsletter/subscribe', [NewsletterController::class, 'subscribe'])
     ->middleware('throttle:20,1')
     ->name('newsletter.subscribe');
 
+// hit via navigator.sendBeacon() — see ActivityTrackingController and resources/js/app.js.
+// Deliberately outside the 'auth' group (must work for guests) and outside admin/rider routes
+// entirely (customer-facing only, matching TrackPageView's EXCLUDED_PATTERNS).
+Route::post('/track/session-end', [ActivityTrackingController::class, 'sessionEnd'])
+    ->middleware('throttle:30,1')
+    ->name('track.session-end');
+Route::post('/track/click', [ActivityTrackingController::class, 'click'])
+    ->middleware('throttle:60,1')
+    ->name('track.click');
+
 Route::middleware('auth')->group(function () {
     Route::patch('/account/name', [AccountController::class, 'updateName'])->name('account.update-name');
 
@@ -498,6 +510,8 @@ Route::prefix('admin')->name('admin.')->group(function () {
                 Route::get('/export/csv', [AdminIncomeController::class, 'exportCsv'])->name('export.csv');
                 Route::get('/export/pdf', [AdminIncomeController::class, 'exportPdf'])->name('export.pdf');
             });
+
+            Route::get('/analytics', [AdminAnalyticsController::class, 'index'])->name('analytics.index');
         });
 
         Route::get('/orders', [AdminOrderController::class, 'index'])->name('orders.index');
@@ -518,6 +532,9 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // super-admin only (see EnsureSuperAdmin) — a permanent delete, not a status change;
         // Order::isDeletable() also blocks this in the controller for any delivered order
         Route::delete('/orders/{order}', [AdminOrderController::class, 'destroy'])->middleware('admin.super')->name('orders.destroy');
+        // deliberately separate from the route above — the one path that deletes an order AND its
+        // permanent platform_income_records row together (see OrderController::forceDestroy())
+        Route::delete('/orders/{order}/force', [AdminOrderController::class, 'forceDestroy'])->middleware('admin.super')->name('orders.force-destroy');
 
         Route::get('/products', [AdminProductController::class, 'index'])->name('products.index');
         // live JSON product search for the "add product to order" modal — admin equivalent of the
@@ -620,6 +637,7 @@ Route::prefix('admin')->name('admin.')->group(function () {
         Route::patch('/customers/{user}/name', [AdminCustomerController::class, 'updateName'])->name('customers.update-name');
         Route::post('/customers/notify-all', [AdminCustomerController::class, 'notifyAll'])->name('customers.notify-all');
         Route::post('/customers/{user}/notify', [AdminCustomerController::class, 'notify'])->name('customers.notify');
+        Route::post('/customers/{user}/notify-abandoned-cart', [AdminCustomerController::class, 'notifyAbandonedCart'])->name('customers.notify-abandoned-cart');
         Route::post('/customers/{user}/coupons', [AdminCustomerController::class, 'attachCoupon'])->name('customers.coupons.attach');
         Route::delete('/customers/{user}/coupons/{coupon}', [AdminCustomerController::class, 'detachCoupon'])->name('customers.coupons.detach');
         // super-admin only (see EnsureSuperAdmin) — a permanent delete, not a block;

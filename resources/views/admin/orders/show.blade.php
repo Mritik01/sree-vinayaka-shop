@@ -27,9 +27,11 @@
            onclick="if (window.history.length > 1) { event.preventDefault(); window.history.back(); }"
            class="text-sm text-maroon-500 hover:text-maroon-700 transition">← {{ __('Back') }}</a>
 
-        {{-- super-admin only, and only when Order::isDeletable() — no permanent income record to
-             lose. A delivered order can only be viewed/cancelled, never hard-deleted (that ledger
-             is append-only — see the model comment). --}}
+        {{-- super-admin only. Order::isDeletable() picks which of the two actions below shows: a
+             plain delete when there's no income record to lose, or a distinctly-styled "force"
+             delete (its own route, its own much more explicit confirmation) when there is one —
+             see OrderController::forceDestroy(). Deliberately two separate buttons/routes rather
+             than one delete button that silently also wipes a permanent income ledger row. --}}
         @if (Auth::guard('admin')->user()?->isSuperAdmin())
             @if ($order->isDeletable())
                 <form method="POST" action="{{ route('admin.orders.destroy', $order) }}"
@@ -41,9 +43,15 @@
                     </button>
                 </form>
             @else
-                <span class="text-xs text-maroon-400" title="This order has a permanent income record — cancel it instead if it needs to be removed from active view.">
-                    {{ __("Can't delete — has an income record") }}
-                </span>
+                <form method="POST" action="{{ route('admin.orders.force-destroy', $order) }}"
+                      onsubmit="return confirm('Order {{ $order->orderNumber() }} has a ₹{{ $order->platformIncomeRecord->total_income }} permanent income record.\n\nForce-deleting will PERMANENTLY remove both the order AND that income record — Total Platform Income on the Income dashboard will drop by ₹{{ $order->platformIncomeRecord->total_income }}.\n\nThis cannot be undone. Continue?');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="text-sm px-4 py-2 rounded-full border-2 border-red-800 bg-red-50 text-red-800 hover:bg-red-800 hover:text-white transition font-medium inline-flex items-center gap-1.5"
+                            title="This also permanently deletes the order's ₹{{ $order->platformIncomeRecord->total_income }} income record and reduces Total Platform Income.">
+                        ⚠️ {{ __('Force Delete (removes income record)') }}
+                    </button>
+                </form>
             @endif
         @endif
     </div>
