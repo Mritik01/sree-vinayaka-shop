@@ -97,7 +97,8 @@
                     @include('partials.free-delivery-progress')
 
                     <div x-show="$store.shop.accepting && $store.shop.highDemandMode !== 'stop' && !hasOutOfStockItems()" x-cloak>
-                        <a href="/checkout" class="btn-gold w-full text-center mt-5 inline-flex items-center justify-center gap-2">
+                        <a href="/checkout" class="btn-gold w-full text-center mt-5 inline-flex items-center justify-center gap-2"
+                           @click="trackEvent('click:checkout_start', String(subtotal()))">
                             {{ __('Proceed to Checkout') }}
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />

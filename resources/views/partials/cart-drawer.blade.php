@@ -61,7 +61,7 @@
             </div>
 
             <template x-if="$store.shop.accepting && !$store.cart.hasOutOfStockItems()">
-                <a href="/checkout" @click="$store.cart.open = false" class="btn-gold w-full text-center inline-flex items-center justify-center gap-2">Check Out</a>
+                <a href="/checkout" @click="$store.cart.open = false; trackEvent('click:checkout_start', String($store.cart.subtotal()))" class="btn-gold w-full text-center inline-flex items-center justify-center gap-2">Check Out</a>
             </template>
             <template x-if="!$store.shop.accepting">
                 <div class="rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs px-4 py-3 text-center">

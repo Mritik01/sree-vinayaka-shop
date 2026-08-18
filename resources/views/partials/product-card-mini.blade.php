@@ -76,7 +76,8 @@
          (a <button> nested inside an <a> is invalid HTML — same reason the weight picker below
          lives outside the link once it becomes interactive) --}}
     <div class="relative rounded-xl overflow-hidden aspect-square bg-cream/60">
-        <a href="{{ route('products.show', $product) }}" class="absolute inset-0 z-0" aria-label="View {{ $product->name }}">
+        <a href="{{ route('products.show', $product) }}" class="absolute inset-0 z-0" aria-label="View {{ $product->name }}"
+           onclick="trackEvent('click:product_card', {{ Illuminate\Support\Js::from($product->name) }})">
             <img src="{{ asset($miniImage) }}" alt="{{ $product->name }}" loading="lazy"
                  @if ($hasMultiplePortions) :src="selectedImage()" @endif
                  class="absolute inset-0 w-full h-full object-cover {{ $product->is_out_of_stock ? 'grayscale opacity-60' : '' }}" style="object-position: {{ $product->image_position ?? '50% 50%' }};">

@@ -31,8 +31,8 @@
                 <ul class="space-y-2.5 text-sm text-cream/75">
                     <li>📍 {{ __('Roadways Bus Stand, Nichlaul Road, Siswa Bazar, Maharajganj, UP 273163') }}</li>
                     @if ($businessPhone)
-                        <li>📞 <a href="{{ $businessPhone['tel'] }}" class="hover:text-gold-300 transition">{{ $businessPhone['display'] }}</a></li>
-                        <li>💬 <a href="{{ $businessPhone['whatsapp'] }}" target="_blank" rel="noopener" class="hover:text-gold-300 transition">{{ __('Chat with us on WhatsApp') }}</a></li>
+                        <li>📞 <a href="{{ $businessPhone['tel'] }}" onclick="trackEvent('click:call_button')" class="hover:text-gold-300 transition">{{ $businessPhone['display'] }}</a></li>
+                        <li>💬 <a href="{{ $businessPhone['whatsapp'] }}" target="_blank" rel="noopener" onclick="trackEvent('click:whatsapp_button')" class="hover:text-gold-300 transition">{{ __('Chat with us on WhatsApp') }}</a></li>
                     @endif
                 </ul>
             </div>

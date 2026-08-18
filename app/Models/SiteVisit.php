@@ -16,6 +16,8 @@ class SiteVisit extends Model
         'browser',
         'platform',
         'ip_address',
+        'city',
+        'country',
         'entry_path',
         'page_views',
         'first_seen',

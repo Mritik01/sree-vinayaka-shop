@@ -2023,6 +2023,33 @@ window.installPrompt = function () {
     };
 };
 
+// iOS equivalent of installPrompt() above — Apple has never implemented beforeinstallprompt (no
+// Safari version fires it, on iPhone or iPad), so there's no programmatic install trigger at all;
+// the only path is the user manually tapping Safari's own Share button and choosing "Add to Home
+// Screen" themselves. This just detects "is this an iOS device that hasn't already been added to
+// the home screen" and shows instructions — see partials/ios-install-prompt-banner.blade.php.
+// window.navigator.standalone is Safari's own (non-standard) property: true only when the page is
+// already running as an installed home-screen app, which is exactly when this must stay hidden.
+window.iosInstallPrompt = function () {
+    return {
+        visible: false,
+
+        init() {
+            const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const isStandalone = window.navigator.standalone === true;
+            const seenKey = 'mb_ios_install_prompt_seen';
+
+            if (isIOS && !isStandalone && !sessionStorage.getItem(seenKey)) {
+                this.visible = true;
+            }
+        },
+        dismiss() {
+            this.visible = false;
+            sessionStorage.setItem('mb_ios_install_prompt_seen', '1');
+        },
+    };
+};
+
 // live order-tracking page — polls the order's status so admin-side updates
 // (confirmed / out for delivery / delivered) animate in without a reload
 window.orderTrackingPage = function (initialOrder, justPlaced, etaSoonTemplate, etaNowText) {
@@ -3581,6 +3608,50 @@ setInterval(pollShopStatus, 5000);
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
 }
+
+// SuperAdmin analytics — see App\Http\Controllers\ActivityTrackingController. Customer-facing
+// bundle only (never admin.js/rider.js), same as the service worker above. Both endpoints use
+// sendBeacon so they fire-and-forget without holding up navigation or the click that triggered
+// them; fetch(..., {keepalive:true}) is the fallback for the rare browser without sendBeacon.
+function sendTrackingBeacon(url, fields) {
+    const data = new FormData();
+    data.append('_token', document.querySelector('meta[name=csrf-token]').content);
+    Object.entries(fields).forEach(([key, value]) => { if (value != null) data.append(key, value); });
+
+    if (navigator.sendBeacon && navigator.sendBeacon(url, data)) return;
+    fetch(url, { method: 'POST', body: data, keepalive: true }).catch(() => {});
+}
+
+// the short, curated set of "meaningful click" events this app tracks — see
+// ActivityTrackingController::ALLOWED_CLICK_EVENTS for the matching server-side whitelist.
+// Called from onclick="trackEvent('click:product_card', productName)"-style attributes and a
+// couple of Alpine @click handlers — deliberately NOT wired to every clickable element site-wide.
+window.trackEvent = function (event, label) {
+    sendTrackingBeacon('/track/click', { event, label });
+};
+
+// fires once per "leaving" moment — visibilitychange and pagehide are both wired as a pair
+// (pagehide alone is unreliable on some mobile browsers, visibilitychange alone can miss a hard
+// close on others). The guard below is sessionStorage-backed, not a plain in-memory flag — a
+// plain JS variable resets on every reload, so it can't stop a duplicate that straddles a reload
+// (the old page's own pagehide/visibilitychange firing right as the new page loads and does the
+// same thing again a moment later, which is exactly what a simple page refresh produces).
+// sessionStorage survives that reload within the same tab, so a time window is enough to treat
+// "old page unloading" and "new page's first hidden event" as the one moment they are, while
+// still letting a later, genuinely separate leave log its own event. 15s (not a couple seconds)
+// because in practice the gap between visibilitychange and pagehide firing for the same
+// navigation varied more than expected — a shorter window still let real-world duplicates through.
+function trackSessionEnd() {
+    const key = 'mb_session_end_at';
+    const last = Number(sessionStorage.getItem(key) || 0);
+    if (Date.now() - last < 15000) return;
+    sessionStorage.setItem(key, String(Date.now()));
+    sendTrackingBeacon('/track/session-end', { path: location.pathname });
+}
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') trackSessionEnd();
+});
+window.addEventListener('pagehide', trackSessionEnd);
 
 window.Alpine = Alpine;
 Alpine.start();

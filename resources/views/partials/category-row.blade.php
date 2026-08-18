@@ -21,6 +21,7 @@
                  class="flex items-start gap-4 sm:gap-7 overflow-x-auto scroll-smooth pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 @foreach ($rowCategories as $category)
                     <a href="{{ route('products.index', ['category' => $category->slug]) }}"
+                       onclick="trackEvent('click:category_nav', {{ Illuminate\Support\Js::from($category->name) }})"
                        class="group flex flex-col items-center gap-2 shrink-0 w-[74px] sm:w-24">
                         @if ($category->image_path)
                             <span class="w-[68px] h-[68px] sm:w-[88px] sm:h-[88px] rounded-full overflow-hidden bg-white border border-gold-200/70 shadow-sm group-hover:shadow-md group-hover:scale-105 transition duration-200">

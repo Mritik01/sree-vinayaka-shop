@@ -54,6 +54,7 @@
                     // via the admin.super middleware — hiding the link alone would be no real
                     // security) alongside the existing Admin Accounts / Impersonation Log entries.
                     if (Auth::guard('admin')->user()?->isSuperAdmin()) {
+                        $navItems[] = ['route' => 'admin.analytics.index', 'label' => __('Analytics'), 'icon' => '📈'];
                         $navItems[] = ['route' => 'admin.income.index', 'label' => __('Income'), 'icon' => '💰'];
                         $navItems[] = ['route' => 'admin.customization.index', 'label' => __('Application Customization'), 'icon' => '🎨'];
                         $navItems[] = ['route' => 'admin.admins.index', 'label' => __('Admin Accounts'), 'icon' => '🛡️'];
