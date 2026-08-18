@@ -4,21 +4,41 @@
 @section('page-title', 'Bulk Upload Products')
 
 @section('content')
-    <div class="max-w-3xl space-y-5">
+    <div class="max-w-3xl space-y-5" x-data="productImportForm('{{ route('admin.products.import.store') }}', '{{ route('admin.products.import.template') }}')">
         <div class="bg-white rounded-xl border border-gold-200/60 p-6">
-            <p class="font-display font-bold text-maroon-800 text-lg mb-1">1. Download the template</p>
+            <p class="font-display font-bold text-maroon-800 text-lg mb-1">1. Choose a category</p>
             <p class="text-sm text-maroon-500 mb-4">
-                An .xlsx file with 2 worked examples (one packaged product, one sold loose by weight) and a
-                "Read Me" sheet explaining every column and which values are accepted.
+                Every product in this upload — the template and the file you send back — goes into this one
+                category. Uploading a different batch for another category? Come back and pick it again.
             </p>
-            <a href="{{ route('admin.products.import.template') }}" class="btn-gold inline-block">⬇️ Download Template</a>
+            <select x-model="categoryId" class="w-full sm:w-72 rounded-lg border border-gold-300/70 bg-white px-3 py-2.5 text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                <option value="">Select a category…</option>
+                @foreach ($categories as $category)
+                    <option value="{{ $category->id }}">{{ $category->name }}</option>
+                @endforeach
+            </select>
+            @if ($categories->isEmpty())
+                <p class="text-sm text-red-600 font-medium mt-3">
+                    No active categories yet — create one under <a href="{{ route('admin.categories.index') }}" class="underline">Admin → Categories</a> first.
+                </p>
+            @endif
         </div>
 
-        <div class="bg-white rounded-xl border border-gold-200/60 p-6" x-data="productImportForm('{{ route('admin.products.import.store') }}')">
-            <p class="font-display font-bold text-maroon-800 text-lg mb-1">2. Upload your filled-in file</p>
+        <div class="bg-white rounded-xl border border-gold-200/60 p-6">
+            <p class="font-display font-bold text-maroon-800 text-lg mb-1">2. Download the template</p>
             <p class="text-sm text-maroon-500 mb-4">
-                .xlsx or .xls, up to 5MB. Each row becomes one product. The Category column must exactly match
-                an existing category — create it first under Admin → Categories if it doesn't exist yet.
+                An .xlsx file with 2 worked examples and a "Read Me" sheet explaining every column. Just 5
+                columns — Name, Search Tags, Tag, Description, and the price for 250g (500g/1kg are worked out
+                automatically). Every product starts with a placeholder photo; add the real one afterward from
+                each product's edit page.
+            </p>
+            <a :href="templateUrl" class="btn-gold inline-block">⬇️ Download Template</a>
+        </div>
+
+        <div class="bg-white rounded-xl border border-gold-200/60 p-6">
+            <p class="font-display font-bold text-maroon-800 text-lg mb-1">3. Upload your filled-in file</p>
+            <p class="text-sm text-maroon-500 mb-4">
+                .xlsx or .xls, up to 5MB. Each row becomes one product in the category chosen above.
             </p>
 
             {{-- step 1: pick a file --}}
@@ -30,10 +50,11 @@
                     <input type="file" accept=".xlsx,.xls" class="hidden" @change="onFile($event.target.files[0])">
                 </label>
                 <p x-show="error" x-cloak x-text="error" class="text-sm text-red-600 font-medium mt-3"></p>
-                <button type="button" @click="upload()" :disabled="!file"
+                <button type="button" @click="upload()" :disabled="!file || !categoryId"
                         class="btn-maroon mt-4 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-maroon-700">
                     Upload &amp; Import
                 </button>
+                <p x-show="!categoryId" x-cloak class="text-xs text-maroon-400 mt-2">Choose a category above first.</p>
             </div>
 
             {{-- step 2: real upload-transfer progress, then an indeterminate bar while the

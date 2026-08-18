@@ -5,9 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
-use App\Support\ImageCompressor;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -19,42 +17,46 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 // QUEUE_CONNECTION=sync in .env, there's no worker process to dispatch to) since this shop's
 // catalog is realistically dozens-to-low-hundreds of rows per file, not thousands; the JSON
 // response IS the finished result, not a "job started" ack.
+//
+// Deliberately narrow by design: just Name / Search Tags / Tag / Description / Price-per-250g.
+// Every row becomes a loose, weight-based product with a fixed 250g/500g/1kg portion spread
+// (500g/1kg prices are derived automatically — 2x/4x the 250g price, same as the single-product
+// form) and a placeholder photo (image is a NOT NULL column, and this flow deliberately doesn't
+// ask for an Image URL — the admin adds real photos by hand afterward, see
+// public/images/products/placeholder.png). Category is chosen ONCE per upload (not a per-row
+// column) — every product in a given file goes into the one category selected on the Bulk
+// Upload page, which also drives the "Category" note in the downloaded template's Read Me sheet.
 class ProductImportController extends Controller
 {
-    // column letter => template header label, also drives the example-row writer and the
-    // "Read Me" sheet below — the single source of truth for the column layout so the three
-    // stay in sync automatically instead of drifting apart under separate edits
+    // column letter => template header label — the single source of truth for the column layout
+    // so the header row, the example rows, and the Read Me sheet stay in sync automatically
     private const HEADERS = [
         'A' => 'Name',
-        'B' => 'Category',
-        'C' => 'Type (piece/loose)',
-        'D' => 'Price (Rs)',
-        'E' => 'Unit (weight/volume) - loose only',
-        'F' => 'Portions in grams, comma-separated - loose only',
-        'G' => 'Weight / Pack Size - piece only',
-        'H' => 'Description',
-        'I' => 'Discount Type (percentage/flat)',
-        'J' => 'Discount Value',
-        'K' => 'Tag',
-        'L' => 'Color (hex)',
-        'M' => 'Bestseller (Yes/No)',
-        'N' => 'Festival Special (Yes/No)',
-        'O' => 'Image URL',
+        'B' => 'Search Tags (comma-separated)',
+        'C' => 'Tag',
+        'D' => 'Description',
+        'E' => 'Price per 250g (Rs)',
     ];
+
+    // every bulk-imported product gets this fixed portion spread rather than asking the admin to
+    // specify one per row — matches the sizes already offered everywhere else in the catalog
+    private const DEFAULT_PORTIONS = [250, 500, 1000];
+
+    private const PLACEHOLDER_IMAGE = 'images/products/placeholder.png';
 
     public function create()
     {
-        return view('admin.products.import');
+        return view('admin.products.import', [
+            'categories' => Category::where('is_active', true)->orderBy('sort_order')->get(),
+        ]);
     }
 
-    // .xlsx with 2 worked examples (one "piece" product, one "loose" one) using this shop's own
-    // real product photos as the Image URL example — so re-uploading the template unmodified
-    // actually succeeds end-to-end, rather than just showing placeholder text nobody tests.
-    public function template()
+    // .xlsx with 2 worked examples and a "Read Me" sheet explaining every column. category_id is
+    // optional here (just personalizes the Read Me's category note) — the category that actually
+    // matters is the one submitted with the upload itself, see store().
+    public function template(Request $request)
     {
-        $categoryNames = Category::where('is_active', true)->orderBy('sort_order')->pluck('name')->all();
-        $cat1 = $categoryNames[0] ?? 'Beverages';
-        $cat2 = $categoryNames[1] ?? $cat1;
+        $category = Category::find($request->query('category_id'));
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
@@ -63,13 +65,13 @@ class ProductImportController extends Controller
         foreach (self::HEADERS as $col => $label) {
             $sheet->setCellValue("{$col}1", $label);
         }
-        $sheet->getStyle('A1:O1')->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
-        $sheet->getStyle('A1:O1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('7A1622');
+        $sheet->getStyle('A1:E1')->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle('A1:E1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('7A1622');
         $sheet->getRowDimension(1)->setRowHeight(20);
 
         $examples = [
-            ['Thums Up 2L', $cat1, 'piece', 95, '', '', '2 L bottle', 'Strong, fizzy cola — the 2 litre bottle for family get-togethers.', '', '', 'Bestseller', '#0b3d91', 'Yes', 'No', asset('images/products/thumbs-up-6LnyX3.webp')],
-            ['Assorted Mithai Platter', $cat2, 'loose', 320, 'weight', '250,500,1000', '', 'A festive assortment of traditional Indian sweets, freshly prepared.', '', '', 'Festival Special', '#8a1f2d', 'No', 'Yes', asset('images/products/balushai-eCxylU.png')],
+            ['Assorted Mithai Platter', 'mithai, sweets, diwali, gift', 'Bestseller', 'A festive assortment of traditional Indian sweets, freshly prepared.', 320],
+            ['Premium Namkeen Mix', 'namkeen, snacks, farsan, tea time', '', 'A crunchy, spiced mix perfect for tea-time.', 180],
         ];
         foreach ($examples as $i => $row) {
             $rowNum = $i + 2;
@@ -78,7 +80,7 @@ class ProductImportController extends Controller
             }
         }
 
-        foreach (range('A', 'O') as $col) {
+        foreach (range('A', 'E') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -87,18 +89,14 @@ class ProductImportController extends Controller
         $lines = [
             ['Column', 'What to enter'],
             ['Name', 'Product name. Required.'],
-            ['Category', 'Must exactly match one of your existing category names (case-insensitive): '.implode(', ', $categoryNames)],
-            ['Type', '"piece" for a fixed pack (soap, soda bottle), or "loose" for something sold by weight/volume (loose mithai, namkeen).'],
-            ['Price (Rs)', 'Whole rupees. For a loose product this is the price per 250g / 250ml — other portions are worked out from it automatically.'],
-            ['Unit', 'Loose products only: "weight" or "volume".'],
-            ['Portions', 'Loose products only: comma-separated sizes in grams/ml, e.g. 250,500,1000. Allowed values: '.implode(', ', Product::PORTION_OPTIONS)],
-            ['Weight / Pack Size', 'Piece products only, e.g. "500g", "2 L bottle", "1 pc".'],
-            ['Description', 'Optional.'],
-            ['Discount Type / Value', 'Optional. "percentage" (1-100) or "flat" (rupees off). Leave both blank for no discount.'],
+            ['Search Tags', 'Optional. Comma-separated keywords customers might search for, e.g. "mithai, sweets, diwali". Up to 30.'],
             ['Tag', 'Optional small badge label shown on the product, e.g. "Bestseller".'],
-            ['Color', 'Optional hex color like #c8962e, used as the product card accent. Defaults to a standard gold if left blank.'],
-            ['Bestseller / Festival Special', '"Yes" or "No".'],
-            ['Image URL', 'Required — a direct, publicly-accessible link to the product photo. It is downloaded and compressed automatically, same as uploading it by hand.'],
+            ['Description', 'Optional.'],
+            ['Price per 250g (Rs)', 'Whole rupees — the price for 250g. The 500g and 1kg prices are worked out automatically (2x and 4x this price).'],
+            ['Category', $category
+                ? "Every product in this file will be added to: {$category->name} (chosen when this template was downloaded)."
+                : 'Choose a category on the Bulk Upload page before uploading — every product in this file goes into that one category, not a column in this sheet.'],
+            ['Photo', 'Every imported product starts with a placeholder photo — add the real one afterward from Admin → Products → edit that product.'],
         ];
         foreach ($lines as $i => [$a, $b]) {
             $help->setCellValue('A'.($i + 1), $a);
@@ -112,10 +110,11 @@ class ProductImportController extends Controller
         $spreadsheet->setActiveSheetIndex(0);
 
         $writer = new Xlsx($spreadsheet);
+        $filename = $category ? Str::slug($category->name).'-import-template.xlsx' : 'product-import-template.xlsx';
 
         return response()->streamDownload(function () use ($writer) {
             $writer->save('php://output');
-        }, 'product-import-template.xlsx', [
+        }, $filename, [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
@@ -125,19 +124,19 @@ class ProductImportController extends Controller
     // by an indeterminate spinner for this synchronous processing phase, not per-row polling.
     public function store(Request $request)
     {
-        $request->validate([
+        $data = $request->validate([
             'file' => 'required|file|mimes:xlsx,xls|max:5120',
+            'category_id' => 'required|integer|exists:categories,id',
         ]);
+        $category = Category::findOrFail($data['category_id']);
 
-        // a few dozen rows each doing a network image fetch can comfortably exceed the default
-        // 30s — this route is the only place that needs the extra runway
+        // a few dozen rows is normally quick, but this route is still the one place in the admin
+        // that processes a whole spreadsheet in one request — extra runway over the default 30s
         set_time_limit(300);
 
         $spreadsheet = IOFactory::load($request->file('file')->getRealPath());
         $sheet = $spreadsheet->getSheetByName('Products') ?? $spreadsheet->getActiveSheet();
         $highestRow = $sheet->getHighestDataRow();
-
-        $categoriesByLowerName = Category::where('is_active', true)->get()->keyBy(fn ($c) => Str::lower($c->name));
 
         $results = [];
         $created = 0;
@@ -146,11 +145,11 @@ class ProductImportController extends Controller
             $get = fn (string $col) => trim((string) $sheet->getCell("{$col}{$row}")->getFormattedValue());
 
             $name = $get('A');
-            if ($name === '' && $get('B') === '' && $get('O') === '') {
+            if ($name === '' && $get('D') === '' && $get('E') === '') {
                 continue; // fully blank row (trailing rows in the sheet) — not an error, just skip
             }
 
-            $error = $this->importRow($get, $categoriesByLowerName);
+            $error = $this->importRow($get, $category);
             $results[] = [
                 'row' => $row,
                 'name' => $name ?: '(unnamed)',
@@ -173,144 +172,44 @@ class ProductImportController extends Controller
     // Returns an error message, or null on success (and the product now exists) — a plain
     // nullable-string return keeps the per-row control flow in store() a simple early-return
     // chain instead of throwing/catching for what's routine, expected row-level validation.
-    private function importRow(callable $get, $categoriesByLowerName): ?string
+    private function importRow(callable $get, Category $category): ?string
     {
         $name = $get('A');
         if ($name === '') {
             return 'Name is required.';
         }
 
-        $categoryName = $get('B');
-        $category = $categoriesByLowerName[Str::lower($categoryName)] ?? null;
-        if (!$category) {
-            return $categoryName === ''
-                ? 'Category is required.'
-                : "Category \"{$categoryName}\" doesn't match any existing category name.";
-        }
-
-        $type = Str::lower($get('C'));
-        if (!in_array($type, ['piece', 'loose'], true)) {
-            return 'Type must be "piece" or "loose".';
-        }
-
-        $priceDigits = preg_replace('/[^\d.]/', '', $get('D'));
+        $priceDigits = preg_replace('/[^\d.]/', '', $get('E'));
         if ($priceDigits === '' || (float) $priceDigits < 1) {
-            return 'Price must be a number of at least ₹1.';
+            return 'Price per 250g must be a number of at least ₹1.';
         }
         $price = (int) round((float) $priceDigits);
 
-        $data = [
+        $searchTags = array_slice(
+            array_values(array_filter(array_map('trim', explode(',', $get('B'))))),
+            0,
+            30
+        );
+
+        $product = Product::create([
             'name' => $name,
             'category' => $category->name,
-            'description' => $get('H') ?: null,
+            'description' => $get('D') ?: null,
             'price' => $price,
-            'type' => $type,
-            'tag' => $get('K') ?: null,
-            'color' => preg_match('/^#[0-9a-f]{6}$/i', $get('L')) ? $get('L') : '#c8962e',
+            'type' => 'loose',
+            'unit' => 'weight',
+            'portions' => self::DEFAULT_PORTIONS,
+            'weight' => implode('/', array_map(fn ($g) => Product::portionLabel($g, 'weight'), self::DEFAULT_PORTIONS)),
+            'tag' => $get('C') ?: null,
+            'search_tags' => $searchTags,
+            'color' => '#c8962e',
             'sort_order' => 0,
-            'is_bestseller' => Str::lower($get('M')) === 'yes',
-            'is_festival_special' => Str::lower($get('N')) === 'yes',
-        ];
-
-        if ($type === 'loose') {
-            $unit = Str::lower($get('E'));
-            if (!in_array($unit, ['weight', 'volume'], true)) {
-                return 'Unit must be "weight" or "volume" for a loose product.';
-            }
-
-            $portionsRaw = array_filter(array_map('trim', explode(',', $get('F'))));
-            if (!$portionsRaw) {
-                return 'Portions are required for a loose product, e.g. 250,500,1000.';
-            }
-            $portions = [];
-            foreach ($portionsRaw as $p) {
-                if (!ctype_digit($p) || !in_array((int) $p, Product::PORTION_OPTIONS, true)) {
-                    return "\"{$p}\" isn't a valid portion size. Allowed: ".implode(', ', Product::PORTION_OPTIONS);
-                }
-                $portions[] = (int) $p;
-            }
-            sort($portions);
-            $data['unit'] = $unit;
-            $data['portions'] = $portions;
-            $data['weight'] = implode('/', array_map(fn ($g) => Product::portionLabel($g, $unit), $portions));
-        } else {
-            $weight = $get('G');
-            if ($weight === '') {
-                return 'Weight / Pack Size is required for a piece product.';
-            }
-            $data['weight'] = $weight;
-            $data['unit'] = 'weight';
-            $data['portions'] = null;
-        }
-
-        $discountType = Str::lower($get('I'));
-        $discountValueRaw = $get('J');
-        if ($discountType !== '' || $discountValueRaw !== '') {
-            if (!in_array($discountType, ['percentage', 'flat'], true)) {
-                return 'Discount Type must be "percentage" or "flat".';
-            }
-            if ($discountValueRaw === '' || !ctype_digit($discountValueRaw) || (int) $discountValueRaw < 1) {
-                return 'Discount Value must be a whole positive number.';
-            }
-            $discountValue = (int) $discountValueRaw;
-            if ($discountType === 'percentage' && $discountValue > 100) {
-                return 'Discount percentage cannot exceed 100.';
-            }
-            if ($discountType === 'flat' && $discountValue >= $price) {
-                return 'Flat discount must be less than the price.';
-            }
-            $data['discount_type'] = $discountType;
-            $data['discount_value'] = $discountValue;
-        }
-
-        $imageUrl = $get('O');
-        if ($imageUrl === '') {
-            return 'Image URL is required.';
-        }
-        $imagePath = $this->downloadAndStoreImage($imageUrl, $name);
-        if (!$imagePath) {
-            return 'Could not download that Image URL — check it is a direct, publicly accessible link to an image file.';
-        }
-        $data['image'] = $imagePath;
-
-        $product = Product::create($data);
+            'is_bestseller' => false,
+            'is_festival_special' => false,
+            'image' => self::PLACEHOLDER_IMAGE,
+        ]);
         $product->categories()->sync([$category->id]);
 
         return null;
-    }
-
-    // mirrors ProductController::compressAndStore() for a URL-sourced image instead of an
-    // uploaded file — same directory, filename pattern, and compression pipeline, so a
-    // bulk-imported product's photo is indistinguishable on disk from one added by hand
-    private function downloadAndStoreImage(string $url, string $name): ?string
-    {
-        try {
-            $response = Http::timeout(15)->get($url);
-        } catch (\Throwable $e) {
-            return null;
-        }
-        if (!$response->successful()) {
-            return null;
-        }
-
-        $binary = $response->body();
-        if (!@imagecreatefromstring($binary)) {
-            return null; // fetched fine, but not a decodable image
-        }
-
-        $compressed = ImageCompressor::compressToJpeg($binary);
-        $rawExtension = strtolower(pathinfo(parse_url($url, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
-        $extension = $compressed !== $binary
-            ? 'jpg'
-            : (in_array($rawExtension, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true) ? $rawExtension : 'jpg');
-
-        $filename = Str::slug($name).'-'.Str::random(6).'.'.$extension;
-        $directory = public_path('images/products');
-        if (!is_dir($directory)) {
-            mkdir($directory, 0755, true);
-        }
-        file_put_contents($directory.'/'.$filename, $compressed);
-
-        return 'images/products/'.$filename;
     }
 }

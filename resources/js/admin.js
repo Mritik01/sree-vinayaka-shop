@@ -1036,8 +1036,35 @@ window.removeItemModal = function (reasons) {
 // real progress available here: the server side (ProductImportController@store) is one
 // synchronous request with no queue worker to poll a job status from, so once the upload itself
 // reaches 100% this just shows an indeterminate "processing" bar until the JSON response lands.
-window.productImportForm = function (storeUrl) {
+// Admin → Customer detail page's "Notify Abandoned Cart" button. The server computes the
+// initial remaining seconds from users.last_abandoned_cart_notified_at (see
+// CustomerController::show()'s $notifyCooldownSeconds) — this just ticks that number down
+// client-side so the button re-enables itself without a page reload once 24h is up.
+window.abandonedCartCooldown = function (initialSeconds) {
     return {
+        remaining: initialSeconds,
+        label: '',
+        init() {
+            this.updateLabel();
+            if (this.remaining > 0) {
+                const tick = setInterval(() => {
+                    this.remaining = Math.max(0, this.remaining - 60);
+                    this.updateLabel();
+                    if (this.remaining <= 0) clearInterval(tick);
+                }, 60000);
+            }
+        },
+        updateLabel() {
+            const hours = Math.floor(this.remaining / 3600);
+            const minutes = Math.floor((this.remaining % 3600) / 60);
+            this.label = hours > 0 ? `Available in ${hours}h ${minutes}m` : `Available in ${minutes}m`;
+        },
+    };
+};
+
+window.productImportForm = function (storeUrl, templateUrlBase) {
+    return {
+        categoryId: '',
         file: null,
         fileName: '',
         error: '',
@@ -1048,6 +1075,13 @@ window.productImportForm = function (storeUrl) {
         created: 0,
         failed: 0,
         results: [],
+
+        // category_id is optional here — it only personalizes the Read Me sheet's category note
+        // (see ProductImportController::template()) — the category that actually matters is the
+        // one sent with the upload itself, required separately in upload() below
+        get templateUrl() {
+            return this.categoryId ? `${templateUrlBase}?category_id=${this.categoryId}` : templateUrlBase;
+        },
 
         onFile(file) {
             this.error = '';
@@ -1074,7 +1108,7 @@ window.productImportForm = function (storeUrl) {
             this.results = [];
         },
         upload() {
-            if (!this.file) return;
+            if (!this.file || !this.categoryId) return;
             this.uploading = true;
             this.phase = 'uploading';
             this.progress = 0;
@@ -1082,6 +1116,7 @@ window.productImportForm = function (storeUrl) {
             const csrf = document.querySelector('meta[name=csrf-token]').content;
             const formData = new FormData();
             formData.append('file', this.file);
+            formData.append('category_id', this.categoryId);
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', storeUrl);
@@ -1309,6 +1344,63 @@ window.visitorCharts = function (data) {
                     maintainAspectRatio: false,
                     cutout: '62%',
                     plugins: { legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12, padding: 14 } } },
+                },
+            });
+        },
+    };
+};
+
+// SuperAdmin Analytics page (admin/analytics/index.blade.php) — device mix (same shape as
+// visitorCharts' above) plus a horizontal bar of the curated "meaningful click" events. The
+// clicks canvas only exists in the DOM when there's at least one click event yet (see the
+// blade's @if ($topClicks->isEmpty())), so this only touches it when $refs.clicksChart is present.
+window.analyticsCharts = function (data) {
+    return {
+        async init() {
+            const { default: Chart } = await import('chart.js/auto');
+            const gridColor = 'rgba(122, 22, 34, 0.08)';
+            const tickColor = '#7a1622';
+
+            new Chart(this.$refs.deviceChart, {
+                type: 'doughnut',
+                data: {
+                    labels: data.devices.labels.length ? data.devices.labels : ['No data'],
+                    datasets: [{
+                        data: data.devices.values.length ? data.devices.values : [1],
+                        backgroundColor: [palette.gold, palette.pista, palette.maroon, palette.maroonDark],
+                        borderColor: palette.cream,
+                        borderWidth: 3,
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    cutout: '62%',
+                    plugins: { legend: { position: 'bottom', labels: { color: tickColor, boxWidth: 12, padding: 14 } } },
+                },
+            });
+
+            if (!this.$refs.clicksChart) return;
+
+            new Chart(this.$refs.clicksChart, {
+                type: 'bar',
+                data: {
+                    labels: data.clicks.labels,
+                    datasets: [{
+                        label: 'Clicks',
+                        data: data.clicks.values,
+                        backgroundColor: palette.pista,
+                        borderRadius: 6,
+                        maxBarThickness: 22,
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { precision: 0, color: tickColor }, grid: { color: gridColor } },
+                        y: { ticks: { color: tickColor }, grid: { display: false } },
+                    },
                 },
             });
         },
