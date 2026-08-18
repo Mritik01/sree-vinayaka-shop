@@ -45,18 +45,37 @@ class AbandonedCartReminderService
             ->with('cart')
             ->get();
 
-        foreach ($users as $user) {
-            $phone = PhoneNumber::normalize((string) $user->phone);
-
-            if (!PhoneNumber::isValidIndianMobile($phone)) {
-                continue;
-            }
-
-            $itemCount = (int) $user->cart->sum('pivot.quantity');
-
-            SendAiSensyMessage::dispatch('abandoned_cart', $phone, [$user->name, (string) $itemCount], $user->name);
-        }
+        $users->each(fn (User $user) => self::sendReminderTo($user));
 
         return $users;
+    }
+
+    /**
+     * Sends the abandoned-cart WhatsApp reminder to this one user right now, regardless of how
+     * long their cart has sat untouched — the time-window staleness check above is specific to
+     * the batch job, not a rule about when a reminder is "allowed". Used by sendReminders() above
+     * and by the manual "Notify Abandoned Cart" button on the admin customer page
+     * (Admin\CustomerController::notifyAbandonedCart()). Returns false (no-op) if the cart is
+     * empty or the phone isn't a valid, verified number.
+     */
+    public static function sendReminderTo(User $user): bool
+    {
+        $phone = PhoneNumber::normalize((string) $user->phone);
+
+        if (!PhoneNumber::isValidIndianMobile($phone)) {
+            return false;
+        }
+
+        // distinct products in the cart, not summed quantity — 2x of one product is still 1 item
+        $itemCount = $user->loadMissing('cart')->cart->count();
+
+        if ($itemCount === 0) {
+            return false;
+        }
+
+        SendAiSensyMessage::dispatch('abandoned_cart', $phone, [$user->name, (string) $itemCount], $user->name);
+        $user->update(['last_abandoned_cart_notified_at' => now()]);
+
+        return true;
     }
 }

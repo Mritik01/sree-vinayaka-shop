@@ -6,10 +6,12 @@ use App\Http\Controllers\Admin\Concerns\PaginatesAdminLists;
 use App\Http\Controllers\Controller;
 use App\Models\Coupon;
 use App\Models\Order;
+use App\Models\ShopSetting;
 use App\Models\SiteVisit;
 use App\Models\User;
 use App\Models\UserActivity;
 use App\Notifications\AdminMessage;
+use App\Services\AbandonedCartReminderService;
 use App\Services\CustomerBlockService;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -143,6 +145,25 @@ class CustomerController extends Controller
             ->orderBy('code')
             ->get(['id', 'code', 'description']);
 
+        // powers both the "Cart Items" stat card and whether the "Notify Abandoned Cart" button
+        // shows at all (see AbandonedCartReminderService::sendReminderTo()) — count of distinct
+        // products in the cart, NOT summed quantity (2x of one product still counts as 1 item)
+        $cartItemCount = $user->loadMissing('cart')->cart->count();
+
+        // 24h cooldown on the manual "Notify Abandoned Cart" button, stamped by
+        // AbandonedCartReminderService::sendReminderTo() on every successful send — seconds
+        // remaining, or 0 once the cooldown has elapsed (never negative, for the JS countdown)
+        $notifyCooldownSeconds = $user->last_abandoned_cart_notified_at
+            ? max(0, 86400 - now()->diffInSeconds($user->last_abandoned_cart_notified_at))
+            : 0;
+
+        // AiSensyService::send() gates on both of these before ever attempting the API call (see
+        // AiSensyService::EVENT_TOGGLE_COLUMNS) — clicking "Notify Abandoned Cart" while either is
+        // off silently no-ops (fire-and-forget dispatch, no feedback from the job), so the button
+        // reflects that state up front instead of letting the admin click into a dead end
+        $settings = ShopSetting::current();
+        $abandonedCartNotifyEnabled = $settings->aisensy_enabled && $settings->aisensy_notify_abandoned_cart;
+
         return view('admin.customers.show', array_merge([
             'customer' => $user,
             'orders' => $orders,
@@ -153,7 +174,32 @@ class CustomerController extends Controller
             'assignedCoupons' => $assignedCoupons,
             'assignableCoupons' => $assignableCoupons,
             'blockHistory' => $user->blockHistory()->with('admin')->get(),
+            'cartItemCount' => $cartItemCount,
+            'notifyCooldownSeconds' => $notifyCooldownSeconds,
+            'abandonedCartNotifyEnabled' => $abandonedCartNotifyEnabled,
         ], $this->behaviourData($user)));
+    }
+
+    // any logged-in admin can send this (same tier as "Send Notification"/block above) — only
+    // reachable at all when the customer page's button is visible, i.e. cartItemCount > 0, but
+    // re-validated here regardless of what the client sends since AbandonedCartReminderService::
+    // sendReminderTo() is the real gate (empty cart / invalid phone both silently no-op)
+    public function notifyAbandonedCart(User $user)
+    {
+        // the button is already disabled client-side when this is off (see
+        // $abandonedCartNotifyEnabled in show()) — this re-check covers a stale page / direct POST,
+        // and matters here specifically because sendReminderTo() below would otherwise still stamp
+        // the 24h cooldown even though AiSensyService::send() silently no-ops on this same toggle
+        $settings = ShopSetting::current();
+        if (!$settings->aisensy_enabled || !$settings->aisensy_notify_abandoned_cart) {
+            return back()->with('status', 'WhatsApp notifications for abandoned carts are turned off — enable them in Admin → Configuration first.');
+        }
+
+        $sent = AbandonedCartReminderService::sendReminderTo($user);
+
+        return back()->with('status', $sent
+            ? "Abandoned-cart WhatsApp reminder sent to {$user->name}."
+            : "Couldn't send — {$user->name} has no items in cart, or an unverified/invalid phone number.");
     }
 
     // any logged-in admin can block/unblock (not super-admin-only) — same tier as cancelling an

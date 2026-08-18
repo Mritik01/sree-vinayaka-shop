@@ -59,6 +59,7 @@ class User extends Authenticatable
         'password',
         'phone',
         'phone_verified_at',
+        'last_abandoned_cart_notified_at',
         'reward_progress',
         'free_gifts_available',
         'locale',
@@ -90,6 +91,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'phone_verified_at' => 'datetime',
+        'last_abandoned_cart_notified_at' => 'datetime',
         'password' => 'hashed',
         'reward_progress' => 'integer',
         'free_gifts_available' => 'integer',

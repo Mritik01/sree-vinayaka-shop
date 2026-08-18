@@ -31,7 +31,7 @@
         <div class="space-y-5" x-data="{ tab: 'overview' }">
             {{-- profile header --}}
             <div class="bg-white rounded-2xl border border-gold-200/60 p-6 animate-fade-up">
-                <div class="flex items-center gap-4"
+                <div class="flex flex-wrap items-start gap-4"
                      x-data="{ editing: false, draft: {{ Illuminate\Support\Js::from($customer->name) }}, saving: false, error: '', current: {{ Illuminate\Support\Js::from($customer->name) }},
                         async save() {
                             const trimmed = this.draft.trim();
@@ -79,7 +79,7 @@
                         <p class="text-maroon-500 text-sm">📞 <a href="tel:+91{{ preg_replace('/\D/', '', $customer->phone) }}" class="hover:text-gold-600">{{ $customer->phone }}</a></p>
                         <p class="text-maroon-400 text-xs mt-0.5">Customer since {{ $customer->created_at->format('d M Y') }}</p>
                     </div>
-                    <div class="shrink-0 flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                         @if (Auth::guard('admin')->user()?->isSuperAdmin())
                             <form method="POST" action="{{ route('admin.customers.impersonate', $customer) }}"
                                   onsubmit="return confirm('Log in as {{ $customer->name }}? This starts a logged, time-limited session viewing the site as this customer.');">
@@ -95,6 +95,40 @@
                                 class="text-sm px-4 py-2 rounded-full bg-maroon-700 text-cream hover:bg-maroon-800 transition font-medium inline-flex items-center gap-1.5">
                             🔔 Send Notification
                         </button>
+                        {{-- only shown when there's actually something to remind them about — see
+                             $cartItemCount in CustomerController::show(). Once sent, the button is
+                             disabled for 24h with a live countdown — see $notifyCooldownSeconds
+                             and window.abandonedCartCooldown() in admin.js. If the AiSensy master
+                             switch or this event's toggle is off (Admin → Configuration), the button
+                             is disabled outright instead — sending would otherwise silently no-op,
+                             see $abandonedCartNotifyEnabled and notifyAbandonedCart() re-check --}}
+                        @if ($cartItemCount > 0)
+                            @if (!$abandonedCartNotifyEnabled)
+                                <button type="button" disabled title="Enable WhatsApp Notifications (AiSensy) → Abandoned Cart in Admin → Configuration to send this."
+                                        class="text-sm px-4 py-2 rounded-full bg-gold-100 text-maroon-400 cursor-not-allowed font-medium inline-flex items-center gap-1.5">
+                                    🛒 Notifications Off
+                                </button>
+                            @else
+                                <div x-data="abandonedCartCooldown({{ $notifyCooldownSeconds }})">
+                                    <template x-if="remaining <= 0">
+                                        <form method="POST" action="{{ route('admin.customers.notify-abandoned-cart', $customer) }}"
+                                              onsubmit="return confirm('Send an abandoned-cart WhatsApp reminder to {{ $customer->name }} for their {{ $cartItemCount }} item{{ $cartItemCount === 1 ? '' : 's' }} in cart?');">
+                                            @csrf
+                                            <button type="submit"
+                                                    class="text-sm px-4 py-2 rounded-full bg-pista-600 text-white hover:bg-pista-700 transition font-medium inline-flex items-center gap-1.5">
+                                                🛒 Notify Abandoned Cart
+                                            </button>
+                                        </form>
+                                    </template>
+                                    <template x-if="remaining > 0">
+                                        <button type="button" disabled
+                                                class="text-sm px-4 py-2 rounded-full bg-gold-100 text-maroon-400 cursor-not-allowed font-medium inline-flex items-center gap-1.5">
+                                            🛒 Sent · <span x-text="label"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            @endif
+                        @endif
                         @if ($customer->is_blocked)
                             <form method="POST" action="{{ route('admin.customers.unblock', $customer) }}"
                                   onsubmit="return confirm('Unblock {{ $customer->name }}? They will regain normal access immediately.');">
@@ -191,7 +225,7 @@
 
             {{-- ===== OVERVIEW TAB ===== --}}
             <div x-show="tab === 'overview'" x-cloak x-transition.opacity.duration.200ms class="space-y-5">
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div class="bg-white rounded-2xl border border-gold-200/60 p-5 animate-fade-up" style="animation-delay: 60ms">
                         <p class="font-display text-2xl text-maroon-800" x-data x-init="animateCounter($el, {{ $customer->total_orders }})">0</p>
                         <p class="text-maroon-400 text-xs mt-1">Total Orders</p>
@@ -203,6 +237,12 @@
                     <div class="bg-white rounded-2xl border border-gold-200/60 p-5 animate-fade-up" style="animation-delay: 180ms">
                         <p class="font-display text-2xl text-maroon-800" x-data x-init="animateCounter($el, {{ $avgOrder }}, { prefix: '₹' })">₹0</p>
                         <p class="text-maroon-400 text-xs mt-1">Avg. Order Value</p>
+                    </div>
+                    {{-- live count, not order history — items currently sitting in this customer's
+                         cart right now (see $cartItemCount in CustomerController::show()) --}}
+                    <div class="bg-white rounded-2xl border border-gold-200/60 p-5 animate-fade-up" style="animation-delay: 240ms">
+                        <p class="font-display text-2xl text-maroon-800" x-data x-init="animateCounter($el, {{ $cartItemCount }})">0</p>
+                        <p class="text-maroon-400 text-xs mt-1">🛒 Items in Cart</p>
                     </div>
                 </div>
 
