@@ -58,6 +58,15 @@
     <link rel="manifest" href="{{ asset('manifest.json') }}">
     <meta name="theme-color" content="{{ $customerTheme['swatch']['primary'] }}">
 
+    {{-- iOS has no beforeinstallprompt API and never reads manifest.json's "display": "standalone"
+         — these are the Apple-specific equivalents. Without apple-mobile-web-app-capable, a page
+         added to the home screen just reopens inside Safari with its normal address bar/chrome
+         instead of launching full-screen like an app. apple-mobile-web-app-title keeps the
+         home-screen icon's label short instead of falling back to the full <title> above. --}}
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Shri Vinayak">
+
     {{-- loaded non-render-blocking (media="print" swapped to "all" on load) — the stylesheet
          itself was previously blocking first paint on the round-trip to fonts.googleapis.com,
          which is costly on slow/high-latency connections. Text renders in the sans-serif
@@ -104,6 +113,7 @@
     <div class="fixed top-0 inset-x-0 z-[60] flex flex-col">
         @include('partials.location-prompt-banner')
         @include('partials.install-prompt-banner')
+        @include('partials.ios-install-prompt-banner')
     </div>
     <div x-data="{ authOpen: false }" @open-auth-modal.window="authOpen = true">
         @include('partials.navbar')
