@@ -9,6 +9,7 @@ class ShopSetting extends Model
 {
     protected $fillable = [
         'accepting_orders',
+        'resume_accepting_orders_at',
         'restrict_delivery_area',
         'delivery_center_lat',
         'delivery_center_lng',
@@ -52,6 +53,7 @@ class ShopSetting extends Model
 
     protected $casts = [
         'accepting_orders' => 'boolean',
+        'resume_accepting_orders_at' => 'datetime',
         'restrict_delivery_area' => 'boolean',
         'delivery_center_lat' => 'float',
         'delivery_center_lng' => 'float',
@@ -101,12 +103,45 @@ class ShopSetting extends Model
         return static::current()->accepting_orders;
     }
 
-    public static function toggleAcceptingOrders(): bool
+    // $resumeAt is optional — an admin who doesn't know yet when they'll reopen can still pause
+    // orders without picking a time; the customer-facing banner just falls back to a generic
+    // "check back soon" message in that case (see partials/navbar.blade.php)
+    public static function stopAcceptingOrders(?\DateTimeInterface $resumeAt = null): void
+    {
+        static::current()->update([
+            'accepting_orders' => false,
+            'resume_accepting_orders_at' => $resumeAt,
+        ]);
+    }
+
+    // used both by the admin's manual "turn back on" and by ResumeAcceptingOrders (the scheduled
+    // command that fires this automatically once resume_accepting_orders_at has passed) — always
+    // clears the scheduled time, since it no longer means anything once orders are live again
+    public static function startAcceptingOrders(): void
+    {
+        static::current()->update([
+            'accepting_orders' => true,
+            'resume_accepting_orders_at' => null,
+        ]);
+    }
+
+    // polled every minute by orders:resume-accepting (see Kernel::schedule()) — true means it
+    // just flipped accepting_orders back on, so the caller can log/report that
+    public static function resumeIfDue(): bool
     {
         $settings = static::current();
-        $settings->update(['accepting_orders' => !$settings->accepting_orders]);
 
-        return $settings->accepting_orders;
+        if ($settings->accepting_orders || !$settings->resume_accepting_orders_at) {
+            return false;
+        }
+
+        if ($settings->resume_accepting_orders_at->isFuture()) {
+            return false;
+        }
+
+        static::startAcceptingOrders();
+
+        return true;
     }
 
     public static function toggleRestrictDeliveryArea(): bool

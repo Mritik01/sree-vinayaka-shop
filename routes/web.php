@@ -75,6 +75,9 @@ Route::get('/shop-status', function () {
 
     return response()->json([
         'accepting_orders' => $settings->accepting_orders,
+        // null once accepting again, even if the column itself hasn't been cleared yet by some
+        // caller — the banner should never show a stale "reopening at..." for a shop that's open
+        'resume_accepting_orders_at' => $settings->accepting_orders ? null : $settings->resume_accepting_orders_at?->toIso8601String(),
         'restrict_delivery_area' => $settings->restrict_delivery_area,
         'delivery_radius_km' => $settings->delivery_radius_km,
         'delivery_fee_strategy' => $settings->delivery_fee_strategy,

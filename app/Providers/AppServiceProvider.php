@@ -32,7 +32,7 @@ class AppServiceProvider extends ServiceProvider
 
         // guarded so a missing table (first `migrate`) or an unreachable DB doesn't crash every request at boot
         $shopStatus = [
-            'accepting' => true, 'restricted' => false, 'radiusKm' => 6.0,
+            'accepting' => true, 'resumeAcceptingOrdersAt' => null, 'restricted' => false, 'radiusKm' => 6.0,
             'deliveryFeeStrategy' => 'fixed', 'deliveryFreeMinOrder' => null, 'deliveryFeeBelowMinimum' => null,
             'deliveryFeeFixed' => 0, 'deliverySuccessMessage' => 'Free Delivery Unlocked! 🚚', 'deliverySuccessAnimation' => 'confetti_truck',
             'rainFeeEnabled' => false, 'rainFeeAmount' => 0, 'rainFeeMessage' => null,
@@ -65,6 +65,8 @@ class AppServiceProvider extends ServiceProvider
                 $customerTheme = $settings->customerThemeConfig();
                 $shopStatus = [
                     'accepting' => $settings->accepting_orders,
+                    // mirrors the /shop-status endpoint's same guard — see its comment
+                    'resumeAcceptingOrdersAt' => $settings->accepting_orders ? null : $settings->resume_accepting_orders_at?->toIso8601String(),
                     'restricted' => $settings->restrict_delivery_area,
                     'radiusKm' => $settings->delivery_radius_km,
                     // fee config — the single source of truth is ShopSetting::activeFees()/deliveryFeeFor();

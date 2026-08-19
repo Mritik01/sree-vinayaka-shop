@@ -26,8 +26,40 @@
     </span>
     <span x-show="$store.shop.restricted" x-cloak> · 📍 {{ __('delivering within') }} <span x-text="$store.shop.radiusKm"></span> {{ __('km of Siswa Bazar only') }}</span>
 </div>
-<div x-show="!$store.shop.accepting" x-cloak class="bg-red-700 text-white text-xs sm:text-sm text-center py-2 px-4 font-semibold tracking-wide">
-    🚫 {{ __("We're not accepting online orders right now — please check back soon. You can still browse our store!") }}
+{{-- "Accepting Orders" paused banner — replaces the flip bar above whenever an admin turns
+     orders off (Admin -> Configuration). Two looks: a rich animated one with a live countdown
+     when they picked a reopen time, and a plain fallback when they didn't (see
+     ShopSetting::stopAcceptingOrders() — the time is optional). window.acceptingOrdersBanner()
+     in app.js owns the countdown math; {time}/{date} tokens here mirror the {time} token
+     pattern the flip bar above already uses, so this stays localizable too. --}}
+<div x-data="acceptingOrdersBanner(
+        {{ Illuminate\Support\Js::from(__('We\'ll be back today at {time}')) }},
+        {{ Illuminate\Support\Js::from(__('We\'ll be back tomorrow at {time}')) }},
+        {{ Illuminate\Support\Js::from(__('We\'ll be back on {date} at {time}')) }},
+        {{ Illuminate\Support\Js::from(__('Reopening any moment now…')) }}
+     )"
+     x-show="!$store.shop.accepting" x-cloak
+     x-transition:enter="transition duration-400 ease-out" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0">
+    <template x-if="$store.shop.resumeAcceptingOrdersAt">
+        <div class="relative overflow-hidden bg-gradient-to-r from-red-800 via-red-700 to-red-800 text-cream text-xs sm:text-sm text-center py-2.5 px-4 font-medium tracking-wide">
+            {{-- faint sweeping shimmer — same idea as the newsletter card's hover shimmer, just
+                 slower and always-on, so the bar reads as "live" without being distracting --}}
+            <div class="pointer-events-none absolute inset-0 opacity-40 bg-gradient-to-r from-gold-400/0 via-gold-300/25 to-gold-400/0 -translate-x-full animate-[shimmer_3.5s_ease-in-out_infinite]"></div>
+            <span class="relative inline-flex items-center justify-center gap-2 flex-wrap">
+                <span class="inline-flex w-2 h-2 rounded-full bg-gold-400 animate-bulb-glow"></span>
+                <span class="text-base leading-none animate-pulse">⏰</span>
+                <span class="font-semibold" x-text="resumeLabel()"></span>
+                <span x-show="countdownLabel()" x-cloak class="text-gold-300">
+                    · {{ __('Opens in') }} <span x-text="countdownLabel()"></span>
+                </span>
+            </span>
+        </div>
+    </template>
+    <template x-if="!$store.shop.resumeAcceptingOrdersAt">
+        <div class="bg-red-700 text-white text-xs sm:text-sm text-center py-2 px-4 font-semibold tracking-wide">
+            🚫 {{ __("We're not accepting online orders right now — please check back soon. You can still browse our store!") }}
+        </div>
+    </template>
 </div>
 
 {{-- rain fee banner — subtle falling-raindrop accent, respects prefers-reduced-motion --}}

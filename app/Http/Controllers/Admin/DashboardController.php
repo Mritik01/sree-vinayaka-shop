@@ -83,9 +83,31 @@ class DashboardController extends Controller
 
     public function toggleAcceptingOrders(Request $request)
     {
-        $accepting = ShopSetting::toggleAcceptingOrders();
+        $settings = ShopSetting::current();
 
-        return response()->json(['ok' => true, 'accepting_orders' => $accepting, 'value' => $accepting]);
+        if ($settings->accepting_orders) {
+            // turning OFF — resume_at is optional (see ShopSetting::stopAcceptingOrders), but
+            // when given it must be a real future time, not more than 30 days out (a pause
+            // longer than that almost certainly means "I'll flip it back on manually," and a
+            // stale far-future timestamp sitting around is more likely a fat-fingered date than
+            // an intentional month-long closure)
+            $data = $request->validate([
+                'resume_at' => ['nullable', 'date', 'after:now', 'before:'.now()->addDays(30)->toDateTimeString()],
+            ]);
+
+            ShopSetting::stopAcceptingOrders(isset($data['resume_at']) ? \Illuminate\Support\Carbon::parse($data['resume_at']) : null);
+        } else {
+            ShopSetting::startAcceptingOrders();
+        }
+
+        $settings = $settings->fresh();
+
+        return response()->json([
+            'ok' => true,
+            'accepting_orders' => $settings->accepting_orders,
+            'value' => $settings->accepting_orders,
+            'resume_at' => $settings->resume_accepting_orders_at?->toIso8601String(),
+        ]);
     }
 
     public function toggleRainFeeEnabled(Request $request)

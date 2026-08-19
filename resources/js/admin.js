@@ -815,6 +815,92 @@ window.settingToggle = function (initial, endpoint) {
     };
 };
 
+// "Accepting Orders" card (admin/configuration.blade.php) — also not built on settingToggle()
+// above: turning orders OFF needs to ask "when will you turn them back on?" first, via a modal,
+// rather than flipping immediately like every other setting on this page. Turning back ON stays
+// a plain one-click action (no confirmation) — only pausing needs the extra step.
+window.acceptingOrdersToggle = function (initialOn, initialResumeAt, endpoint) {
+    return {
+        on: initialOn,
+        resumeAt: initialResumeAt, // ISO string or null — only meaningful while !on
+        updating: false,
+        showModal: false,
+        resumeInput: '', // datetime-local's bound value while the modal is open
+        error: '',
+
+        // datetime-local needs "YYYY-MM-DDTHH:mm" in LOCAL time (no timezone/seconds) — used as
+        // the input's :min so the browser's own picker won't offer a past time. A minute of
+        // slack keeps "right now" from reading as already-invalid the instant the modal opens.
+        minResumeInput() {
+            const d = new Date(Date.now() + 60000);
+            d.setSeconds(0, 0);
+            return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        },
+        openModal() {
+            this.error = '';
+            this.resumeInput = '';
+            this.showModal = true;
+        },
+        closeModal() {
+            if (this.updating) return;
+            this.showModal = false;
+        },
+        flip() {
+            if (this.updating) return;
+            if (this.on) {
+                this.openModal();
+            } else {
+                this.submit(null); // turning back on — no confirmation needed
+            }
+        },
+        confirmStop(withTime) {
+            if (withTime) {
+                if (!this.resumeInput) {
+                    this.error = 'Please pick a time, or use "Not sure yet" instead.';
+                    return;
+                }
+                const chosen = new Date(this.resumeInput);
+                if (Number.isNaN(chosen.getTime()) || chosen.getTime() <= Date.now()) {
+                    this.error = 'Please choose a time in the future.';
+                    return;
+                }
+                // send the picked wall-clock time as-is, NOT chosen.toISOString() — the server
+                // (config('app.timezone') = Asia/Kolkata) stores and reads plain datetime strings
+                // as local time with no UTC conversion, so toISOString()'s UTC-shifted value would
+                // get stored as if it were already local, silently shifting the reopen time by the
+                // UTC offset (e.g. 10:09 AM picked → stored/shown as 4:39 AM)
+                this.submit(this.resumeInput.replace('T', ' ') + ':00');
+            } else {
+                this.submit(null);
+            }
+        },
+        async submit(resumeAtIso) {
+            this.updating = true;
+            this.error = '';
+            try {
+                const csrf = document.querySelector('meta[name=csrf-token]').content;
+                const res = await fetch(endpoint, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+                    body: JSON.stringify(resumeAtIso ? { resume_at: resumeAtIso } : {}),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (data.ok) {
+                    this.on = data.value;
+                    this.resumeAt = data.resume_at;
+                    this.showModal = false;
+                } else {
+                    this.error = data.message || data.errors?.resume_at?.[0] || 'Could not update — please try again.';
+                }
+            } catch (e) {
+                this.error = 'Network error — please try again.';
+            } finally {
+                this.updating = false;
+            }
+        },
+    };
+};
+
 // Payment Methods card (admin/configuration.blade.php) — two mutually-constrained switches
 // (COD / Razorpay). Not built on settingToggle() above: a rejected toggle here needs a visible
 // reason ("at least one must stay enabled"), which the generic component doesn't surface, and

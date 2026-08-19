@@ -261,7 +261,7 @@
                                             <span class="text-maroon-300 text-xs">({{ __('product removed') }})</span>
                                         @endunless
                                     </p>
-                                    <p class="text-xs text-maroon-500 mt-0.5">
+                                    <p class="text-sm text-maroon-500 mt-0.5">
                                         ₹{{ $item->product_price }}
                                         @if ($item->portionLabel())
                                             ({{ $item->portionLabel() }})

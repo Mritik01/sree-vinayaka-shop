@@ -16,6 +16,11 @@ class Kernel extends ConsoleKernel
         // requires the server's cron to run `php artisan schedule:run` every minute in production
         $schedule->command('orders:cancel-stale')->everyFiveMinutes();
 
+        // an admin pausing "Accepting Orders" can pick a time to reopen (see ShopSetting::
+        // stopAcceptingOrders()) — runs every minute so the shop actually reopens close to the
+        // promised time instead of sitting closed until someone remembers to flip it back on
+        $schedule->command('orders:resume-accepting')->everyMinute();
+
         // carts:remind-abandoned is deliberately NOT scheduled here — sent manually (on-demand
         // trigger TBD) rather than automatically. See AbandonedCartReminderService for the
         // time-window logic (no "already reminded" tracking column by design) that still applies

@@ -130,6 +130,15 @@
   animation: coin-glow 1.1s ease-out 2;
 }
 
+/* "Accepting Orders" paused banner (partials/navbar.blade.php) — a slow diagonal-free sweep of
+   light across the bar so it reads as "live/counting down" without being distracting; the
+   element itself is a full-width absolutely-positioned gradient, so only its own position needs
+   to move, not repaint anything */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 /* review form — celebratory sparkles flying out from the stars on a 5-star pick;
    each span sets its own flight path via --tx/--ty custom properties */
 @keyframes sparkle-burst {

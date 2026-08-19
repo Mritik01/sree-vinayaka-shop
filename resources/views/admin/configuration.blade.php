@@ -5,9 +5,11 @@
 
 @section('content')
     <div class="grid lg:grid-cols-2 gap-4 mb-5">
-        {{-- accepting-orders toggle --}}
-        <div x-data="settingToggle({{ $acceptingOrders ? 'true' : 'false' }}, '/admin/settings/accepting-orders')"
-             class="rounded-2xl border p-5 flex items-center justify-between gap-4 transition-colors duration-300"
+        {{-- accepting-orders toggle — turning this OFF opens a modal asking when you'll turn it
+             back on (see acceptingOrdersToggle() in admin.js); turning it back ON is still a
+             plain one click, same as every other toggle on this page --}}
+        <div x-data="acceptingOrdersToggle({{ $acceptingOrders ? 'true' : 'false' }}, {{ Illuminate\Support\Js::from($settings->resume_accepting_orders_at?->toIso8601String()) }}, '/admin/settings/accepting-orders')"
+             class="relative rounded-2xl border p-5 flex items-center justify-between gap-4 transition-colors duration-300"
              :class="on ? 'bg-white border-gold-200/60' : 'bg-red-50 border-red-200'">
             <div>
                 <p class="font-display text-maroon-800 flex items-center gap-2">
@@ -16,16 +18,63 @@
                 </p>
                 <p class="text-sm mt-1" :class="on ? 'text-maroon-500' : 'text-red-600'">
                     <span x-show="on" x-cloak>Customers can place new orders normally.</span>
-                    <span x-show="!on" x-cloak>Customers will see a notice and can't check out until you turn this back on.</span>
+                    <template x-if="!on">
+                        <span>
+                            <template x-if="resumeAt">
+                                <span>Paused — reopening automatically at <span class="font-semibold" x-text="new Date(resumeAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })"></span>.</span>
+                            </template>
+                            <template x-if="!resumeAt">
+                                <span>Customers will see a notice and can't check out until you turn this back on.</span>
+                            </template>
+                        </span>
+                    </template>
                 </p>
             </div>
 
             <label class="relative inline-flex items-center cursor-pointer shrink-0" :class="updating && 'opacity-60 pointer-events-none'">
-                <input type="checkbox" class="sr-only peer" :checked="on" @change="toggle()">
+                <input type="checkbox" class="sr-only peer" :checked="on" @change="flip()">
                 <div class="w-16 h-9 rounded-full transition-colors duration-300 bg-red-300 peer-checked:bg-pista-500"></div>
                 <div class="absolute left-1 top-1 w-7 h-7 bg-white rounded-full shadow-md transition-transform duration-300 peer-checked:translate-x-7 flex items-center justify-center text-xs"
                      x-text="on ? '✓' : '✕'"></div>
             </label>
+
+            {{-- "when will you reopen?" popup — same backdrop/panel language as the checkout
+                 payment-confirm popup (partials/... see checkout.blade.php) --}}
+            <div x-show="showModal" x-cloak class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6">
+                <div x-show="showModal"
+                     x-transition:enter="transition-opacity duration-300 ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                     x-transition:leave="transition-opacity duration-200 ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                     @click="closeModal()"
+                     class="absolute inset-0 bg-maroon-900/70 backdrop-blur-sm"></div>
+
+                <div x-show="showModal"
+                     x-transition:enter="transition duration-300 ease-out" x-transition:enter-start="opacity-0 scale-95 translate-y-4" x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                     x-transition:leave="transition duration-200 ease-in" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+                     class="relative w-full max-w-sm bg-ivory rounded-2xl shadow-2xl p-6 text-left" @click.outside="closeModal()">
+                    <div class="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-gold-400 to-gold-600 flex items-center justify-center text-2xl shadow-md">⏰</div>
+                    <h2 class="font-display font-bold text-lg text-maroon-800 mt-3 text-center">When will you start accepting orders again?</h2>
+                    <p class="text-maroon-500 text-sm mt-1 mb-5 text-center">Customers will see this time on the site while orders are paused.</p>
+
+                    <label class="block text-sm font-medium text-maroon-700 mb-1.5">Reopen time</label>
+                    <input type="datetime-local" x-model="resumeInput" :min="minResumeInput()"
+                           class="w-full rounded-lg border border-gold-300/70 px-3.5 py-2.5 text-base sm:text-sm text-maroon-800 focus:outline-none focus:ring-2 focus:ring-gold-400 focus:border-gold-400 transition">
+                    <p x-show="error" x-cloak x-text="error" class="text-xs text-red-600 font-medium mt-2"></p>
+
+                    <button type="button" @click="confirmStop(true)" :disabled="updating"
+                            class="btn-gold w-full text-center mt-4 disabled:opacity-60">
+                        <span x-show="!updating">Turn Off &amp; Set Time</span>
+                        <span x-show="updating" x-cloak>Saving…</span>
+                    </button>
+                    <button type="button" @click="confirmStop(false)" :disabled="updating"
+                            class="w-full text-center mt-2.5 text-sm font-semibold text-maroon-500 hover:text-maroon-700 transition py-1">
+                        Not sure yet — turn off without a time
+                    </button>
+                    <button type="button" @click="closeModal()" :disabled="updating"
+                            class="w-full text-center mt-1 text-sm text-maroon-400 hover:text-maroon-600 transition py-1">
+                        Cancel
+                    </button>
+                </div>
+            </div>
         </div>
 
         {{-- delivery-area toggle --}}

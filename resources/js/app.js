@@ -3451,6 +3451,57 @@ window.announcementFlip = function (messages) {
     };
 };
 
+// "Accepting Orders" paused banner (partials/navbar.blade.php) — shown instead of the flip bar
+// above whenever an admin has paused orders. Templates carry {time}/{date} tokens the same way
+// announcementFlip's {time} does above, so the sentence stays localizable (see lang/hi.json)
+// while the actual formatted values are computed here. `now` ticks every 30s purely to force
+// Alpine to re-run resumeLabel()/countdownLabel() as time passes — Alpine has no other way to
+// know a plain Date-based getter's answer just went stale with no state of its own changing.
+window.acceptingOrdersBanner = function (todayTemplate, tomorrowTemplate, dateTemplate, anyMomentText) {
+    return {
+        now: Date.now(),
+        timer: null,
+        init() {
+            this.timer = setInterval(() => { this.now = Date.now(); }, 30000);
+        },
+        destroy() {
+            clearInterval(this.timer);
+        },
+        resumeDate() {
+            const iso = Alpine.store('shop').resumeAcceptingOrdersAt;
+            return iso ? new Date(iso) : null;
+        },
+        resumeLabel() {
+            const d = this.resumeDate();
+            if (!d) return '';
+            if (d.getTime() - this.now <= 0) return anyMomentText;
+
+            const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+            const now = new Date(this.now);
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            if (d.toDateString() === now.toDateString()) return todayTemplate.replace('{time}', time);
+            if (d.toDateString() === tomorrow.toDateString()) return tomorrowTemplate.replace('{time}', time);
+            return dateTemplate
+                .replace('{date}', d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }))
+                .replace('{time}', time);
+        },
+        // "in 2h 15m" / "in 45m" / '' once due (resumeLabel() already says "any moment" by then,
+        // a second countdown saying the same thing again would just be noise)
+        countdownLabel() {
+            const d = this.resumeDate();
+            if (!d) return '';
+            const diffMs = d.getTime() - this.now;
+            if (diffMs <= 0) return '';
+            const totalMinutes = Math.ceil(diffMs / 60000);
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = totalMinutes % 60;
+            return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+        },
+    };
+};
+
 // single source of truth for the logged-in customer's display name, so editing it on the account
 // page (accountPage().saveName()) updates the navbar dropdown too, without a page reload
 Alpine.store('user', {
@@ -3459,6 +3510,9 @@ Alpine.store('user', {
 
 Alpine.store('shop', {
     accepting: (window.__mbShopStatus || {}).accepting !== false,
+    // ISO string or null — set only while paused with a scheduled reopen time (see
+    // ShopSetting::stopAcceptingOrders()); drives the countdown banner in partials/navbar.blade.php
+    resumeAcceptingOrdersAt: (window.__mbShopStatus || {}).resumeAcceptingOrdersAt || null,
     restricted: (window.__mbShopStatus || {}).restricted === true,
     radiusKm: (window.__mbShopStatus || {}).radiusKm || 7,
     toast: null,
@@ -3576,6 +3630,7 @@ function pollShopStatus() {
                     ? '✅ Good news — we are accepting online orders again!'
                     : "⚠️ We've paused new online orders for now.");
             }
+            store.resumeAcceptingOrdersAt = data.resume_accepting_orders_at || null;
             if (data.restrict_delivery_area !== store.restricted) {
                 store.restricted = data.restrict_delivery_area;
                 showShopToast(store, data.restrict_delivery_area
