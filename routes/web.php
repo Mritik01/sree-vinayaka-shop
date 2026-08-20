@@ -57,6 +57,7 @@ use App\Models\Product;
 use App\Models\ShopSetting;
 use App\Services\ActivityLogger;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -109,21 +110,52 @@ Route::get('/search-suggest', function (Illuminate\Http\Request $request) {
 
     $like = '%'.str_replace(['%', '_'], ['\%', '\_'], mb_strtolower($q)).'%';
 
-    $products = Product::where(function ($query) use ($like) {
+    $matches = Product::where(function ($query) use ($like) {
             $query->whereRaw('LOWER(name) LIKE ?', [$like])
                 ->orWhereRaw('LOWER(search_tags_flat) LIKE ?', [$like])
                 ->orWhereRaw('LOWER(category) LIKE ?', [$like]);
         })
         ->orderBy('sort_order')
         ->limit(8)
-        ->get()
-        ->map(fn ($p) => [
-            'name' => $p->name,
-            'image' => asset($p->image),
-            'weight' => $p->isLoose() ? Product::portionLabel($p->defaultPortion()) : $p->weight,
-            'price' => $p->priceForPortion($p->defaultPortion()),
-            'url' => route('products.show', $p),
-        ]);
+        ->get();
+
+    // typo-tolerant fallback: exact substring match found nothing, so try again by spelling
+    // distance instead — catches "mithei"/"mithai", "channa"/"chana", etc. Only runs on a miss
+    // (zero cost/risk to the normal path above) and only over a small candidate set, since this
+    // shop's catalog is realistically dozens-to-low-hundreds of products, not thousands.
+    if ($matches->isEmpty()) {
+        $needle = mb_strtolower($q);
+        // roughly one typo allowed per 4 characters, minimum 1 — short queries like "ghe" still
+        // get some tolerance without matching almost anything
+        $maxDistance = max(1, (int) floor(mb_strlen($needle) / 4));
+
+        $matches = Product::query()
+            ->get(['id', 'name', 'search_tags_flat', 'category', 'sort_order', 'image', 'type', 'unit', 'portions', 'portion_prices', 'price', 'discount_type', 'discount_value', 'weight', 'slug'])
+            ->map(function ($p) use ($needle) {
+                $words = preg_split('/[\s,]+/', mb_strtolower($p->name.' '.$p->search_tags_flat.' '.$p->category), -1, PREG_SPLIT_NO_EMPTY);
+                $best = null;
+                foreach ($words as $word) {
+                    $distance = levenshtein($needle, $word);
+                    if ($best === null || $distance < $best) {
+                        $best = $distance;
+                    }
+                }
+
+                return ['product' => $p, 'distance' => $best ?? PHP_INT_MAX];
+            })
+            ->filter(fn ($row) => $row['distance'] <= $maxDistance)
+            ->sortBy(fn ($row) => [$row['distance'], $row['product']->sort_order])
+            ->take(8)
+            ->pluck('product');
+    }
+
+    $products = $matches->map(fn ($p) => [
+        'name' => $p->name,
+        'image' => asset($p->image),
+        'weight' => $p->isLoose() ? Product::portionLabel($p->defaultPortion()) : $p->weight,
+        'price' => $p->priceForPortion($p->defaultPortion()),
+        'url' => route('products.show', $p),
+    ]);
 
     return response()->json(['products' => $products]);
 })->middleware('throttle:60,1')->name('search.suggest');
@@ -154,39 +186,53 @@ Route::get('/', function () {
     // same reasoning the tile itself uses to decide its own row-span.
     $homepageGridLimit = 30;
 
+    // homepage content below changes only when an admin edits a category/product/banner, not
+    // every request — cached for 10 minutes each (was a fresh, uncached query set on every
+    // single homepage load). favoritedIds is deliberately NOT cached, it's per-user and must
+    // stay live. A new/toggled item can take up to 10 minutes to appear; if that ever proves
+    // too slow for something time-sensitive (e.g. hero banners), invalidate that one cache key
+    // from its admin controller instead of shortening every TTL.
+
     // powers the homepage's category-tabbed shop section (partials/category-shop.blade.php):
     // one tab per active category that actually has products. Only the tab strip (icon + name)
     // renders here — each tab's product grid is fetched on first click via the '/category-shop/
     // {category}' route below instead of every category's full grid shipping on every homepage
     // load (was up to 30 products × every active category, all sitting in the DOM behind
     // x-show — see categoryShop()'s loadTab() in app.js).
-    $categoryTabs = Category::where('is_active', true)->orderBy('sort_order')
+    $categoryTabs = Cache::remember('home.category_tabs', now()->addMinutes(10), fn () => Category::where('is_active', true)->orderBy('sort_order')
         ->withCount('products')
         ->get()
         ->filter(fn ($category) => $category->products_count > 0)
         ->map(fn ($category) => ['category' => $category])
-        ->values();
+        ->values());
 
     // admin-curated Featured Categories shortcut row — dropped automatically if none of a
     // category's mapped tags have any products yet, same "never render a dead-end tile"
     // discipline as $categoryTabs above
-    $featuredCategories = FeaturedCategory::where('is_active', true)
+    $featuredCategories = Cache::remember('home.featured_categories', now()->addMinutes(10), fn () => FeaturedCategory::where('is_active', true)
         ->orderBy('sort_order')
         ->with(['tags' => fn ($q) => $q->withCount('products')])
         ->get()
         ->filter(fn ($fc) => $fc->tags->sum('products_count') > 0)
-        ->values();
+        ->values());
 
-    $topPicksQuery = Product::where('is_bestseller', true)
-        ->withAvg('reviews', 'rating')->withCount('reviews')
-        ->orderBy('sort_order');
-    $topPicksTotal = (clone $topPicksQuery)->count();
+    [$topPicks, $topPicksTotal] = Cache::remember('home.top_picks', now()->addMinutes(10), function () use ($homepageGridLimit) {
+        $topPicksQuery = Product::where('is_bestseller', true)
+            ->withAvg('reviews', 'rating')->withCount('reviews')
+            ->orderBy('sort_order');
+
+        return [$topPicksQuery->limit($homepageGridLimit)->get(), (clone $topPicksQuery)->count()];
+    });
+
+    $festivalProducts = Cache::remember('home.festival_products', now()->addMinutes(10), fn () => Product::where('is_festival_special', true)->orderBy('sort_order')->get());
+
+    $heroBanners = Cache::remember('home.hero_banners', now()->addMinutes(10), fn () => HeroBanner::active()->get());
 
     return view('home', [
-        'products' => $topPicksQuery->limit($homepageGridLimit)->get(),
+        'products' => $topPicks,
         'topPicksTotal' => $topPicksTotal,
-        'festivalProducts' => Product::where('is_festival_special', true)->orderBy('sort_order')->get(),
-        'heroBanners' => HeroBanner::active()->get(),
+        'festivalProducts' => $festivalProducts,
+        'heroBanners' => $heroBanners,
         'categoryTabs' => $categoryTabs,
         'featuredCategories' => $featuredCategories,
         // powers the heart-toggle on partials/product-card-mini.blade.php within categoryShop()
@@ -392,6 +438,8 @@ Route::get('/product/{product:slug}', function (Product $product) {
     return view('product-show', [
         'product' => $product,
         'related' => $related->take(10),
+        'frequentlyBoughtWith' => $product->frequentlyBoughtWith(),
+        'recentOrderCount' => $product->recentOrderCount(),
         'isFavorited' => in_array($product->id, $favoritedIds),
         'favoritedIds' => $favoritedIds,
         'reviews' => $reviews,

@@ -291,6 +291,58 @@ class Product extends Model
         ], $options);
     }
 
+    // real co-purchase data, not a same-category guess — other products that showed up in the
+    // same order as this one, most-common first. Bounded to the last 6 months (order_items has
+    // no direct order-date column, but its own created_at is set once at checkout and never
+    // touched again except by removal, so it's a reliable proxy) so this stays fast and reflects
+    // recent buying patterns rather than the entire order history as the shop grows. Excludes
+    // removed line items and out-of-stock products — no point suggesting something unbuyable.
+    public function frequentlyBoughtWith(int $limit = 4)
+    {
+        $orderIds = OrderItem::where('product_id', $this->id)
+            ->whereNull('removed_at')
+            ->where('created_at', '>=', now()->subMonths(6))
+            ->limit(1000)
+            ->pluck('order_id');
+
+        if ($orderIds->isEmpty()) {
+            return collect();
+        }
+
+        // over-fetch product ids since some may since have gone out of stock — filtered below
+        $counts = OrderItem::whereIn('order_id', $orderIds)
+            ->whereNull('removed_at')
+            ->whereNotNull('product_id')
+            ->where('product_id', '!=', $this->id)
+            ->selectRaw('product_id, COUNT(DISTINCT order_id) as co_purchase_count')
+            ->groupBy('product_id')
+            ->orderByDesc('co_purchase_count')
+            ->limit($limit * 3)
+            ->pluck('co_purchase_count', 'product_id');
+
+        if ($counts->isEmpty()) {
+            return collect();
+        }
+
+        return self::whereIn('id', $counts->keys())
+            ->where('is_out_of_stock', false)
+            ->get()
+            ->sortByDesc(fn (self $p) => $counts[$p->id])
+            ->take($limit)
+            ->values();
+    }
+
+    // how many distinct orders included this product in the last $days — real social proof
+    // ("23 people ordered this this week") instead of a manual/fake-feeling badge
+    public function recentOrderCount(int $days = 7): int
+    {
+        return (int) OrderItem::where('product_id', $this->id)
+            ->whereNull('removed_at')
+            ->where('created_at', '>=', now()->subDays($days))
+            ->distinct()
+            ->count('order_id');
+    }
+
     // shared shape for cart/checkout/drawer payloads — consolidates what used to be
     // copy-pasted per-item array literals across CartController, CheckoutController
     // and multiple Blade files

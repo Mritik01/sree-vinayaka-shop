@@ -31,6 +31,7 @@
     "Browse Store": "स्टोर देखें",
     "COD blocked for next :count orders": "अगले :count ऑर्डर के लिए COD बंद",
     "Call the shop": "दुकान को कॉल करें",
+    "Camera access is blocked for this site. Tap the 🔒 or ⓘ icon next to your address bar (or your phone's app settings) → Site settings → Camera → Allow, then reload this page. Or choose a photo from your gallery below.": "इस साइट के लिए कैमरा एक्सेस रोका गया है। अपने एड्रेस बार के पास 🔒 या ⓘ आइकन पर टैप करें (या अपने फ़ोन की ऐप सेटिंग्स में जाएं) → साइट सेटिंग्स → कैमरा → अनुमति दें, फिर इस पेज को रीलोड करें। या नीचे अपनी गैलरी से फोटो चुनें।",
     "Cancel": "रद्द करें",
     "Cancel Order": "ऑर्डर रद्द करें",
     "Cancel order": "ऑर्डर रद्द करें",
@@ -55,7 +56,7 @@
     "Confirmed": "पक्का हुआ",
     "Contact": "संपर्क करें",
     "Cookies": "कुकीज़",
-    "Couldn't access the camera (permission denied or unavailable). Use the button below to choose a photo instead.": "कैमरा इस्तेमाल नहीं हो सका (अनुमति नहीं मिली या उपलब्ध नहीं)। नीचे दिए बटन से फोटो चुनें।",
+    "Couldn't access the camera — it may be in use by another app, or this device has no camera. Choose a photo from your gallery instead.": "कैमरा इस्तेमाल नहीं हो सका — शायद किसी और ऐप में इस्तेमाल हो रहा है, या इस डिवाइस में कैमरा नहीं है। इसके बजाय गैलरी से फोटो चुनें।",
     "Couldn't upload the photo — check your connection and try again.": "फोटो अपलोड नहीं हो सकी — अपना इंटरनेट कनेक्शन जांचें और फिर कोशिश करें।",
     "Coupon": "कूपन",
     "Coupon code": "कूपन कोड",
@@ -66,6 +67,7 @@
     "Customer": "ग्राहक",
     "Customer Note": "ग्राहक का संदेश",
     "Customers": "ग्राहक",
+    "Customers who bought :name usually add these too.": "जिन ग्राहकों ने :name खरीदा, वे अक्सर ये भी लेते हैं।",
     "Dashboard": "डैशबोर्ड",
     "Date": "तारीख़",
     "Decide later": "बाद में तय करें",
@@ -98,6 +100,7 @@
     "Free Gift Applied": "मुफ़्त तोहफ़ा जोड़ा गया",
     "Free Gift Order!": "मुफ़्त तोहफ़े का ऑर्डर!",
     "Free Gift Unlocked!": "मुफ़्त तोहफ़ा खुल गया!",
+    "Frequently Bought Together": "अक्सर साथ खरीदे जाने वाले",
     "Fresh & Preservative-Free": "ताज़ा और प्रिज़र्वेटिव-मुक्त",
     "Fresh Every Morning": "हर सुबह ताज़ा",
     "Fresh at Dawn": "सुबह-सुबह ताज़ी",
@@ -368,6 +371,7 @@
     "Delivery Time": "डिलीवरी टाइम",
     "Deliver to": "डिलीवरी यहाँ",
     "Choose delivery address": "डिलीवरी का पता चुनें",
+    "Choose from Gallery": "गैलरी से चुनें",
     "Add or manage addresses": "पता जोड़ें या बदलें",
     "Add your address": "अपना पता जोड़ें",
     "Siswa Bazar & nearby": "सिसवा बाज़ार और आस-पास",
@@ -660,5 +664,6 @@
     "Pay when it arrives": "पहुंचने पर भुगतान करें",
     "Instant & secure": "तुरंत और सुरक्षित",
     "Transaction ID": "लेन-देन आईडी",
-    "Transaction Reference ID": "लेन-देन संदर्भ आईडी"
+    "Transaction Reference ID": "लेन-देन संदर्भ आईडी",
+    ":count people ordered this in the last week": ":count लोगों ने इसे पिछले हफ़्ते ऑर्डर किया"
 }

@@ -106,6 +106,15 @@
                     <span class="text-sm text-maroon-600 flex items-center gap-1.5">❤️ {{ __("Siswa Bazar's Favourite") }}</span>
                 </div>
 
+                {{-- real order data, not a canned line — see Product::recentOrderCount(). Hidden
+                     entirely below a small threshold so a new/rarely-ordered product doesn't read
+                     as "1 person ordered this," which undersells rather than builds trust --}}
+                @if ($recentOrderCount >= 3)
+                    <p class="animate-rise-in text-sm font-medium text-maroon-700 flex items-center gap-1.5 mt-2.5" style="animation-delay: .22s">
+                        🔥 {{ __(':count people ordered this in the last week', ['count' => $recentOrderCount]) }}
+                    </p>
+                @endif
+
                 @if ($product->description)
                     <p class="animate-rise-in text-maroon-600/90 leading-relaxed mt-5" style="animation-delay: .25s">
                         {{ $product->description }}
@@ -216,6 +225,26 @@
             </div>
         </div>
     </section>
+
+    {{-- real co-purchase data (see Product::frequentlyBoughtWith()), not a same-category guess —
+         shown ahead of "You Might Also Like" since it's a stronger, behaviour-backed signal --}}
+    @if ($frequentlyBoughtWith->isNotEmpty())
+        <section class="relative bg-white py-16 overflow-hidden border-b border-gold-100">
+            <div class="max-w-[1600px] mx-auto px-4 sm:px-6">
+                <h2 class="section-heading">{{ __('Frequently Bought Together') }}</h2>
+                <p class="text-center text-maroon-500 mt-3 mb-10">{{ __('Customers who bought :name usually add these too.', ['name' => $product->name]) }}</p>
+
+                <div x-data="favoritesList({{ Auth::check() ? 'true' : 'false' }}, @json($favoritedIds))"
+                     class="flex flex-wrap justify-center gap-4 sm:gap-6">
+                    @foreach ($frequentlyBoughtWith as $index => $item)
+                        <div class="w-40 sm:w-48 lg:w-56 shrink-0 animate-rise-in" style="animation-delay: {{ 0.1 * $index }}s">
+                            @include('partials.product-card-mini', ['product' => $item, 'fixedWidth' => false])
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+    @endif
 
     @if ($related->isNotEmpty())
         <section class="relative bg-ivory py-16 overflow-hidden">
