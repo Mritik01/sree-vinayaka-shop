@@ -33,6 +33,19 @@ class ActivityLogger
         $sessionId = $request->session()->getId();
 
         try {
+            // server-side backstop against duplicate session_end rows — the Laravel session_id is
+            // shared across every tab of the same browser (unlike the client's sessionStorage
+            // debounce in app.js, which is per-tab), so a visitor with multiple tabs open can
+            // produce several genuinely independent beacons for the same session in quick
+            // succession. This has already needed two client-only fix attempts; enforcing it here
+            // too means duplicates can't get through regardless of the cause.
+            if ($event === 'session_end' && UserActivity::where('session_id', $sessionId)
+                    ->where('event', 'session_end')
+                    ->where('created_at', '>=', now()->subSeconds(60))
+                    ->exists()) {
+                return;
+            }
+
             UserActivity::create([
                 'user_id' => $userId,
                 'session_id' => $sessionId,
@@ -50,11 +63,31 @@ class ActivityLogger
                 'created_at' => now(),
             ]);
 
+            static::trimToCap();
             static::recordVisit($sessionId, $userId, $device, $request, $event);
         } catch (\Throwable $e) {
             // analytics must never break the customer-facing request
             Log::debug('ActivityLogger failed: '.$e->getMessage());
         }
+    }
+
+    // the Activity Stream (admin.analytics.index) is meant to be a lightweight, recent-activity
+    // feed, not a full historical log — the 3-day age-based prune (see PruneAnalyticsData) still
+    // runs daily, but a single noisy burst (e.g. the session_end duplication this cap was added
+    // right after) could otherwise flood the table for hours before that scheduled job catches
+    // it. Enforced on every write instead: keeps the table at ~200 rows at all times, so this
+    // never depends on a schedule catching up.
+    private const MAX_ROWS = 200;
+
+    private static function trimToCap(): void
+    {
+        $excess = UserActivity::count() - self::MAX_ROWS;
+        if ($excess <= 0) {
+            return;
+        }
+
+        $idsToDelete = UserActivity::oldest('created_at')->limit($excess)->pluck('id');
+        UserActivity::whereIn('id', $idsToDelete)->delete();
     }
 
     // one row per session (guest or logged-in), updated in place — this is how "how many people

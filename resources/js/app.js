@@ -3685,17 +3685,9 @@ window.trackEvent = function (event, label) {
     sendTrackingBeacon('/track/click', { event, label });
 };
 
-// fires once per "leaving" moment — visibilitychange and pagehide are both wired as a pair
-// (pagehide alone is unreliable on some mobile browsers, visibilitychange alone can miss a hard
-// close on others). The guard below is sessionStorage-backed, not a plain in-memory flag — a
-// plain JS variable resets on every reload, so it can't stop a duplicate that straddles a reload
-// (the old page's own pagehide/visibilitychange firing right as the new page loads and does the
-// same thing again a moment later, which is exactly what a simple page refresh produces).
-// sessionStorage survives that reload within the same tab, so a time window is enough to treat
-// "old page unloading" and "new page's first hidden event" as the one moment they are, while
-// still letting a later, genuinely separate leave log its own event. 15s (not a couple seconds)
-// because in practice the gap between visibilitychange and pagehide firing for the same
-// navigation varied more than expected — a shorter window still let real-world duplicates through.
+// sessionStorage-backed (not a plain in-memory flag — that resets on reload and can't stop a
+// duplicate that straddles one, e.g. the old page's own pagehide firing right as the new page
+// loads). 15s catches near-simultaneous duplicates from the same "leaving" moment.
 function trackSessionEnd() {
     const key = 'mb_session_end_at';
     const last = Number(sessionStorage.getItem(key) || 0);
@@ -3703,10 +3695,34 @@ function trackSessionEnd() {
     sessionStorage.setItem(key, String(Date.now()));
     sendTrackingBeacon('/track/session-end', { path: location.pathname });
 }
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') trackSessionEnd();
-});
+
+// pagehide fires immediately — an unambiguous "this page is actually being left" signal
+// (navigating away, closing the tab), so it always logs right away.
 window.addEventListener('pagehide', trackSessionEnd);
+
+// visibilitychange -> 'hidden' is a much weaker signal: it also fires every time a mobile user
+// merely backgrounds the tab for a moment (checking a notification, switching to WhatsApp, the
+// screen locking) and comes right back a few seconds later — none of that is "ending a session,"
+// it's normal browsing, but logging it immediately produced exactly that: several "Session End"
+// rows minutes apart for one continuous visit to the same page. Instead, only note WHEN it went
+// hidden; only actually log a session-end once we see it come back and the gap turns out to have
+// been long enough that it wasn't just a glance away. A tab that never comes back (genuinely
+// closed while backgrounded) is still caught by pagehide above in most cases — and on mobile, an
+// OS that fully suspends/kills a backgrounded tab without ever running its JS again is a known,
+// unavoidable platform limit, not something fixable from here; under-logging in that rare case is
+// an acceptable tradeoff for not flooding Analytics with false session-ends on every app switch.
+const REAL_LEAVE_THRESHOLD_MS = 60000;
+let hiddenAt = null;
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+    }
+    if (hiddenAt === null) return;
+    const wasHiddenFor = Date.now() - hiddenAt;
+    hiddenAt = null;
+    if (wasHiddenFor >= REAL_LEAVE_THRESHOLD_MS) trackSessionEnd();
+});
 
 window.Alpine = Alpine;
 Alpine.start();
