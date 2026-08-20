@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 
 class ShopSetting extends Model
 {
@@ -82,20 +83,29 @@ class ShopSetting extends Model
         'aisensy_notify_abandoned_cart' => 'boolean',
     ];
 
-    // request-level memoization only — this singleton row is read repeatedly per request (once
-    // in AppServiceProvider's shared view data, then again from controllers/Blade partials that
-    // each call current() independently), and was previously a fresh SELECT every single time.
-    // Safe: within one request, ->update() mutates this SAME cached instance in place (PHP
-    // objects are held by reference), so a later current() call in the same request still sees
-    // the fresh value, not stale data — only the redundant duplicate queries are eliminated.
-    // Static properties reset naturally between requests under the traditional PHP-FPM/CLI
-    // lifecycle this app runs under; this would need revisiting if the app ever moves to a
-    // persistent-worker runtime like Octane, where statics can leak across requests.
+    // two layers: a request-level static (unchanged from before — within one request, ->update()
+    // mutates this same in-memory instance, so a later current() call in the same request still
+    // sees the fresh value) plus a cross-request file cache, since this singleton row was
+    // otherwise re-queried from scratch on every single request app-wide (called from
+    // AppServiceProvider's shared view data on every page, plus the 5s /shop-status poll).
+    // Invalidated by the saved/deleted hooks below the instant an admin changes anything — the
+    // 6h TTL is just a safety net, not the real invalidation path. Static properties reset
+    // naturally between requests under the traditional PHP-FPM/CLI lifecycle this app runs
+    // under; this would need revisiting if the app ever moves to a persistent-worker runtime
+    // like Octane, where statics can leak across requests.
+    private const CACHE_KEY = 'shop_setting.current';
+
     private static ?self $cached = null;
 
     public static function current(): self
     {
-        return static::$cached ??= static::firstOrCreate([]);
+        return static::$cached ??= Cache::remember(self::CACHE_KEY, now()->addHours(6), fn () => static::firstOrCreate([]));
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(fn () => Cache::forget(self::CACHE_KEY));
+        static::deleted(fn () => Cache::forget(self::CACHE_KEY));
     }
 
     public static function acceptingOrders(): bool

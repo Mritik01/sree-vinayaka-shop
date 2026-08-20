@@ -24,13 +24,20 @@ class TrackPageView
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $response = $next($request);
+        return $next($request);
+    }
 
+    // deferred to run AFTER the response is already on its way to the client (PHP-FPM/LiteSpeed
+    // flush the response on Response::send(), before terminate() middleware runs) — this used to
+    // run inline in handle() before returning the response, which meant every session-less
+    // visitor's page load blocked on ActivityLogger::log() -> IpGeolocationService's synchronous
+    // ip-api.com HTTP call (up to a 3s timeout) before they saw anything. Nothing here reads
+    // $response, so moving it costs nothing.
+    public function terminate(Request $request, Response $response): void
+    {
         if ($this->shouldTrack($request)) {
             ActivityLogger::log('page_view', $this->labelFor($request));
         }
-
-        return $response;
     }
 
     private function shouldTrack(Request $request): bool
