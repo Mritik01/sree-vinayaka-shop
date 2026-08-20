@@ -154,7 +154,12 @@
         <canvas id="cameraCanvas" class="hidden"></canvas>
         <img id="capturedPreview" class="hidden flex-1 min-h-0 w-full object-cover">
 
-        <div id="cameraError" class="hidden flex-1 flex items-center justify-center text-cream text-center px-6 text-sm"></div>
+        <div id="cameraError" class="hidden flex-1 flex flex-col items-center justify-center text-cream text-center px-6 gap-4">
+            <p id="cameraErrorText" class="text-sm"></p>
+            <button type="button" id="chooseGalleryBtn" class="bg-gold-500 hover:bg-gold-600 text-maroon-900 font-semibold rounded-xl px-5 py-3 text-sm">
+                📁 {{ __('Choose from Gallery') }}
+            </button>
+        </div>
 
         <div class="shrink-0 bg-black/90 px-5 py-5 flex items-center justify-center gap-4">
             <button type="button" id="cancelCameraBtn" class="text-cream/70 hover:text-cream text-sm font-medium px-4 py-3">{{ __('Cancel') }}</button>
@@ -167,7 +172,8 @@
     <script>
         (function () {
             const i18n = {
-                cameraError: @json(__("Couldn't access the camera (permission denied or unavailable). Use the button below to choose a photo instead.")),
+                cameraDenied: @json(__('Camera access is blocked for this site. Tap the 🔒 or ⓘ icon next to your address bar (or your phone\'s app settings) → Site settings → Camera → Allow, then reload this page. Or choose a photo from your gallery below.')),
+                cameraUnavailable: @json(__("Couldn't access the camera — it may be in use by another app, or this device has no camera. Choose a photo from your gallery instead.")),
                 uploading: @json(__('Uploading…')),
                 usePhoto: @json('✓ ' . __('Use Photo')),
                 uploadFailed: @json(__("Couldn't upload the photo — check your connection and try again.")),
@@ -178,6 +184,8 @@
             const canvas = document.getElementById('cameraCanvas');
             const preview = document.getElementById('capturedPreview');
             const errorBox = document.getElementById('cameraError');
+            const errorText = document.getElementById('cameraErrorText');
+            const chooseGalleryBtn = document.getElementById('chooseGalleryBtn');
             const captureBtn = document.getElementById('captureBtn');
             const retakeBtn = document.getElementById('retakeBtn');
             const usePhotoBtn = document.getElementById('usePhotoBtn');
@@ -206,6 +214,21 @@
                 capturedBlob = null;
             }
 
+            // some Android WebViews/devices reject facingMode as a hard constraint
+            // (OverconstrainedError) even though the camera itself is fine — retry with a bare
+            // video request before treating it as a real failure, since a chunk of "camera won't
+            // open" reports turned out to be this rather than an actual permission problem
+            async function requestCameraStream() {
+                try {
+                    return await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                } catch (e) {
+                    if (e.name === 'OverconstrainedError' || e.name === 'ConstraintNotSatisfiedError') {
+                        return navigator.mediaDevices.getUserMedia({ video: true });
+                    }
+                    throw e;
+                }
+            }
+
             async function openCamera() {
                 modal.classList.remove('hidden');
                 resetModal();
@@ -218,12 +241,19 @@
                 }
 
                 try {
-                    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    stream = await requestCameraStream();
                     video.srcObject = stream;
                 } catch (e) {
+                    // getUserMedia() itself IS "asking for permission" — the browser shows its
+                    // native prompt automatically the first time. Once a rider has actually
+                    // denied it, no website can re-trigger that prompt (browser security, not
+                    // something we can work around) — so a denied/blocked state gets clear
+                    // instructions instead, and everyone always gets a working way forward via
+                    // the gallery picker regardless of why the camera failed
                     video.classList.add('hidden');
                     captureBtn.classList.add('hidden');
-                    errorBox.textContent = i18n.cameraError;
+                    const denied = ['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(e.name);
+                    errorText.textContent = denied ? i18n.cameraDenied : i18n.cameraUnavailable;
                     errorBox.classList.remove('hidden');
                 }
             }
@@ -278,6 +308,10 @@
             captureBtn.addEventListener('click', capturePhoto);
             retakeBtn.addEventListener('click', resetModal);
             usePhotoBtn.addEventListener('click', uploadPhoto);
+            chooseGalleryBtn.addEventListener('click', () => {
+                closeCamera();
+                fallbackInput.click();
+            });
             fallbackInput.addEventListener('change', () => fallbackForm.submit());
         })();
     </script>
