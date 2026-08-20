@@ -25,7 +25,7 @@
         ];
     @endphp
 
-    <a href="{{ route('admin.customers.index') }}" class="text-sm text-maroon-500 hover:text-maroon-700 transition">← Back to Customers</a>
+    <a href="{{ $backUrl }}" class="text-sm text-maroon-500 hover:text-maroon-700 transition">← Back to Customers</a>
 
     <div class="grid lg:grid-cols-[1fr_320px] gap-6 items-start mt-4">
         <div class="space-y-5" x-data="{ tab: 'overview' }">

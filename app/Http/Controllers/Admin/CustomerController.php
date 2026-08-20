@@ -34,6 +34,12 @@ class CustomerController extends Controller
         $customers = User::query()
             ->withCount(['orders as total_orders' => fn ($q) => $q->where('status', '!=', 'cancelled')])
             ->withSum(['orders as total_spent' => fn ($q) => $q->where('status', '!=', 'cancelled')], 'total')
+            // cart_items has a unique(user_id, product_id) constraint (see its migration), so one
+            // pivot row is always exactly one distinct product — counting rows here is already the
+            // same "distinct products, not summed quantity" rule used on the customer detail page
+            // (see $cartItemCount in show() below), just computed for every row in one query
+            // instead of N+1 across the whole grid
+            ->withCount('cart as cart_item_count')
             ->with('latestOrder')
             ->get()
             ->each(fn ($user) => $user->total_spent = (int) ($user->total_spent ?? 0));
@@ -107,13 +113,23 @@ class CustomerController extends Controller
             'totalRevenue' => $totalRevenue,
             'blockedCount' => $blockedCount,
             'newThisWeek' => User::where('created_at', '>=', now()->startOfWeek(Carbon::MONDAY))->count(),
+            // carried on every row's link to the customer detail page, then echoed back as the
+            // "← Back to Customers" href there — round-tripping page/search/sort/status/per_page
+            // through one opaque param instead of reconstructing them individually
+            'backQuery' => $request->getQueryString(),
         ];
 
         return $request->ajax() ? view('admin.customers._results', $data) : view('admin.customers.index', $data);
     }
 
-    public function show(User $user)
+    public function show(Request $request, User $user)
     {
+        // ?back carries the exact query string (page/search/sort/status/per_page) the admin was
+        // viewing on the Customers grid when they clicked into this customer — see index()'s
+        // backQuery and the row link in admin.customers._results. Falls back to a plain, unfiltered
+        // index() link when absent (e.g. reached from Analytics' activity stream instead of the grid)
+        $backUrl = route('admin.customers.index').($request->query('back') ? '?'.$request->query('back') : '');
+
         $user->loadCount(['orders as total_orders' => fn ($q) => $q->where('status', '!=', 'cancelled')]);
         $user->loadSum(['orders as total_spent' => fn ($q) => $q->where('status', '!=', 'cancelled')], 'total');
         $user->total_spent = (int) ($user->total_spent ?? 0);
@@ -166,6 +182,7 @@ class CustomerController extends Controller
 
         return view('admin.customers.show', array_merge([
             'customer' => $user,
+            'backUrl' => $backUrl,
             'orders' => $orders,
             'addresses' => $addresses,
             'monthlyLabels' => $monthly->keys()->values(),

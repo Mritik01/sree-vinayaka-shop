@@ -9,6 +9,7 @@
                 <th class="px-5 py-2.5 font-medium">Customer</th>
                 <th class="px-5 py-2.5 font-medium">Phone</th>
                 <th class="px-5 py-2.5 font-medium">Orders</th>
+                <th class="px-5 py-2.5 font-medium">Cart Items</th>
                 <th class="px-5 py-2.5 font-medium">Total Spent</th>
                 <th class="px-5 py-2.5 font-medium">Last Address</th>
                 <th class="px-5 py-2.5 font-medium">Customer Since</th>
@@ -19,7 +20,7 @@
             @foreach ($customers as $i => $customer)
                 <tr class="border-b border-gold-50 last:border-0 hover:bg-cream/50 transition cursor-pointer animate-fade-up"
                     style="animation-delay: {{ min($i, 12) * 40 }}ms"
-                    onclick="window.location='{{ route('admin.customers.show', $customer) }}'">
+                    onclick="window.location='{{ route('admin.customers.show', $customer) }}{{ $backQuery ? '?back='.urlencode($backQuery) : '' }}'">
                     <td class="px-5 py-3">
                         <div class="flex items-center gap-3">
                             <div class="w-9 h-9 shrink-0 rounded-full bg-maroon-700 text-cream flex items-center justify-center font-display font-bold text-sm">
@@ -43,6 +44,7 @@
                     </td>
                     <td class="px-5 py-3 text-maroon-600">{{ $customer->phone }}</td>
                     <td class="px-5 py-3 text-maroon-500">{{ $customer->total_orders }}</td>
+                    <td class="px-5 py-3 text-maroon-500">{{ $customer->cart_item_count }}</td>
                     <td class="px-5 py-3 text-maroon-800 font-medium">₹{{ number_format($customer->total_spent) }}</td>
                     <td class="px-5 py-3 text-maroon-500 max-w-[220px] truncate" title="{{ $customer->latestOrder->delivery_address ?? '' }}">
                         {{ $customer->latestOrder->delivery_address ?? '—' }}
